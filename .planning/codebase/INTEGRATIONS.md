@@ -1,94 +1,73 @@
 # External Integrations
 
-**Analysis Date:** 2026-06-26
+**Analysis Date:** 2026-06-27
 
-## CLI Interface
+## APIs & External Services
 
-**Command:** `svg2pptel`
+**No external API integrations detected.**
 
-**Invocation:**
-```bash
-svg2pptel <input> [options]
-```
+This is a self-contained SVG to JSON converter that operates entirely on local files.
 
-**Arguments:**
-- `<input>` - SVG file path or directory path
+## Data Storage
 
-**Options:**
-| Flag | Description |
-|------|-------------|
-| `-o, --output <path>` | Output file path (stdout if not specified) |
-| `--ast` | Output AST JSON instead of PPTElement JSON |
-| `-r, --recursive` | Recursively process directories |
+**Databases:**
+- None
 
-**Examples:**
-```bash
-svg2pptel input.svg                    # stdout output
-svg2pptel input.svg -o output.json     # file output
-svg2pptel dir --recursive              # batch process
-svg2pptel input.svg --ast              # AST mode
-```
+**File Storage:**
+- Local filesystem only
+- Input: SVG files (read via Node.js `fs` module)
+- Output: JSON files or stdout
 
-**Exit Codes:**
-- `0` - Success (or partial success for batch)
-- `1` - Fatal error (file read error, invalid SVG, etc.)
+**Caching:**
+- None
 
-## API Surface
+## Authentication & Identity
 
-**Module:** `svg-to-pptel` (npm package)
+**Auth Provider:**
+- None (CLI tool, no authentication required)
 
-**Main Export:** `convert(svgContent: string, options?: ConvertOptions): Promise<ConvertResult>`
+## Monitoring & Observability
 
-**Types:**
-```typescript
-interface ConvertOptions {
-  astMode?: boolean;              // Output AST instead of PPTElement
-  targetCanvas?: [number, number]; // Target canvas size [width, height]
-}
+**Error Tracking:**
+- None
 
-interface ConvertResult {
-  success: boolean;
-  output?: string;       // JSON string of AST or PPTElement
-  error?: string;
-  elementCount?: number; // Count of PPTElement items
-}
-```
+**Logs:**
+- Terminal output via `picocolors` for colored CLI feedback
+- No structured logging framework
 
-**Re-exports:**
-- `parseSvg` from `./parser/svg-parser`
-- `transformToPPTElement` from `./transformer/transform-to-pptel`
-- `PPTElement` type from `./slides`
+## CI/CD & Deployment
 
-## Entry Points
+**Hosting:**
+- None detected (no .github/workflows, no Dockerfile, no deployment configs)
 
-**CLI Entry:**
-- File: `src/cli.ts`
-- Bin: `svg2pptel` → `./dist/cli.js`
+**CI Pipeline:**
+- None detected
 
-**Library Entry:**
-- File: `src/index.ts`
-- Package main: `dist/index.js`
-- Package types: `dist/index.d.ts`
+## Environment Configuration
 
-**Direct Import:**
-```typescript
-import { convert, parseSvg, transformToPPTElement } from 'svg-to-pptel'
-```
+**Required env vars:**
+- None required - fully local operation
 
-## File Processing
+**Secrets location:**
+- Not applicable
 
-**Single File:**
-1. Read SVG file content
-2. Parse via `convert()` function
-3. Output JSON to stdout or file
+## Webhooks & Callbacks
 
-**Directory Batch:**
-1. Walk directory for `.svg` files (with optional recursion)
-2. Process each file individually
-3. Output each result to stdout
-4. Print summary: `Converted X/Y files`
-5. Exit 0 even on partial failure
+**Incoming:**
+- None
+
+**Outgoing:**
+- None
+
+## Input/Output Formats
+
+**Input:**
+- SVG (Scalable Vector Graphics) XML format
+
+**Output:**
+- PPTElement JSON format (custom schema defined in `src/slides.ts`)
+- Structure: `{ elements: PPTElement[] }`
 
 ---
 
-*Integration audit: 2026-06-26*
+*Integration audit: 2026-06-27*

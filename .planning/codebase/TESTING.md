@@ -1,117 +1,149 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-06-26
+**Analysis Date:** 2026-06-27
 
 ## Test Framework
 
-**Runner:** vitest ^2.0.0
-- Config file: `vitest.config.ts`
-- Globals: enabled (`globals: true`)
-- Environment: node
+**Runner:**
+- Vitest v2.0.0
+- Config: `vitest.config.ts` (root) and `src/vitest.config.ts`
+
+**Assertion Library:**
+- Built-in Vitest assertions (`expect`)
 
 **Run Commands:**
 ```bash
 npm test              # Run all tests (vitest run)
-npm test:watch        # Watch mode (vitest)
+npm run test:watch    # Watch mode (vitest)
 ```
 
 ## Test File Organization
 
-**Location:** `__tests__/**/*.test.ts` (per vitest.config.ts include pattern)
+**Location:**
+- Test files expected in `__tests__/**/*.test.ts` (per vitest config)
+- **Status: No test files exist in the repository**
 
-**Current Status:** No test files exist in the codebase yet. The test infrastructure is configured but unused.
-
-## Coverage
-
-**Provider:** v8
-**Reporters:** text, json, html
-**Include:** `['**/*.ts']`
-**Exclude:** `['**/*.d.ts', 'node_modules/**', 'dist/**']`
-
-**View coverage:**
-```bash
-# Coverage output generated in coverage/ directory after running tests
+**Directory structure:**
 ```
+svg2json/
+├── __tests__/           # Expected but empty/missing
+├── src/
+│   ├── scripts/         # Contains round-trip-test.ts and validate-all.ts
+│   ├── parser/
+│   ├── transformer/
+│   └── ...
+```
+
+## Test Structure
+
+**No unit test files detected** - the `__tests__` directory does not exist
 
 ## Validation Scripts
 
-Instead of unit tests, the project uses validation scripts for quality assurance:
+**Round-trip test** (`src/scripts/round-trip-test.ts`):
+- Validates: SVG -> AST -> JSON -> re-parse -> validate structure
+- Uses type guard `isValidPPTElement()` for validation
+- Processes SVG files from `examples/*/svg_output/` directories
 
-### validate-all.ts
+```typescript
+export function roundTripTest(svgContent: string): { valid: boolean, errors: string[] } {
+  // Parse SVG to AST
+  const ast = parseSvg(svgContent)
+  // Transform to PPTElement array
+  const elements = transformToPPTElement(ast)
+  // Serialize to JSON
+  const json = JSON.stringify({ elements })
+  // Re-parse JSON and validate
+  const parsed = JSON.parse(json)
+  // ...
+}
+```
 
-**Location:** `src/scripts/validate-all.ts`
-**Purpose:** Validates all SVG files in `examples/*/svg_output/` directories
-
-**Process:**
-1. Walks `examples/` directories for `svg_output` folders
-2. Reads all `.svg` files
-3. Runs `convert()` on each
-4. Reports success/failure with element counts
-
-**Output:**
-- Console progress with colored status (OK/FAIL)
-- JSON report with timestamp, total, success, failed counts, success rate, and element statistics
-
-### round-trip-test.ts
-
-**Location:** `src/scripts/round-trip-test.ts`
-**Purpose:** Tests SVG -> AST -> JSON -> validate round-trip
-
-**Process:**
-1. Parse SVG to AST (`parseSvg`)
-2. Transform to PPTElement array (`transformToPPTElement`)
-3. Serialize to JSON
-4. Re-parse JSON
-5. Validate each element with `isValidPPTElement` type guard
-
-**Type Guard Pattern:**
+**Type guard for validation:**
 ```typescript
 export function isValidPPTElement(obj: unknown): obj is PPTElement {
   if (typeof obj !== 'object' || obj === null) return false
   const e = obj as Record<string, unknown>
-  // Check required fields
   if (typeof e.id !== 'string') return false
   if (typeof e.left !== 'number') return false
-  // Check type discriminator
-  const validTypes = ['text', 'image', 'shape', 'line', 'chart', 'table', 'latex', 'video', 'audio']
-  if (!validTypes.includes(e.type as string)) return false
-  // Line type omits height/rotate
-  if (e.type !== 'line') {
-    if (typeof e.height !== 'number') return false
-    if (typeof e.rotate !== 'number') return false
+  // ...
+}
+```
+
+## Coverage
+
+**Provider:** v8
+
+**Configuration:**
+```typescript
+coverage: {
+  provider: 'v8',
+  reporter: ['text', 'json', 'html'],
+  include: ['**/*.ts'],
+  exclude: ['**/*.d.ts', 'node_modules/**', 'dist/**']
+}
+```
+
+**View coverage:**
+```bash
+npm test  # Outputs coverage text summary
+```
+
+**Status:** Coverage report generated but not reviewed (no tests exist)
+
+## Mocking
+
+**No mocking patterns detected** - no test files exist
+
+## Test Types
+
+**Unit Tests:**
+- Not implemented
+
+**Integration Tests:**
+- Round-trip validation script (`round-trip-test.ts`) validates full pipeline
+- Processes real SVG files from `examples/` directory
+
+**E2E Tests:**
+- Not implemented
+
+## Common Patterns
+
+**Async testing:** Not applicable (no test files)
+
+**Error testing:** Not applicable (no test files)
+
+**Fixtures:**
+- Test fixtures expected in `__tests__/` but directory does not exist
+- SVG test files located in `examples/*/svg_output/` for round-trip testing
+
+## Test Configuration
+
+**Vitest config** (`vitest.config.ts`):
+```typescript
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'node',
+    include: ['__tests__/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      include: ['**/*.ts'],
+      exclude: ['**/*.d.ts', 'node_modules/**', 'dist/**']
+    }
   }
-  return true
-}
+})
 ```
 
-## Error Handling in Scripts
-
-**Silent failures with try/catch:**
-```typescript
-try {
-  const content = readFileSync(file, 'utf-8')
-  const result = await convert(content)
-  // handle result
-} catch (err) {
-  failCount++
-  const errorMsg = 'File read error: ' + String(err)
-  // log and continue
+**tsconfig includes test files in compile:**
+```json
+{
+  "include": ["src/types/**/*", "src/parser/**/*", ...],
+  "exclude": ["node_modules", "dist", "__tests__", "src/scripts"]
 }
 ```
-
-**Graceful directory walking:**
-```typescript
-try {
-  const entries = readdirSync(dir)
-} catch {
-  // skip dirs we can't read
-}
-```
-
-## Test Data
-
-SVG test files located in: `examples/*/svg_output/` directories
 
 ---
 
-*Testing analysis: 2026-06-26*
+*Testing analysis: 2026-06-27*

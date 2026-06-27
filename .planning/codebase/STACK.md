@@ -1,83 +1,76 @@
 # Technology Stack
 
-**Analysis Date:** 2026-06-26
+**Analysis Date:** 2026-06-27
 
 ## Languages
 
 **Primary:**
-- TypeScript 5.5 - All source code
+- TypeScript 5.5.0 - All source code
 
-**Output:**
-- JavaScript (ES2022) - Compiled output to `dist/`
+**Secondary:**
+- None
 
 ## Runtime
 
 **Environment:**
-- Node.js (no explicit version constraint)
+- Node.js 18+ (per README.md)
 
 **Package Manager:**
-- npm (package-lock.json not present)
+- npm (lockfile present: `package-lock.json`)
 
-## Build System
+## Frameworks
 
-**Compiler:**
-- TypeScript 5.5 via `tsc` command
-- Config: `tsconfig.json`
+**Core:**
+- None - Pure TypeScript library/CLI
+
+**Testing:**
+- Vitest 2.0.0 - Test runner
+- @vitest/spy - Mocking support
+
+**Build/Dev:**
+- TypeScript 5.5.0 - Compilation to JavaScript
+- esbuild 0.24.0+ - Bundled via Vitest
+
+## Key Dependencies
+
+**Critical:**
+- `fast-xml-parser` 5.9.3 - SVG XML parsing
+- `cac` 6.7.14 - CLI argument parsing
+- `uuid` 14.0.1 - UUID generation for element IDs
+- `picocolors` 1.1.1 - Terminal color output
+
+**Infrastructure:**
+- None - No database or cloud dependencies
+
+## Configuration
+
+**TypeScript Config:**
+- Location: `tsconfig.json`
+- Target: ES2022
+- Module: CommonJS
+- Strict mode: enabled
+- Declaration files: generated
 
 **Build Output:**
-- `dist/` directory (CommonJS modules)
-- Source maps enabled
-- Declaration files generated
+- Location: `dist/`
+- Entry point: `dist/src/cli.js` (CLI binary)
 
-**Build Command:**
-```bash
-npm run build   # tsc
-```
-
-## Dependencies
-
-**Runtime:**
-| Package | Version | Purpose |
-|---------|---------|---------|
-| cac | ^6.7.14 | CLI framework |
-| fast-xml-parser | ^5.9.3 | SVG XML parsing |
-| picocolors | ^1.1.1 | Terminal colors |
-| uuid | ^14.0.1 | Unique ID generation |
-
-**Development:**
-| Package | Version | Purpose |
-|---------|---------|---------|
-| typescript | ^5.5.0 | TypeScript compiler |
-| vitest | ^2.0.0 | Test runner |
-| @types/node | ^22.0.0 | Node.js type definitions |
-| @types/uuid | ^10.0.0 | UUID type definitions |
-
-## Test Framework
-
-- **Vitest** 2.0 with V8 coverage provider
-- Config: `vitest.config.ts`
+**Vitest Config:**
+- Location: `vitest.config.ts`
+- Environment: node
+- Coverage provider: v8
 - Test pattern: `__tests__/**/*.test.ts`
 
-## Project Structure
+## Platform Requirements
 
-```
-src/
-├── cli.ts              # CLI entry point
-├── index.ts            # Main API export
-├── slides.ts           # PPTElement type definitions
-├── coordinate-mapper.ts
-├── parser/
-│   └── svg-parser.ts   # SVG to AST parser
-├── transformer/
-│   └── transform-to-pptel.ts  # AST to PPTElement transformer
-├── shapes/
-│   └── shape-to-path.ts
-├── mapper/
-│   └── coordinate-mapper.ts
-└── types/
-    └── ast.ts          # AST type definitions
-```
+**Development:**
+- Node.js 18+
+- npm
+
+**Production:**
+- Node.js 18+ (runtime only)
+- No platform-specific native modules
 
 ---
 
-*Stack analysis: 2026-06-26*
+*Stack analysis: 2026-06-27*

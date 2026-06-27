@@ -1,7 +1,6 @@
-<!-- refreshed: 2026-06-26 -->
 # Codebase Structure
 
-**Analysis Date:** 2026-06-26
+**Analysis Date:** 2026-06-27
 
 ## Directory Layout
 
@@ -9,208 +8,159 @@
 E:/git/svg2json/
 ├── src/
 │   ├── cli.ts                    # CLI entry point
-│   ├── index.ts                  # Main library export and convert()
-│   ├── slides.ts                # PPTElement union type definitions
+│   ├── index.ts                  # Library API entry point
+│   ├── slides.ts                 # PPTElement type definitions
+│   ├── vitest.config.ts          # Test configuration
+│   ├── coordinate-mapper.ts      # (duplicate, use mapper/)
 │   ├── parser/
-│   │   └── svg-parser.ts         # XML → SvgAST
-│   ├── transformer/
-│   │   └── transform-to-pptel.ts # SvgAST → PPTElement[]
-│   ├── types/
-│   │   └── ast.ts                # SvgAST, SvgElement, CoordinateMapping types
+│   │   └── svg-parser.ts         # XML parsing to AST
 │   ├── mapper/
-│   │   └── coordinate-mapper.ts  # Coordinate extraction with transform support
+│   │   └── coordinate-mapper.ts  # Coordinate transform mapping
 │   ├── shapes/
-│   │   └── shape-to-path.ts      # Shape → SVG path d string
+│   │   └── shape-to-path.ts      # Shape primitive to path conversion
+│   ├── transformer/
+│   │   └── transform-to-pptel.ts # AST to PPTElement transformation
+│   ├── types/
+│   │   └── ast.ts                # SVG AST type definitions
 │   └── scripts/
-│       ├── validate-all.ts       # Validation script
-│       └── round-trip-test.ts     # Round-trip testing
-├── .planning/
-│   └── codebase/                 # GSD planning documents
-├── vitest.config.ts              # Test configuration
+│       ├── round-trip-test.ts    # Development script
+│       └── validate-all.ts       # Development script
+├── dist/                         # Compiled output (generated)
+├── __tests__/                    # Test files (inferred from vitest config)
+├── .planning/                    # Planning documents
+├── package.json                  # Project manifest
 ├── tsconfig.json                 # TypeScript configuration
-└── package.json                  # Package manifest
+├── vitest.config.ts              # Root vitest config
+└── README.md                     # Project documentation
 ```
 
 ## Directory Purposes
 
-**src/**
+**src/:**
 - Purpose: All TypeScript source code
-- Contains: Library code, CLI, types, parsers, transformers
+- Contains: Entry points, parser, mapper, shapes, transformer, types
+- Key files: `index.ts`, `cli.ts`, `slides.ts`
 
-**src/parser/**
-- Purpose: SVG parsing stage
-- Contains: `svg-parser.ts` - XML to SvgAST conversion
+**src/parser/:**
+- Purpose: SVG XML parsing
+- Contains: `svg-parser.ts`
+- Key files: `svg-parser.ts`
 
-**src/transformer/**
-- Purpose: AST transformation stage
-- Contains: `transform-to-pptel.ts` - SvgAST to PPTElement[]
+**src/mapper/:**
+- Purpose: Coordinate transformation and bounding box calculation
+- Contains: `coordinate-mapper.ts`
+- Key files: `coordinate-mapper.ts`
 
-**src/types/**
-- Purpose: Type definitions
-- Contains: `ast.ts` - SvgAST and related types
+**src/shapes/:**
+- Purpose: Convert SVG primitives to SVG path d strings
+- Contains: `shape-to-path.ts`
+- Key files: `shape-to-path.ts`
 
-**src/mapper/**
-- Purpose: Coordinate calculation
-- Contains: `coordinate-mapper.ts` - Geometry extraction with transforms
+**src/transformer/:**
+- Purpose: Convert SVG AST to PPTElement JSON array
+- Contains: `transform-to-pptel.ts`
+- Key files: `transform-to-pptel.ts`
 
-**src/shapes/**
-- Purpose: Shape conversion utilities
-- Contains: `shape-to-path.ts` - Basic shapes to path d strings
+**src/types/:**
+- Purpose: TypeScript type definitions for SVG AST
+- Contains: `ast.ts`
+- Key files: `ast.ts`
 
-**src/scripts/**
-- Purpose: Utility scripts
-- Contains: `validate-all.ts`, `round-trip-test.ts`
+**dist/:**
+- Purpose: Compiled JavaScript output from TypeScript compilation
+- Contains: Transpiled `.js`, `.d.ts`, `.js.map` files
+- Generated: Yes
+- Committed: Yes
 
-**.planning/codebase/**
-- Purpose: GSD planning documents output
-- Contains: ARCHITECTURE.md, STRUCTURE.md, STACK.md, etc.
+**__tests__/:**
+- Purpose: Test files location (referenced in vitest config)
+- Contains: Test files matching `__tests__/**/*.test.ts`
+
+**src/scripts/:**
+- Purpose: Development/helper scripts
+- Contains: `round-trip-test.ts`, `validate-all.ts`
+- Not included in TypeScript compilation (excluded in tsconfig.json)
 
 ## Key File Locations
 
 **Entry Points:**
-- `src/cli.ts`: CLI binary entry (svg2pptel command)
-- `src/index.ts`: Library entry (convert() function)
+- `src/index.ts`: Library entry - `convert()` function, exports
+- `src/cli.ts`: CLI entry - cac-based command line interface
 
 **Configuration:**
-- `package.json`: Dependencies, scripts, bin entry
-- `tsconfig.json`: TypeScript compiler options
+- `tsconfig.json`: TypeScript compilation settings
 - `vitest.config.ts`: Test runner configuration
+- `package.json`: Dependencies, scripts, bin entry
 
 **Core Logic:**
-- `src/parser/svg-parser.ts`: SVG string → SvgAST
-- `src/transformer/transform-to-pptel.ts`: SvgAST → PPTElement[]
-- `src/mapper/coordinate-mapper.ts`: Geometry extraction
-- `src/shapes/shape-to-path.ts`: Shape conversion
+- `src/parser/svg-parser.ts`: XML to AST
+- `src/mapper/coordinate-mapper.ts`: Coordinate/bounding box mapping
+- `src/shapes/shape-to-path.ts`: Shape to path conversion
+- `src/transformer/transform-to-pptel.ts`: AST to PPTElement
 
 **Type Definitions:**
-- `src/types/ast.ts`: SvgAST, SvgElement, CoordinateMapping, TransformResult
-- `src/slides.ts`: PPTElement union and all element type interfaces
-
-## File Purposes
-
-**src/cli.ts (128 lines)**
-- CLI entry point using `cac` library
-- Handles file/directory input, recursive directory walking
-- Supports `--ast` mode to output AST instead of PPTElement
-- Supports `-o/--output` for file output
-- Async `main()` function with error handling
-
-**src/index.ts (45 lines)**
-- Main library export
-- `convert(svgContent, options?)` function - validates and orchestrates pipeline
-- `ConvertOptions` interface (astMode, targetCanvas)
-- `ConvertResult` interface (success, output, error, elementCount)
-- Re-exports parser, transformer, and PPTElement types
-
-**src/slides.ts (801 lines)**
-- PPTElement union type definition (line 664)
-- All element type interfaces: PPTTextElement, PPTImageElement, PPTShapeElement, PPTLineElement, PPTChartElement, PPTTableElement, PPTLatexElement, PPTVideoElement, PPTAudioElement
-- Supporting types: PPTElementShadow, PPTElementOutline, PPTElementLink, Slide, SlideTheme, etc.
-- ShapePathFormulasKeys and ElementTypes enums
-
-**src/parser/svg-parser.ts (166 lines)**
-- `parseSvg(xmlString)` - Main parser using fast-xml-parser
-- `parseViewBox(viewBoxStr)` - Parse viewBox attribute to tuple
-- `convertToSvgElement(node, parentTag)` - Recursive element tree builder
-- `flattenElements(element)` - Flatten AST to array (utility)
-- Text extraction logic for tspan elements
-- Handles namespace-prefixed attributes (xlink:href)
-
-**src/transformer/transform-to-pptel.ts (577 lines)**
-- `transformToPPTElement(ast, targetCanvas?)` - Main transformer, walks AST
-- `transformElement(element, viewBox, index, targetCanvas)` - Per-element conversion
-- `parseDashArray(dash)` - Convert stroke-dasharray to LineStyleType
-- `colorToHex(color)` - CSS color string to hex conversion with named colors map
-- `decodeHtmlEntities(str)` - HTML entity decoding
-- `parsePointsString(pointsStr)` - Parse polygon/polyline points
-- Handles: rect, circle, ellipse, path, polygon, polyline, line, text, image, g (groups skipped)
-
-**src/types/ast.ts (63 lines)**
-- `SvgAttrs` interface - SVG attribute key-value pairs
-- `SvgElement` interface - Single SVG node
-- `SvgAST` interface - Complete parsed SVG
-- `CoordinateMapping` interface - Geometry result
-- `TransformResult` interface - Parsed transform components
-
-**src/mapper/coordinate-mapper.ts (218 lines)**
-- `mapCoordinates(element, viewBox)` - Main coordinate extraction
-- `parseTransform(transform)` - Parse transform attribute (translate/scale/rotate)
-- `parseViewBox(viewBoxStr)` - ViewBox string parsing
-- `extractNumber(value, fallback)` - Numeric value extraction
-- `pathBoundingBox(d)` - Compute bounding box from path M/L/H/V commands
-- Applies transforms before geometry extraction (per D-04)
-
-**src/shapes/shape-to-path.ts (32 lines)**
-- `rectToPath(x, y, w, h)` - Rectangle to path
-- `circleToPath(cx, cy, r)` - Circle to path
-- `ellipseToPath(cx, cy, rx, ry)` - Ellipse to path
-- `lineToPath(x1, y1, x2, y2)` - Line to path
-- `polygonToPath(points)` - Polygon to path (closed with Z)
-- Paths are relative to element origin (0,0), not SVG canvas
-
-**src/scripts/validate-all.ts**
-- Validation script (not read in detail)
-
-**src/scripts/round-trip-test.ts**
-- Round-trip testing script (not read in detail)
+- `src/types/ast.ts`: SVG AST types (`SvgElement`, `SvgParseResult`, `CoordinateMapping`, `TransformResult`)
+- `src/slides.ts`: PPTElement types (`PPTTextElement`, `PPTShapeElement`, `PPTImageElement`, `PPTLineElement`, etc.)
 
 ## Naming Conventions
 
 **Files:**
-- camelCase: `svg-parser.ts`, `transform-to-pptel.ts`, `coordinate-mapper.ts`, `shape-to-path.ts`
-- kebab-case: N/A
-- PascalCase: N/A
-
-**Functions:**
-- camelCase: `parseSvg`, `transformToPPTElement`, `mapCoordinates`, `rectToPath`
-- Uppercase abbreviations preserved: `colorToHex` (not `colorTohex`)
-
-**Types/Interfaces:**
-- PascalCase: `SvgAST`, `SvgElement`, `PPTElement`, `CoordinateMapping`
-- Enum members: PascalCase: `ShapePathFormulasKeys.ROUND_RECT`
+- kebab-case: `svg-parser.ts`, `shape-to-path.ts`, `transform-to-pptel.ts`, `coordinate-mapper.ts`
+- PascalCase: `index.ts`, `cli.ts`, `slides.ts`, `ast.ts`
 
 **Directories:**
-- kebab-case: `parser/`, `transformer/`, `types/`, `mapper/`, `shapes/`, `scripts/`
+- kebab-case: `parser/`, `mapper/`, `shapes/`, `transformer/`, `types/`
+
+**Types:**
+- PascalCase: `SvgElement`, `PPTElement`, `CoordinateMapping`, `TransformResult`
+- Suffix pattern: `Element` for element types, `Result` for output types, `Mapping` for computed geometry
+
+**Functions:**
+- camelCase: `parseSvg`, `mapCoordinates`, `transformToPPTElement`, `colorToHex`, `parseDashArray`
 
 ## Where to Add New Code
 
-**New SVG Element Type:**
-- Primary: Add case in `src/transformer/transform-to-pptel.ts:transformElement()` switch statement
-- Coordinate logic if needed: `src/mapper/coordinate-mapper.ts`
-- Test file: Add test case in existing test files
+**New Element Type (e.g., chart, table):**
+- Add type to `src/slides.ts` (extend PPTElement union)
+- Add case to `transformElement()` switch in `src/transformer/transform-to-pptel.ts`
 
-**New Shape Converter:**
-- Implementation: `src/shapes/shape-to-path.ts`
-- Export from `src/transformer/transform-to-pptel.ts` imports
+**New SVG Shape Support:**
+- Add conversion function to `src/shapes/shape-to-path.ts`
+- Add case to `transformElement()` switch in `src/transformer/transform-to-pptel.ts`
 
-**New Transformation Utility:**
-- If color-related: Consider adding to `src/transformer/transform-to-pptel.ts` utilities section
-- If coordinate-related: Add to `src/mapper/coordinate-mapper.ts`
+**New Transformation/Coordinate Feature:**
+- Add to `src/mapper/coordinate-mapper.ts`
+- Or consolidate into `src/mapper/coordinate-mapper.ts` if duplicate with `src/coordinate-mapper.ts`
 
-**New PPTElement Type:**
-- Definition: `src/slides.ts` - Add interface and extend PPTElement union
-- Transformer: Add corresponding transform case in `src/transformer/transform-to-pptel.ts`
+**Parser Changes:**
+- Modify `src/parser/svg-parser.ts`
+- May need to update `SvgElement` type in `src/types/ast.ts`
 
-**New CLI Option:**
-- Add to CAC command in `src/cli.ts`
+**Utilities:**
+- Shared utilities: Not currently organized; consider `src/utils/` if adding more
+
+**Tests:**
+- Location: `__tests__/` directory (as per vitest config: `include: ['__tests__/**/*.test.ts']`)
+- Pattern: `*.test.ts` suffix
 
 ## Special Directories
 
-**src/parser/**
-- Purpose: SVG parsing stage
-- Generated: No
-- Committed: Yes
+**dist/:**
+- Purpose: Compiled output from `npm run build`
+- Generated: Yes (by `tsc`)
+- Committed: Yes (in git)
 
-**src/transformer/**
-- Purpose: AST transformation stage
+**src/scripts/:**
+- Purpose: Development helper scripts not part of main build
 - Generated: No
 - Committed: Yes
+- Excluded from TypeScript compilation via `tsconfig.json` exclude
 
-**src/scripts/**
-- Purpose: Development/testing utilities
-- Generated: No
-- Committed: Yes
+**src/coordinate-mapper.ts (root):**
+- Purpose: Appears to be duplicate of `src/mapper/coordinate-mapper.ts`
+- Issue: File exists at both `src/coordinate-mapper.ts` and `src/mapper/coordinate-mapper.ts`
+- Both included in `tsconfig.json` include array
 
 ---
 
-*Structure analysis: 2026-06-26*
+*Structure analysis: 2026-06-27*
