@@ -27,6 +27,12 @@
 
 **Mode:** mvp
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Wave 0: Create TDD test files for TRANS-01/02/03
+- [ ] 01-02-PLAN.md — Wave 1: Implement transform system (apply-transform.ts, wire into transformElement)
+
 ---
 
 ### Phase 2: Text 元素扩展
