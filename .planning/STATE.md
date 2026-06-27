@@ -1,12 +1,12 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: transform-fixes
+milestone: v1.2
+milestone_name: PPTist格式对齐
 status: planning
 last_updated: "2026-06-27"
 last_activity: 2026-06-27
 progress:
-  total_phases: 1
+  total_phases: 0
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,23 +17,24 @@ progress:
 
 ## Current Position
 
-Phase: 1 — Transform System Fixes (not started)
-Plan: None
-Status: Planning roadmap
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-06-27 — Milestone v1.2 started
 
 ## Milestone Context
 
-**Milestone**: v1.1 transform-fixes
-**Goal**: Fix three critical SVG transform bugs
-**Requirements**: 3 (REQ-TF-01, REQ-TF-02, REQ-TF-03)
-**Phases**: 1
+**Milestone**: v1.2 PPTist格式对齐
+**Goal**: 将 svg-to-pptel 输出的 JSON 格式与 PPTist 的 PPTElement schema 完全对齐
+**Target features**: Transform / Text扩展 / Image扩展 / Shape扩展 / Line stroke
+**Phases**: TBD
 
 ## Performance Metrics
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Requirements (v1.1) | 0/3 | All pending |
-| Phases planned | 1 | Combined transform fixes |
+| Requirements (v1.2) | 0/？ | Pending |
+| Phases planned | 0 | — |
 | Plans completed | 0 | — |
 
 ## Accumulated Context
@@ -43,6 +44,7 @@ Status: Planning roadmap
 - Rotate-center math: translate-to-center, rotate, translate-back formula
 - Text baseline: 0.75 multiplier exposed as configurable `BASELINE_OFFSET_RATIO`
 - Ellipse scaling: cx/cy must be scaled same as rx/ry
+- SVG transform 顺序: translate → rotate → scale (SVG规范)
 
 ### Implementation Notes
 
@@ -56,8 +58,8 @@ None currently.
 
 ## Session Continuity
 
-- Research completed: 2026-06-27
-- Roadmap created: 2026-06-27
+- v1.1 started: 2026-06-27
+- v1.2 started: 2026-06-27 (this session)
 
 ---
 

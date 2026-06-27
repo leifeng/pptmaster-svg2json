@@ -5,97 +5,132 @@
 ## Languages
 
 **Primary:**
-- TypeScript 5.5+ declared in `package.json` (`typescript: ^5.5.0`) and compiled with `tsc`; the lockfile resolves TypeScript 5.9.3 in `package-lock.json`.
-- Source lives in `src/**/*.ts`, including the public API in `src/index.ts`, CLI in `src/cli.ts`, parser in `src/parser/svg-parser.ts`, transformer in `src/transformer/transform-to-pptel.ts`, and PPTElement types in `src/slides.ts`.
+- TypeScript 5.3 - All source code in `code/PPTist/src/` directory
+- Vue 3.5.17 - UI framework with `<script setup>` composition API
 
 **Secondary:**
-- Markdown - project documentation in `README.md` and planning documents under `.planning/`.
-- JSON - package metadata in `package.json`, TypeScript configuration in `tsconfig.json`, and npm lockfile in `package-lock.json`.
+- SCSS/Sass 1.69.6 - Styling, configured in `vite.config.ts`
 
 ## Runtime
 
 **Environment:**
-- Node.js 18+ - required by `README.md`; runtime APIs use built-in `fs` and `path` modules in `src/cli.ts`, `src/scripts/validate-all.ts`, and `src/scripts/round-trip-test.ts`.
-- Package metadata does not declare an `engines` field in `package.json`; rely on the documented Node.js 18+ requirement in `README.md`.
+- Node.js 18+ (via `@tsconfig/node18` in `package.json`)
+- Browser (ESM modules, `"type": "module"` in `package.json`)
 
 **Package Manager:**
-- npm - `package-lock.json` is present and uses lockfileVersion 3.
-- Lockfile: present at `package-lock.json`.
-- No `pnpm-lock.yaml` or `yarn.lock` detected.
+- npm (lockfile: `package-lock.json`)
+- npm-run-all2 6.1.1 for running parallel scripts
 
 ## Frameworks
 
 **Core:**
-- Not detected - this is a self-contained TypeScript library/CLI, not a web framework application.
-- Public library entry: `src/index.ts` exports `convert`, `parseSvg`, `transformToPPTElement`, and `PPTElement` types.
-- CLI entry: `src/cli.ts` defines the `svg2pptel` command with `cac`.
+- Vue 3.5.17 - Progressive JavaScript framework
+- Pinia 3.0.2 - State management (stores in `src/store/`)
+- ProseMirror 1.22.2-1.6.0 - Rich text editing (packages: state, model, view, commands, keymap, inputrules, history, schema-basic, schema-list, dropcursor, gapcursor)
 
-**Testing:**
-- Vitest `^2.0.0` declared in `package.json`; resolved version 2.1.9 in `package-lock.json`.
-- Config files: `vitest.config.ts` and duplicate `src/vitest.config.ts`.
-- Node test environment with globals enabled, V8 coverage provider, and test include pattern `__tests__/**/*.test.ts` in `vitest.config.ts`.
+**UI Components:**
+- Custom component library in `src/components/` (Button, Modal, Drawer, Select, Tabs, ColorPicker, etc.)
+- Iconify icons (`@iconify-json/icon-park-outline`, `@iconify-json/icon-park-solid`)
+- tippy.js 6.3.7 - Tooltip/popover positioning
 
-**Build/Dev:**
-- TypeScript compiler - `npm run build` runs `tsc` via `package.json`.
-- Build output directory: `dist/` from `tsconfig.json` `outDir`.
-- Compiler target/module: ES2022 + CommonJS in `tsconfig.json`.
-- Declaration files and source maps are enabled in `tsconfig.json`.
-- Vitest transitively brings Vite/Rollup/esbuild for test execution, but the production build uses `tsc` only.
+**Charts:**
+- ECharts 6.0.0 - Chart rendering via `src/components/ChartDataEditor.vue` and `src/configs/chart.ts`
+
+**Animation:**
+- Animate.css 4.1.1 - CSS animations
+- CSS transitions/keyframes via SCSS
+
+## Build/Dev Tools
+
+**Bundler:**
+- Vite 5.3.5 - Development server and build tool
+- `vite.config.ts` config with Vue plugin, icon plugins, SCSS preprocessor
+
+**Type Checking:**
+- TypeScript 5.3.0
+- vue-tsc 2.0.29 for Vue TS checking
+- `@tsconfig/node18` for Node.js type definitions
+
+**Linting:**
+- ESLint 8.49.0
+- `eslint-plugin-vue` 9.17.0
+- `@vue/eslint-config-typescript` 12.0.0
+- `@rushstack/eslint-patch` 1.3.3
+
+**Preprocessing:**
+- Sass 1.69.6 - SCSS compilation with custom imports (`variable.scss`, `mixin.scss`)
+
+**Code Generation:**
+- unplugin-icons 22.5.0 - Auto-generated icon components from `src/assets/icons/`
+- unplugin-vue-components 30.0.0 - Auto-imported Vue components
+
+**Git Hooks:**
+- husky 8.0.3 - Git hooks via `prepare` script
+- `@commitlint/cli` 18.4.3 with `config-conventional` 18.4.3
 
 ## Key Dependencies
 
-**Critical:**
-- `fast-xml-parser` `^5.9.3` - parses SVG/XML input in `src/parser/svg-parser.ts` through `XMLParser`.
-- `cac` `^6.7.14` - implements command parsing/help/options for `svg2pptel` in `src/cli.ts`.
-- `uuid` `^14.0.1` - generates PPTElement IDs in `src/transformer/transform-to-pptel.ts` via `v4 as uuidv4`.
-- `picocolors` `^1.1.1` - provides colored terminal output in `src/cli.ts`, `src/scripts/validate-all.ts`, and `src/scripts/round-trip-test.ts`.
+**PPT Processing:**
+- `pptxgenjs` 3.12.0 - Generate PPTX files
+- `pptxtojson` 2.0.5 - Convert PPTX to JSON
+- `html-to-image` 1.11.13 - Export slides to images
 
-**Infrastructure:**
-- `@types/node` `^22.0.0` - Node.js typings for `fs`, `path`, `process`, and `__dirname` usage across CLI/scripts.
-- `@types/uuid` `^10.0.0` - UUID typings declared in `package.json`.
-- No database, queue, cache, cloud SDK, web server, or HTTP client dependency detected in `package.json` or `src/**/*.ts` imports.
+**SVG/Graphics:**
+- `svg-pathdata` 7.1.0 - SVG path manipulation
+- `tinycolor2` 1.6.0 - Color manipulation
+
+**Data/Storage:**
+- Dexie 4.0.11 - IndexedDB wrapper for local storage (`src/utils/database.ts`)
+- `lodash` 4.17.21 - Utility functions
+- `nanoid` 5.0.7 - Unique ID generation
+- `number-precision` 1.6.0 - Float math
+
+**HTTP:**
+- Axios 1.7.9 - HTTP client with 300s timeout (`src/services/axios.ts`)
+- Native Fetch API with streaming support (`src/services/fetch.ts`)
+
+**Editor:**
+- `mitt` 3.0.1 - Event emitter for component communication
+- `vuedraggable` 4.1.0 - Drag and drop
+- `file-saver` 2.0.5 - File download
+- `clipboard` 2.0.11 - Clipboard API
+- `crypto-js` 4.2.0 - Encryption
+- `jsonrepair` 3.13.2 - JSON fixing
+- `hfmath` 0.0.2 - Math library
 
 ## Configuration
 
-**Environment:**
-- Fully local configuration; no `.env*` files detected at repository root.
-- No `process.env` usage detected in `src/**/*.ts`.
-- Runtime inputs are CLI arguments and SVG file contents handled by `src/cli.ts`.
-- Validation scripts derive paths from `__dirname` and local `examples/` structure in `src/scripts/validate-all.ts` and `src/scripts/round-trip-test.ts`.
+**TypeScript:**
+- `tsconfig.json` - Project references structure
+- `tsconfig.app.json` - Vue app compilation options
+- `tsconfig.node.json` - Node.js compilation
 
 **Build:**
-- `package.json` scripts:
-  - `npm run build` -> `tsc`
-  - `npm test` -> `vitest run`
-  - `npm run test:watch` -> `vitest`
-- `tsconfig.json` includes `src/types/**/*`, `src/parser/**/*`, `src/shapes/**/*`, `src/mapper/**/*`, `src/transformer/**/*`, and `src/*.ts`.
-- `tsconfig.json` excludes `node_modules`, `dist`, `__tests__`, and `src/scripts` from normal compilation.
-- `package.json` publishes `dist/`, declares `main: dist/index.js`, `types: dist/index.d.ts`, and CLI binary `svg2pptel: ./dist/src/cli.js`.
-- `dist/` is present in the repository and contains compiled JavaScript/declaration/source-map output.
+- `vite.config.ts` - Vite bundler configuration with aliases (`@` -> `./src`)
+- Proxy configuration for `/api` -> `https://server.pptist.cn` in dev mode
+
+**Code Style:**
+- `.eslintrc.cjs` - ESLint rules (semi, quotes, indent, etc.)
+
+## Scripts
+
+```json
+"dev": "vite"                    // Start dev server on 127.0.0.1:5173
+"build": "vue-tsc + vite build"  // Type check then build
+"preview": "vite preview"        // Preview production build
+"lint": "eslint --fix"           // Lint with auto-fix
+"prepare": "husky install"       // Install git hooks
+```
 
 ## Platform Requirements
 
 **Development:**
-- Node.js 18+ as documented in `README.md`.
-- npm with `package-lock.json`.
-- Run `npm install`, `npm run build`, and `npm test` from repository root.
-- Optional validation scripts in `src/scripts/*.ts` reference `examples/*/svg_output/`, but no `examples/` tree was detected during this scan.
+- Node.js 18+
+- npm 6+
 
 **Production:**
-- Node.js 18+ runtime for CommonJS output in `dist/`.
-- CLI consumers use `svg2pptel` from `package.json` `bin` after building/publishing.
-- Library consumers import the package entry declared by `package.json` (`dist/index.js` with types at `dist/index.d.ts`).
-- No hosted service, container runtime, browser runtime, native binary, or external service is required.
-
-## Evidence References
-
-- Package metadata and scripts: `package.json`.
-- Locked dependency versions: `package-lock.json`.
-- Compiler behavior: `tsconfig.json`.
-- Test runner behavior: `vitest.config.ts`, `src/vitest.config.ts`.
-- Runtime and CLI usage documentation: `README.md`.
-- External import scan: `src/cli.ts`, `src/parser/svg-parser.ts`, `src/transformer/transform-to-pptel.ts`, `src/scripts/validate-all.ts`, `src/scripts/round-trip-test.ts`.
-- Project skills: no `.claude/skills/*/SKILL.md` or `.agents/skills/*/SKILL.md` files detected.
+- Modern browser with ESM support
+- IndexedDB support (for local storage)
 
 ---
 

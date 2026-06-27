@@ -77,7 +77,18 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: v1.1 transform-fixes
+## Current Milestone: v1.2 PPTist格式对齐
+
+**Goal:** 将 svg-to-pptel 输出的 JSON 格式与 PPTist 的 PPTElement schema 完全对齐
+
+**Target features:**
+- Transform 属性完整支持 → `rotate`/`flipH`/`flipV`
+- Text 元素扩展 → `fill`/`outline`/`shadow`/`vAlign`/`fixedHeight`/`wordSpace` 等
+- Image 元素扩展 → `outline`/`shadow`/`filters`/`clip`
+- Shape 元素扩展 → `gradient`/`shadow`/`flipH`/`flipV`
+- Line stroke width → `width` 字段
+
+## Previous Milestone: v1.1 transform-fixes
 
 **Goal:** Fix two critical SVG transform bugs: rotate transform center support and text baseline offset
 
