@@ -1,12 +1,18 @@
 # Requirements — svg-to-pptel
 
-## v1 Requirements
+## v1.1 Requirements (transform-fixes milestone)
+
+### Transform System
+
+- [ ] **REQ-TF-01**: Apply SVG `rotate(deg, cx, cy)` with correct rotation center — `parseTransform` extracts `rotateCX`/`rotateCY` but `mapCoordinates` has no rotation math; implement rotate-around-center using translate → rotate → translate-back formula
+- [ ] **REQ-TF-02**: Fix ellipse center scaling — `cx`/`cy` are translated but NOT scaled while `rx`/`ry` ARE scaled (coordinate-mapper.ts line 152-153); center must also be scaled
+- [ ] **REQ-TF-03**: Fix text baseline offset — replace hardcoded `0.75 * fontSize` with a named configurable constant `BASELINE_OFFSET_RATIO` with default `0.75`; SVG text `y` is baseline, output requires top edge
+
+## v1 Requirements (shipped)
 
 ### Transform System — REQ-TF-01
 
-- [ ] **REQ-TF-01**: Apply SVG `rotate(deg, cx, cy)` with correct rotation center — `parseTransform` extracts `rotateCX`/`rotateCY` but `mapCoordinates` has no rotation math; implement rotate-around-center using user's `applyTransform` pattern (translate → rotate → scale)
-- [ ] **REQ-TF-02**: Fix ellipse center scaling — `cx`/`cy` are translated but NOT scaled while `rx`/`ry` ARE scaled (coordinate-mapper.ts line 152-153); center must also be scaled
-- [ ] **REQ-TF-03**: Fix text baseline offset — replace `0.75 * fontSize` with accurate baseline-to-top conversion; SVG text `y` is baseline, output requires top edge
+- [x] **REQ-TF-01**: Apply SVG `rotate(deg, cx, cy)` with correct rotation center — ~~`parseTransform` extracts `rotateCX`/`rotateCY` but `mapCoordinates` has no rotation math; implement rotate-around-center using user's `applyTransform` pattern (translate → rotate → scale)~~ → **deferred to v1.1**
 
 ### Build System — REQ-BLD-01
 
@@ -30,16 +36,18 @@
 - Font fallback or multi-font text layout — single-font text only
 - Configurable target canvas in API — 1000×562.5 is a stated constraint
 - SVGO optimization — not needed for parsing, adds bundle size
+- Build system upgrades (tsup) — deferred
+- Dependency upgrades — deferred to after transform fixes stabilize
 
 ## Traceability
 
 | REQ-ID | Phase | Source |
 |--------|-------|--------|
-| REQ-TF-01 | Phase 1 | Idea doc + PITFALLS.md |
+| REQ-TF-01 | Phase 1 | Idea doc + PITFALLS.md + ARCHITECTURE.md |
 | REQ-TF-02 | Phase 1 | ARCHITECTURE.md + PITFALLS.md |
 | REQ-TF-03 | Phase 1 | Idea doc + PITFALLS.md |
-| REQ-BLD-01 | Phase 1 | STACK.md |
-| REQ-PKG-01 | Phase 1 | STACK.md |
+| REQ-BLD-01 | Deferred | STACK.md |
+| REQ-PKG-01 | Deferred | STACK.md |
 | Full path commands | Phase 2 | FEATURES.md |
 | Matrix transform | Phase 2 | PITFALLS.md |
 | Group semantics | Phase 2 | FEATURES.md |
