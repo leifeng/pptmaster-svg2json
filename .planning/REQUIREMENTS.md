@@ -4,9 +4,9 @@
 
 ### Transform (TRANS)
 
-- [ ] **TRANS-01**: Parse SVG `transform` attribute — support `translate(dx, dy)`, `rotate(deg, cx, cy)`, `scale(sx, sy)`
-- [ ] **TRANS-02**: `rotate(deg, cx, cy)` with center point — apply rotation around specified center, not origin
-- [ ] **TRANS-03**: Map parsed transform to PPTist `rotate`/`flipH`/`flipV` fields on element
+- [x] **TRANS-01**: Parse SVG `transform` attribute — support `translate(dx, dy)`, `rotate(deg, cx, cy)`, `scale(sx, sy)`
+- [x] **TRANS-02**: `rotate(deg, cx, cy)` with center point — apply rotation around specified center, not origin
+- [x] **TRANS-03**: Map parsed transform to PPTist `rotate`/`flipH`/`flipV` fields on element
 
 ### Text (TEXT)
 
@@ -85,9 +85,9 @@
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| TRANS-01 | Phase 1 | Pending |
-| TRANS-02 | Phase 1 | Pending |
-| TRANS-03 | Phase 1 | Pending |
+| TRANS-01 | Phase 1 | Complete |
+| TRANS-02 | Phase 1 | Complete |
+| TRANS-03 | Phase 1 | Complete |
 | TEXT-01 | Phase 2 | Pending |
 | TEXT-02 | Phase 2 | Pending |
 | TEXT-03 | Phase 2 | Pending |
@@ -117,6 +117,7 @@
 | REQ-TF-03 | Phase 5 | Pending |
 
 **Coverage:**
+
 - v1.2 requirements: 26 total
 - v1.1 requirements: 3 total
 - Mapped to phases: 29
