@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { SvgParseResult, SvgElement } from '../types/ast'
-import { mapCoordinates } from '../mapper/coordinate-mapper'
+import { mapCoordinates, parseTransform } from '../mapper/coordinate-mapper'
+import { applyTransform } from './apply-transform'
 import { rectToPath, circleToPath, ellipseToPath, lineToPath, polygonToPath } from '../shapes/shape-to-path'
 import type { PPTElement, PPTTextElement, PPTShapeElement, PPTLineElement, PPTImageElement, LineStyleType } from '../slides'
 
@@ -272,6 +273,9 @@ export function transformElement(
   const width = coords.width * scaleX
   const height = coords.height * scaleY
 
+  // Parse transform attribute for rotate/flip handling
+  const transform = parseTransform(element.attrs.transform)
+
   // Skip non-renderable elements
   if (['defs', 'linearGradient', 'stop', 'filter', 'marker', 'clippath'].includes(tag)) {
     return null
@@ -279,6 +283,8 @@ export function transformElement(
 
   switch (tag) {
     case 'rect': {
+      const transformed = applyTransform(left, top, width, height, transform)
+      const { rotate, flipH, flipV } = transformed
       const path = rectToPath(
         Number(element.attrs.x) || 0,
         Number(element.attrs.y) || 0,
@@ -289,17 +295,19 @@ export function transformElement(
       const result: PPTShapeElement = {
         id,
         type: 'shape',
-        left,
-        top,
-        width,
-        height,
-        rotate: 0,
-        viewBox: [width, height],
+        left: transformed.left,
+        top: transformed.top,
+        width: transformed.width,
+        height: transformed.height,
+        rotate,
+        viewBox: [transformed.width, transformed.height],
         path,
         fixedRatio: false,
         fill: colorToHex(element.attrs.fill) || '#000000',
         opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
       }
+      if (flipH) result.flipH = true
+      if (flipV) result.flipV = true
       if (element.attrs.stroke) {
         result.outline = {
           style: parseDashArray(element.attrs['stroke-dasharray']),
@@ -311,6 +319,8 @@ export function transformElement(
     }
 
     case 'circle': {
+      const transformed = applyTransform(left, top, width, height, transform)
+      const { rotate, flipH, flipV } = transformed
       const cx = Number(element.attrs.cx) || 0
       const cy = Number(element.attrs.cy) || 0
       const r = Number(element.attrs.r) || 0
@@ -319,17 +329,19 @@ export function transformElement(
       const result: PPTShapeElement = {
         id,
         type: 'shape',
-        left,
-        top,
-        width,
-        height,
-        rotate: 0,
-        viewBox: [width, height],
+        left: transformed.left,
+        top: transformed.top,
+        width: transformed.width,
+        height: transformed.height,
+        rotate,
+        viewBox: [transformed.width, transformed.height],
         path,
         fixedRatio: false,
         fill: colorToHex(element.attrs.fill) || '#000000',
         opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
       }
+      if (flipH) result.flipH = true
+      if (flipV) result.flipV = true
       if (element.attrs.stroke) {
         result.outline = {
           style: parseDashArray(element.attrs['stroke-dasharray']),
@@ -341,6 +353,8 @@ export function transformElement(
     }
 
     case 'ellipse': {
+      const transformed = applyTransform(left, top, width, height, transform)
+      const { rotate, flipH, flipV } = transformed
       const cx = Number(element.attrs.cx) || 0
       const cy = Number(element.attrs.cy) || 0
       const rx = Number(element.attrs.rx) || 0
@@ -350,17 +364,19 @@ export function transformElement(
       const result: PPTShapeElement = {
         id,
         type: 'shape',
-        left,
-        top,
-        width,
-        height,
-        rotate: 0,
-        viewBox: [width, height],
+        left: transformed.left,
+        top: transformed.top,
+        width: transformed.width,
+        height: transformed.height,
+        rotate,
+        viewBox: [transformed.width, transformed.height],
         path,
         fixedRatio: false,
         fill: colorToHex(element.attrs.fill) || '#000000',
         opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
       }
+      if (flipH) result.flipH = true
+      if (flipV) result.flipV = true
       if (element.attrs.stroke) {
         result.outline = {
           style: parseDashArray(element.attrs['stroke-dasharray']),
@@ -372,23 +388,27 @@ export function transformElement(
     }
 
     case 'path': {
+      const transformed = applyTransform(left, top, width, height, transform)
+      const { rotate, flipH, flipV } = transformed
       // Per D-03: path elements keep original d attribute unchanged
       const d = typeof element.attrs.d === 'string' ? element.attrs.d : ''
       const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'))
       const result: PPTShapeElement = {
         id,
         type: 'shape',
-        left,
-        top,
-        width,
-        height,
-        rotate: 0,
-        viewBox: [width, height],
+        left: transformed.left,
+        top: transformed.top,
+        width: transformed.width,
+        height: transformed.height,
+        rotate,
+        viewBox: [transformed.width, transformed.height],
         path: d,
         fixedRatio: false,
         fill: colorToHex(element.attrs.fill) || '#000000',
         opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
       }
+      if (flipH) result.flipH = true
+      if (flipV) result.flipV = true
       if (element.attrs.stroke) {
         result.outline = {
           style: parseDashArray(element.attrs['stroke-dasharray']),
@@ -400,6 +420,8 @@ export function transformElement(
     }
 
     case 'polygon': {
+      const transformed = applyTransform(left, top, width, height, transform)
+      const { rotate, flipH, flipV } = transformed
       const pointsStr = typeof element.attrs.points === 'string' ? element.attrs.points : ''
       const points = parsePointsString(pointsStr)
       const path = polygonToPath(points)
@@ -407,17 +429,19 @@ export function transformElement(
       const result: PPTShapeElement = {
         id,
         type: 'shape',
-        left,
-        top,
-        width,
-        height,
-        rotate: 0,
-        viewBox: [width, height],
+        left: transformed.left,
+        top: transformed.top,
+        width: transformed.width,
+        height: transformed.height,
+        rotate,
+        viewBox: [transformed.width, transformed.height],
         path,
         fixedRatio: false,
         fill: colorToHex(element.attrs.fill) || '#000000',
         opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
       }
+      if (flipH) result.flipH = true
+      if (flipV) result.flipV = true
       if (element.attrs.stroke) {
         result.outline = {
           style: parseDashArray(element.attrs['stroke-dasharray']),
@@ -429,6 +453,8 @@ export function transformElement(
     }
 
     case 'polyline': {
+      const transformed = applyTransform(left, top, width, height, transform)
+      const { rotate, flipH, flipV } = transformed
       const pointsStr = typeof element.attrs.points === 'string' ? element.attrs.points : ''
       const points = parsePointsString(pointsStr)
       const path = polylineToPath(points)
@@ -436,17 +462,19 @@ export function transformElement(
       const result: PPTShapeElement = {
         id,
         type: 'shape',
-        left,
-        top,
-        width,
-        height,
-        rotate: 0,
-        viewBox: [width, height],
+        left: transformed.left,
+        top: transformed.top,
+        width: transformed.width,
+        height: transformed.height,
+        rotate,
+        viewBox: [transformed.width, transformed.height],
         path,
         fixedRatio: false,
         fill: colorToHex(element.attrs.fill) || 'none',
         opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
       }
+      if (flipH) result.flipH = true
+      if (flipV) result.flipV = true
       if (element.attrs.stroke) {
         result.outline = {
           style: parseDashArray(element.attrs['stroke-dasharray']),
@@ -478,6 +506,8 @@ export function transformElement(
     }
 
     case 'text': {
+      const transformed = applyTransform(left, top, width, height, transform)
+      const { rotate } = transformed
       const content = extractTextContentFromElement(element)
       // Parse font-family: take first font, decode HTML entities, remove quotes
       const rawFontFamily = typeof element.attrs['font-family'] === 'string'
@@ -492,8 +522,8 @@ export function transformElement(
       const textHeight = scaledFontSize + Math.round(scaledFontSize * 0.14)
       // SVG text y is baseline, convert to top edge for JSON with scaling
       // Formula: jsonTop = (svgY + fontSize * 0.75) * scale
-      const textLeft = coords.left * scaleX
-      const textTop = (coords.top + fontSize * 0.75) * scaleY
+      const textLeft = transformed.left
+      const textTop = (transformed.top + fontSize * 0.75) * scaleY
       // Use rich text HTML format with font-size in span style
       const richContent = `<p style=""><span style="font-size: ${scaledFontSize}px;">${content}</span></p>`
       const result: PPTTextElement = {
@@ -504,7 +534,7 @@ export function transformElement(
         width: textWidth,
         height: textHeight,
         defaultFontSize: scaledFontSize,
-        rotate: 0,
+        rotate,
         content: richContent,
         defaultFontName: fontFamily,
         defaultColor: colorToHex(element.attrs.fill) || '#000000',
@@ -515,19 +545,23 @@ export function transformElement(
     }
 
     case 'image': {
+      const transformed = applyTransform(left, top, width, height, transform)
+      const { rotate, flipH, flipV } = transformed
       // Per PITFALL 1: href may be xlink:href or href
       const src = String(element.attrs['xlink:href'] || element.attrs.href || '')
       const result: PPTImageElement = {
         id,
         type: 'image',
-        left,
-        top,
-        width,
-        height,
-        rotate: 0,
+        left: transformed.left,
+        top: transformed.top,
+        width: transformed.width,
+        height: transformed.height,
+        rotate,
         fixedRatio: true,
         src,
       }
+      if (flipH) result.flipH = true
+      if (flipV) result.flipV = true
       return result
     }
 
