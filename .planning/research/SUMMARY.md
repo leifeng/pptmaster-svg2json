@@ -1,171 +1,127 @@
 # Project Research Summary
 
-**Project:** svg-to-json (SVG to PowerPoint JSON converter)
-**Domain:** TypeScript library for SVG parsing and coordinate transformation
-**Researched:** 2026-06-26
+**Project:** svg-to-pptel
+**Domain:** SVG to PowerPoint JSON converter library
+**Researched:** 2026-06-27
 **Confidence:** HIGH
 
 ## Executive Summary
 
-This is a TypeScript library that converts SVG diagrams to PowerPoint-compatible JSON.
-The core value proposition is accurate coordinate transformation from SVG
-baseline-based coordinate system to PowerPoint top-left coordinate system.
-The library exposes both a CLI tool and a programmatic API.
+The v1.1 transform fixes address two critical SVG conversion bugs: rotate-around-center being ignored and text baseline-to-top conversion using an undocumented 0.75 multiplier. Both fixes are pure math problems requiring no new dependencies. The rotate-center bug exists because parseTransform correctly extracts rotateCX/rotateCY but mapCoordinates never applies them. The text baseline issue stems from SVG using baseline coordinates while PowerPoint JSON expects top-edge positions. Additionally, a copy-paste bug causes ellipse center coordinates to be translated but not scaled.
 
-Research confirms the current implementation covers the basic feature set but has
-significant bugs in transform handling. The most critical issue is that rotation
-center points are parsed but never applied. Secondary issues include an ellipse
-scaling bug where center coordinates are not scaled, and text baseline
-conversion using a hardcoded 0.75 multiplier.
+The recommended approach is to create a new transforms/apply-transform.ts module containing the rotate-around-center math (translate-to-center, rotate, translate-back formula), then update mapCoordinates to call it. Text baseline handling stays in transformElement but should expose the 0.75 multiplier as a named constant. The ellipse scaling bug requires a simple 2-line fix.
 
-The recommended approach is a phased fix: Phase 1 addresses critical transform
-bugs (rotate center, ellipse scaling); Phase 2 completes the transform pipeline
-and adds missing path command support; Phase 3 adds differentiating features.
+Key risks include transform order confusion (SVG applies transforms right-to-left in composition) and conflating SVG rotate syntax (which supports 3-argument form) with CSS rotate. The text baseline is NOT the bottom of the text -- descenders extend below it.
 
 ## Key Findings
 
 ### Recommended Stack
 
-TypeScript library with fast-xml-parser for SVG parsing and vitest for testing.
-The current stack needs upgrades: TypeScript 5.5.0 to 6.0.3, vitest 2.0.0 to 4.1.9,
-cac 6.7.14 to 7.0.0. Add tsup 8.5.1 for build management, changesets for
-release management, and prettier/eslint for code quality.
+No new dependencies required for v1.1. All fixes use pure TypeScript math functions already supported by the existing TypeScript 5.5.0 setup.
 
 **Core technologies:**
-- fast-xml-parser 5.9.3 — industry standard TypeScript XML parser
-- TypeScript 6.0.3 — current stable; ES2022/CommonJS target correct for library
-- vitest 4.1.9 — de facto standard for TypeScript testing; Vite-powered with native ESM
-- tsup 8.5.1 — replaces raw tsc for library publishing
+- Pure TypeScript rotation math -- Standard 2D rotation formula; no library needed
+- Configurable baseline constant -- BASELINE_OFFSET_RATIO = 0.75 with comment documenting font dependency
+- fast-xml-parser@5.9.3 -- Unchanged; already correctly parses transforms
+- Existing test tooling (vitest@2.0.0) -- Sufficient for testing new transform functions
 
 ### Expected Features
 
 **Must have (table stakes):**
-- Basic shape conversion (rect, circle, ellipse, path, line, polygon, polyline)
-- Text extraction with font-family, font-size, fill
-- Image element with href/xlink:href
-- Transform support (translate, scale)
-- ViewBox to 1000x562.5 canvas mapping
-- Color parsing (named, hex, rgb)
-- CLI with file input
+- rotate(deg) without center -- basic SVG rotation around origin
+- rotate(deg, cx, cy) with center -- diagram pivot rotation
+- Text baseline-to-top conversion -- textTop = svgBaselineY + fontSize * 0.75
 
 **Should have (competitive):**
-- Rotate transform with center point — many SVGs use rotate(deg, cx, cy); currently broken
-- Text baseline-to-top y-coordinate correction
-- Full path command support (C, Q, A, S, T)
-- Group semantics with groupId
+- Configurable baseline offset -- expose 0.75 as named constant
 
 **Defer (v2+):**
-- Gradient fills
-- Matrix transform support
-- Advanced color formats (rgba, hsl)
-- ClipPath/mask support
+- Multiple rotate() in chain
+- Nested transform accumulation
+- Per-font baseline table
+- matrix() decomposition
 
 ### Architecture Approach
 
-Pipeline architecture: SVG String -> Parser Layer -> Transform Layer ->
-Coordinate Mapping Layer -> Output Layer. Each stage produces immutable data
-structures. Architecture should be restructured with separate directories for
-parser/, transformer/transforms/, transformer/shapes/, transformer/elements/, mapper/, and types/.
+The existing pipeline has a clean separation: mapCoordinates produces geometry with transforms, transformElement produces PPTElement JSON. Rotate-center math belongs in a new applyTransform function in transforms/apply-transform.ts called from mapCoordinates. Text baseline correction stays in transformElement. The ellipse scaling bug is a 2-line fix in coordinate-mapper.ts.
 
 **Major components:**
-1. **Parser Layer** — XML parsing and element tree building
-2. **Transform System** — Centralized transform parsing and application
-3. **Coordinate Mapper** — Applies transforms, calculates bounding boxes, scales to canvas
+1. coordinate-mapper.ts -- parseTransform (unchanged), mapCoordinates (calls new applyTransform)
+2. transforms/apply-transform.ts (NEW) -- pure function for translate/rotate/scale composition
+3. transform-to-pptel.ts -- transformElement (text baseline constant made configurable)
 
 ### Critical Pitfalls
 
-1. **Rotation center ignored** — parseTransform() extracts rotateCX/rotateCY but
-   mapCoordinates() never uses them. Fix: implement rotate-around-center math.
-
-2. **Ellipse transform applies translation incorrectly** — In coordinate-mapper.ts
-   lines 152-160, cx and cy are only translated but not scaled. Fix: apply both.
-
-3. **Text baseline uses fixed 0.75 multiplier** — SVG y is baseline; PowerPoint
-   expects top-left. The 0.75 approximation is font-dependent. Fix: configurable.
-
-4. **Matrix transform parsed but not applied** — parseTransform() marks matrix as
-   special but mapCoordinates() silently skips it. Fix: implement or throw error.
-
-5. **Scale applied twice in some paths** — mapCoordinates applies scale, then
-   transformElement applies it again. Fix: apply scale once.
+1. Rotation center ignored -- rotateCX/rotateCY parsed but never applied
+2. Wrong transform order -- scale first, rotate with center, translate last
+3. SVG vs CSS rotate syntax -- SVG allows 3-argument form
+4. Baseline IS NOT bottom -- descenders go below
+5. Ellipse cx/cy missing scale -- Fix: cx = cx * sx + tx
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure:
+Based on research, the v1.1 milestone breaks into two focused phases:
 
-### Phase 1: Transform System Refactor
-**Rationale:** Critical bugs in transform handling must be fixed first.
-The rotate center bug and ellipse scaling bug make the library produce
-incorrect output for common SVG patterns.
+### Phase 1: Transform Pipeline Completion
+**Rationale:** The rotate-center bug is a core correctness issue
+**Delivers:** Correct rotate(deg, cx, cy) application via new applyTransform module
+**Addresses:** Rotate table stakes from FEATURES.md
+**Avoids:** Pitfall R1, Pitfall R2
 
-**Delivers:** Fixed rotate center support, fixed ellipse scaling, proper transform composition
-**Addresses:** Rotate with center, ellipse transform bug, text baseline configuration
-**Avoids:** Rotation center ignored pitfall, ellipse transform pitfall, scale-applied-twice
-
-### Phase 2: Path Data and Transform Completion
-**Rationale:** Path d attribute support is incomplete (only M/L/H/V commands),
-and matrix transforms silently fail. Completing the transform pipeline enables full SVG compatibility.
-
-**Delivers:** Full path command support (C, Q, A, S, T, Z), matrix transform implementation
-**Uses:** tsup for build, vitest for coverage
-**Implements:** transformer/shapes/, transformer/transforms/matrix.ts
-
-### Phase 3: Feature Completeness
-**Rationale:** After core correctness is established, add differentiating features.
-
-**Delivers:** Group semantics with groupId, gradient fills, preserveAspectRatio handling
-**Addresses:** Group preservation, gradient fills, image aspect ratio
+### Phase 2: Text Element and Bug Fixes
+**Rationale:** Text baseline is independent of transforms. Ellipse bug is a 2-line fix.
+**Delivers:** Configurable baseline constant, fixed ellipse scaling
+**Implements:** Named constant in transform-to-pptel.ts, coordinate-mapper.ts ellipse fix
+**Avoids:** Pitfall T1, ellipse scale bug
 
 ### Phase Ordering Rationale
 
-- Transform bugs are blockers for accuracy — must fix before adding features
-- Text baseline fix is low-complexity but high-impact — can be in Phase 1
-- Path data completion is independent — can follow Phase 1
-- Group semantics and gradients are enhancements — defer until core is verified
+- Phase 1 first because rotate-center is a fundamental coordinate transform issue
+- Phase 2 second because text handling and ellipse bug are independent fixes
 
 ### Research Flags
 
 Phases likely needing deeper research during planning:
-- **Phase 2 (Matrix transforms):** Complex 6-value matrix decomposition
-- **Phase 3 (Gradients):** PPTElement gradient schema needs verification
+- Phase 1: No research needed -- SVG rotation math is well-documented
 
 Phases with standard patterns (skip research-phase):
-- **Phase 1 (Transform refactor):** Well-documented transform composition patterns
-- **Phase 1 (Text baseline):** Simple multiplier adjustment
+- Phase 1: Standard 2D rotation matrix math
+- Phase 2: Simple constant extraction and 2-line bug fix
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Verified against npm registry, TypeScript 6 release notes |
-| Features | HIGH | Based on project codebase analysis and competitor comparison |
-| Architecture | HIGH | Standard pipeline patterns confirmed; anti-patterns identified |
-| Pitfalls | HIGH | Critical bugs verified by reading coordinate-mapper.ts source |
+| Stack | HIGH | Pure math; no new dependencies |
+| Features | HIGH | Table stakes clearly identified |
+| Architecture | HIGH | Clear component boundaries |
+| Pitfalls | HIGH | Specific line numbers cited |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Gradient schema:** PPTElement gradient format needs verification during Phase 3
-- **Font metrics:** Text baseline approximation of 0.75 not validated
-- **Matrix decomposition:** Full 6-value matrix math is complex; needs spike in Phase 2
+- Baseline ratio for non-Latin fonts -- 0.75 is a Latin approximation
+- PowerPoint rotation caveat -- rotates around top-left corner, not center
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- SVG 1.1 Specification: Transform attribute — w3.org/TR/SVG11/coords
-- SVG 1.1 Specification: Path Data — w3.org/TR/SVG11/paths
-- fast-xml-parser documentation — npmjs.com/package/fast-xml-parser
-- TypeScript 6.0.3 release notes — npm view typescript@6.0.3
+- SVG 1.1 Transform Specification -- rotate(deg, cx, cy) formula
+- SVG 1.1 Text Element -- baseline positioning definition
+- MDN: SVG Transform -- practical examples
+- MDN: SVG Text Element -- y attribute documentation
 
-### Secondary (MEDIUM confidence)
-- vitest 4.x migration guide — vitest.dev
-- tsup GitHub — oxc-project/tsup
-- Matrix composition for 2D transforms — wikipedia.org/wiki/Transformation_matrix
+### Secondary (HIGH confidence)
+- Code analysis of src/mapper/coordinate-mapper.ts
+- Code analysis of src/transformer/transform-to-pptel.ts
+- Reference implementation idea.md
 
-### Tertiary (LOW confidence)
-- Font metrics baseline offset — wiki.apache.org/graphics/FontMetricsAndLineHeight
+### Verification (HIGH confidence)
+- npm search for @turf/transform-rotate -- confirmed overkill
+- npm search for font-metrics -- confirmed abandoned
+- STACK.md, FEATURES.md, ARCHITECTURE.md, PITFALLS.md -- all researched 2026-06-27
 
 ---
-*Research completed: 2026-06-26*
+*Research completed: 2026-06-27*
 *Ready for roadmap: yes*

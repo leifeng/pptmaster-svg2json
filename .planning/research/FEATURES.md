@@ -1,188 +1,243 @@
-# Feature Research
+# Feature Research: SVG Transform Fixes
 
 **Domain:** SVG to PowerPoint JSON converter library
-**Researched:** 2026-06-26
+**Subsequent Milestone:** v1.1 transform-fixes
+**Researched:** 2026-06-27
 **Confidence:** HIGH
 
-## Feature Landscape
+## Executive Summary
 
-### Table Stakes (Users Expect These)
+This research covers two specific fixes for the svg-to-pptel library: (1) implementing proper `rotate(deg, cx, cy)` transform with center point, and (2) improving text y-coordinate baseline-to-top conversion. Both issues have table-stakes severity and have been previously documented in PITFALLS.md. This document provides deeper technical specifications for implementation.
 
-Features users assume exist. Missing these = product feels broken or incomplete.
+## SVG Rotate Transform
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Basic shape conversion (rect, circle, ellipse, path, line, polygon, polyline) | Standard SVG shapes used in all diagrams | LOW | Current implementation covers all these; path only handles M/L/H/V commands |
-| Text extraction with font-family, font-size, fill | Diagrams contain labels, titles, annotations | MEDIUM | Current implementation approximates text bounds; baseline-to-top conversion uses 0.75 multiplier |
-| Image element with href/xlink:href | Logos, photos, icons in diagrams | LOW | Current implementation handles both attribute names |
-| Transform support (translate, scale) | Diagrams use positioning and scaling | LOW | Current implementation handles these; rotation center is missing |
-| Color parsing (named colors, hex, rgb) | All visual elements have colors | LOW | Named colors (147), hex, rgb() supported; rgba/hsl/hsla not supported |
-| ViewBox to canvas coordinate mapping | Responsive SVGs use viewBox | LOW | Maps to 1000x562.5 canvas (16:9) |
-| CLI tool with file input | Users need to convert files | LOW | Single file and directory batch processing supported |
-| Output JSON format | Downstream consumption | LOW | Current `{ elements: PPTElement[] }` format works |
-| Stroke styles (solid, dashed, dotted) | Diagrams use line styles | LOW | Parsed from stroke-dasharray; 2=dotted, 5=dashed |
-| Opacity support | Transparency in diagrams | LOW | Per-element opacity parsed and passed through |
+### How SVG Rotation Works
 
-### Differentiators (Competitive Advantage)
+**SVG `rotate(deg)` without center:**
+- Rotates around the SVG coordinate system origin (0, 0)
+- All points are transformed by: `x' = x * cos(theta) - y * sin(theta)`, `y' = x * sin(theta) + y * cos(theta)`
+- This means elements near (0,0) rotate almost in place, while elements far from origin sweep in large arcs
 
-Features that set the product apart. Not required, but valuable when targeting professional diagram conversion.
+**SVG `rotate(deg, cx, cy)` with center point:**
+- Rotates around the specified point (cx, cy)
+- The three-step math:
+  1. Translate: subtract center to make it the origin: `(x - cx, y - cy)`
+  2. Rotate: apply 2D rotation matrix
+  3. Translate back: add center to result
+- Formula: `x' = cx + (x - cx) * cos(theta) - (y - cy) * sin(theta)`
+          `y' = cy + (x - cx) * sin(theta) + (y - cy) * cos(theta)`
+- Where theta = deg * (PI / 180)
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Rotate transform with center point `rotate(deg, cx, cy)` | Many SVGs use rotation around anchor points | MEDIUM | Currently rotate is ignored; PROJECT.md identifies this as active issue |
-| Accurate text y-coordinate (baseline to top) | Text positioning accuracy critical for labels | MEDIUM | Uses 0.75 * fontSize offset; actual font metrics vary by typeface |
-| Full path command support (C, Q, A, S, T, Z) | Complex diagrams use Bezier curves and arcs | HIGH | pathBoundingBox only parses M/L/H/V; curves marked as "special" with no output |
-| Group semantics preservation (groupId) | Grouped elements should stay grouped in PPT | MEDIUM | Currently groups flattened; groupId never assigned |
-| Gradient fills | Professional diagrams use gradients | MEDIUM | Gradients parsed but never converted to PPTElement gradient format |
-| Matrix transform support | Some design tools emit matrix() transforms | HIGH | Marked as "special" but not handled; element coordinates wrong |
-| preserveAspectRatio handling | SVG images should not stretch | LOW | Currently ignored; images may distort |
-| Advanced color formats (rgba, hsl, hsla, percentage rgb) | Modern design tools use these | LOW | Currently fallback to black for unsupported formats |
-| ClipPath/mask support | Diagrams use clipping for masking | HIGH | Silently skipped; content renders incorrectly |
-| SVG use element expansion | Reusable components via symbols | MEDIUM | use elements not expanded; referenced content omitted |
+**Current Code Status:**
+- Parser (`coordinate-mapper.ts` lines 52-57): Correctly extracts `rotateDeg`, `rotateCX`, `rotateCY`
+- Transformer (`transform-to-pptel.ts`): Never uses rotation values; all elements output `rotate: 0`
+- The parsed rotation center is simply discarded
 
-### Anti-Features (Commonly Requested, Often Problematic)
+### Feature Landscape: Rotate Transform
 
-Features that seem good but create problems or are out of scope.
+| Feature | Why Expected | Complexity | Current Status |
+|---------|--------------|------------|----------------|
+| `rotate(deg)` without center | Basic SVG transform | LOW | Not implemented (rotation ignored entirely) |
+| `rotate(deg, cx, cy)` with center | Diagrams use pivot-based rotation | MEDIUM | Parsed but not applied |
+| Multiple rotate() in transform | Some SVGs chain rotations | MEDIUM | Regex only captures first rotate |
+| Nested transform inheritance | Groups with transforms | MEDIUM | Transforms not accumulated through hierarchy |
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| SVG filter effects (blur, drop-shadow, feGaussianBlur) | Professional designers use effects | PPTElement schema does not support filters; would require rasterization | Accept limitation; use pre-filtered SVGs |
-| CSS cascading/style resolution | Complex SVGs use external styles | Requires full CSS parser and cascade resolution; adds massive complexity | Parse inline style attributes only |
-| SVG animation support | Animated diagrams exist | Animations don't map to static PowerPoint slides | Not applicable to this use case |
-| Font fallback or text layout engine | Multi-font text with proper wrapping | Single-font-per-text-element design; full layout engine out of scope | Keep single-font limitation |
-| Real-time/live SVG conversion | Some use cases want watch mode | Unnecessary for file conversion library | Provide CLI batch processing instead |
-| Interactive SVG features (events, scripts) | Some SVGs have interactivity | PowerPoint is not interactive; not applicable | Strip interactivity, keep visual |
+### Table Stakes: Rotate Fix
+
+| Feature | Implementation Detail |
+|---------|----------------------|
+| `rotate(deg)` around origin | Apply rotation matrix to element coordinates before other transforms |
+| `rotate(deg, cx, cy)` around center | Use translate-rotate-translate formula; `rotateCX/rotateCY` are in SVG coordinate space (before viewBox scaling) |
+
+**Key Implementation Notes:**
+- Rotation center (cx, cy) is in SVG coordinate space, not affected by the element's own transform
+- The rotation angle is in degrees (not radians)
+- After rotation, element bounding box may change (rotated rectangles need larger bounding boxes)
+- PowerPoint `rotate` property rotates around the element's top-left corner, not its center
+
+### Differentiators: Rotate Fix
+
+| Feature | Value Proposition | Complexity | When to Use |
+|---------|-------------------|------------|-------------|
+| Multiple `rotate()` in chain | Some SVG editors emit `rotate(45) rotate(30)` | MEDIUM | Regex needs to find all rotate(), apply in order |
+| Nested transform accumulation | `<g transform="rotate(15)"><rect transform="rotate(10)" /></g>` | HIGH | Walk parent chain, multiply transform matrices |
+
+### Anti-Features: Rotate
+
+| Anti-Feature | Why Avoid | Alternative |
+|--------------|-----------|-------------|
+| `skewX()` / `skewY()` | PPTElement schema does not support skew | Mark as special, warn user |
+| 3D rotation | PowerPoint does not support 3D rotation | Not applicable |
+
+---
+
+## SVG Text Y Coordinate: Baseline to Top
+
+### How SVG Text Y Works
+
+**SVG `<text y="N">` defines the baseline:**
+- The `y` attribute positions the text's baseline
+- Baseline = the line where letters "sit" (bottom of capital letters, not descenders)
+- For text "Hello" at y=100: the bottom of 'H', 'e', 'l', 'l', 'o' sits on y=100
+- Descenders (y, g, p, q) extend below the baseline
+
+**Anatomy of font metrics:**
+```
+        <-- ascent (top of em box to baseline)
+   +----+
+   | H  |  <-- capital height
+   +----+
+   |    |
+   | He |  <-- x-height
+   | llo|
+   +----+
+   | y  |  <-- descender (below baseline)
+  baseline
+```
+
+**Font size and baseline offset:**
+- `font-size` defines the em-box height (the "cap height" approximation)
+- Baseline-to-top offset varies by font:
+  - Typical Latin fonts: 0.7 to 0.85 * fontSize
+  - Many fonts use approximately 0.75 (750 units per 1000 em unit in TrueType)
+  - CSS `1em` = font-size; baseline typically at 0.25em from bottom of em-box
+  - Therefore: baseline-to-top = fontSize * 0.75
+
+**Current Code (transform-to-pptel.ts line 494-496):**
+```typescript
+// SVG text y is baseline, convert to top edge for JSON with scaling
+// Formula: jsonTop = (svgY + fontSize * 0.75) * scale
+const textTop = (coords.top + fontSize * 0.75) * scaleY
+```
+
+### Feature Landscape: Text Baseline
+
+| Feature | Why Expected | Complexity | Current Status |
+|---------|--------------|------------|----------------|
+| Text y as baseline coordinate | SVG spec defines it this way | LOW | Correctly identified, uses 0.75 approximation |
+| Baseline-to-top offset | PowerPoint JSON expects top-left corner | LOW | 0.75 multiplier applied |
+| Dynamic offset per font | Different fonts have different metrics | HIGH | Not supported; requires font metric library |
+
+### Table Stakes: Text Baseline Fix
+
+| Feature | Implementation Detail |
+|---------|----------------------|
+| `text y` as baseline | Parser correctly gets `y` attribute; this is SVG spec behavior |
+| Baseline-to-top conversion | Add `fontSize * 0.75` to baseline y to get top edge |
+| Scale-aware calculation | `textTop = (svgBaselineY + fontSize * 0.75) * scaleY` |
+
+**Key Implementation Notes:**
+- `fontSize` should use the parsed SVG `font-size` attribute (default 16)
+- The multiplier 0.75 is a font-agnostic approximation
+- This works reasonably well for Latin fonts; CJK fonts may differ significantly
+- The offset is applied BEFORE viewBox-to-canvas scaling
+
+### Differentiators: Text Baseline
+
+| Feature | Value Proposition | Complexity | When to Use |
+|---------|-------------------|------------|-------------|
+| Configurable multiplier | Users with known fonts can tune | LOW | Add `textBaselineMultiplier` option (default 0.75) |
+| Empirical font measurement | Use canvas or offscreen measurement | MEDIUM | For non-Latin scripts or precision needs |
+| Per-font baseline table | Accurate metrics for common fonts | HIGH | Load known baseline data for Arial, Helvetica, Times, etc. |
+
+### Anti-Features: Text Baseline
+
+| Anti-Feature | Why Avoid | Alternative |
+|--------------|-----------|-------------|
+| Dynamic font loading | Cannot guarantee fonts are available | Use fixed multipliers or table |
+| Full OpenType metric parsing | Massive complexity for rarely-needed accuracy | Accept approximation for MVP |
+
+---
 
 ## Feature Dependencies
 
 ```
-SVG Input
-    └──requires──> SVG Parser (fast-xml-parser)
-                           └──requires──> AST/Element Tree
-                                              │
-                           ┌─────────────────┼─────────────────┐
-                           │                 │                 │
-                    CoordinateMapper    ShapeConverter    Transformer
-                           │                 │                 │
-                           │                 └──requires──> Path d strings
-                           │                                   │
-                           └──────────────────────┬────────────┘
-                                                  │
-                                         PPTElement JSON Output
+Rotate Transform Fix
+    └──requires──> Rotation math (2D transformation matrix)
+                      └──requires──> Angle conversion (deg → radians)
+                                         └──requires──> cos/sin functions (built-in)
 
-Text Positioning
-    └──requires──> Font Metrics (baseline → top)
-                      └──requires──> fontSize knowledge
-
-Rotate Transform
-    └──requires──> Rotation center (cx, cy)
-                      └──requires──> transform matrix math
-
-Group Handling
-    └──requires──> Group ID assignment
-                      └──requires──> Preserve parent-child relationships
+Text Baseline Fix
+    └──requires──> fontSize extraction
+                      └──requires──> SVG font-size attribute parsing
+                                         └──requires──> Default font-size (16)
+                      
+Combined: Both need coordinate-mapper.ts modification
+    └──requires──> parseTransform() already correct
+    └──requires──> mapCoordinates() needs update
 ```
 
-### Dependency Notes
+---
 
-- **Coordinate mapping requires SVG parser:** The viewBox dimensions and element positions come from parsed SVG structure
-- **Shape conversion requires coordinate mapping:** Bounding boxes computed before path conversion
-- **Text baseline correction requires fontSize:** The 0.75 multiplier approach is font-dependent
-- **Rotate with center requires transform matrix math:** Simple rotation around origin is different from rotation around arbitrary center
-- **Group semantics requires parent tracking:** Currently groups are flattened; groupId would need to propagate from parent to children
+## MVP Definition: v1.1 Transform Fixes
 
-## MVP Definition
+### Launch With
 
-### Launch With (v1)
+| Feature | Acceptance Criteria |
+|---------|---------------------|
+| `rotate(deg)` without center | Element rotates around SVG origin (0,0); output has correct `rotate` property |
+| `rotate(deg, cx, cy)` with center | Element rotates around (cx, cy) point; output positioned correctly |
+| Text baseline to top | `textTop = svgBaselineY + fontSize * 0.75`; text renders at correct vertical position |
 
-Minimum viable product -- what is needed to validate the concept.
+### Defer
 
-- [ ] Basic shape conversion (rect, circle, ellipse, path with M/L/H/V, polygon, polyline, line) -- core value proposition
-- [ ] Text extraction with font styling (font-family, font-size, fill) -- diagrams have labels
-- [ ] Image element with href/xlink:href -- logos and icons appear in diagrams
-- [ ] Transform support (translate, scale, rotate without center) -- common transforms work
-- [ ] ViewBox to 1000x562.5 canvas mapping -- correct output coordinates
-- [ ] Color parsing (named, hex, rgb) -- colors render correctly
-- [ ] CLI with file input -- users can convert files
-- [ ] Stroke styles (solid, dashed, dotted) -- line styles work
-- [ ] Opacity support -- transparency works
+| Feature | Reason |
+|---------|--------|
+| Multiple rotate() in chain | Rare; complexity not justified |
+| Nested transform accumulation | Rare; complexity not justified |
+| Per-font baseline table | Complexity without demonstrated need |
 
-### Add After Validation (v1.x)
+---
 
-Features to add once core is working.
+## Technical Implementation Reference
 
-- [ ] Rotate transform with center point -- many SVGs use `rotate(deg, cx, cy)`
-- [ ] Text baseline-to-top y-coordinate correction -- improves text positioning accuracy
-- [ ] Full path command support (C, Q, A, S, T) -- complex curves render correctly
-- [ ] Group semantics with groupId -- grouped elements stay grouped
-- [ ] preserveAspectRatio handling -- images don't distort
+### Rotate Math (for implementation)
 
-### Future Consideration (v2+)
+```typescript
+function rotatePoint(x: number, y: number, deg: number, cx: number, cy: number): [number, number] {
+  const rad = deg * Math.PI / 180
+  const cos = Math.cos(rad)
+  const sin = Math.sin(rad)
+  const dx = x - cx
+  const dy = y - cy
+  return [
+    cx + dx * cos - dy * sin,
+    cy + dx * sin + dy * cos
+  ]
+}
+```
 
-Features to defer until product-market fit is established.
+### PowerPoint Rotation Caveat
 
-- [ ] Gradient fills -- professional diagrams need this
-- [ ] Matrix transform support -- some design tools emit it
-- [ ] Advanced color formats (rgba, hsl) -- broader SVG compatibility
-- [ ] ClipPath/mask support -- masking effects
-- [ ] SVG use element expansion -- reusable components
+- PowerPoint's `rotate` property rotates around the element's top-left corner
+- SVG's `rotate(deg, cx, cy)` rotates around the specified center
+- Converting SVG rotation with non-zero center to PowerPoint requires:
+  1. Calculate rotated bounding box corners
+  2. Compute new top-left position
+  3. Set PowerPoint `rotate` = deg
+  4. Set `left/top` = new position
 
-## Feature Prioritization Matrix
+### Text Baseline Math (for implementation)
 
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Basic shape conversion | HIGH | LOW | P1 |
-| Text extraction with font styling | HIGH | MEDIUM | P1 |
-| Image element | HIGH | LOW | P1 |
-| Transform (translate, scale) | HIGH | LOW | P1 |
-| Coordinate mapping (1000x562.5) | HIGH | LOW | P1 |
-| Color parsing | HIGH | LOW | P1 |
-| CLI file input | HIGH | LOW | P1 |
-| Stroke styles | MEDIUM | LOW | P1 |
-| Opacity | MEDIUM | LOW | P1 |
-| Rotate with center | HIGH | MEDIUM | P2 |
-| Text baseline correction | HIGH | MEDIUM | P2 |
-| Full path commands (C/Q/A/S/T) | MEDIUM | HIGH | P2 |
-| Group semantics | MEDIUM | MEDIUM | P2 |
-| preserveAspectRatio | MEDIUM | LOW | P2 |
-| Gradient fills | HIGH | MEDIUM | P3 |
-| Matrix transform | MEDIUM | HIGH | P3 |
-| Advanced color formats | LOW | LOW | P3 |
-| ClipPath/mask | LOW | HIGH | P3 |
-| SVG use expansion | LOW | MEDIUM | P3 |
+```typescript
+// SVG: text element with y="baselineY" and font-size="N"
+// Target: top-left corner of text bounding box
 
-**Priority key:**
-- P1: Must have for launch
-- P2: Should have, add when possible
-- P3: Nice to have, future consideration
+const baselineToTop = fontSize * 0.75  // approximation
+const topY = baselineY + baselineToTop  // still in SVG coordinate space
+```
 
-## Competitor Feature Analysis
-
-| Feature | svg-to-pptel (ours) | Direct SVG importers (PowerPoint) | Online converters |
-|---------|---------------------|-----------------------------------|-------------------|
-| Basic shapes | Yes (all 7 types) | Yes | Yes |
-| Text styling | Yes (family, size, color) | Yes | Partial |
-| Transforms | translate, scale only | Yes | Varies |
-| Rotation center | No (bug) | Yes | No |
-| Coordinate mapping | 1000x562.5 fixed | Match source | Match source |
-| CLI | Yes | No | No |
-| Library API | Yes | No | No |
-| Path curve support | M/L/H/V only | Full | Varies |
-| Group preservation | No (flattened) | Yes | No |
-| Gradients | No (not converted) | Yes | No |
-| Batch directory | Yes | No | No |
-
-**Our advantages:** CLI tool, library API, TypeScript, batch processing, fixed 16:9 output canvas
-
-**Our gaps:** Rotation center bug, curve path support, group preservation, gradient conversion
+---
 
 ## Sources
 
-- Project codebase analysis: `src/transformer/transform-to-pptel.ts`, `src/mapper/coordinate-mapper.ts`, `src/parser/svg-parser.ts`
-- Type definitions: `src/slides.ts` (PPTElement schema), `src/types/ast.ts` (SVG AST)
-- Known concerns documented: `.planning/codebase/CONCERNS.md`
-- Project requirements: `.planning/PROJECT.md`
+- [SVG 1.1 Specification: Transform Attribute](https://www.w3.org/TR/SVG11/coords.html#TransformAttribute) - rotation around center point formula
+- [SVG 1.1 Specification: Text Element](https://www.w3.org/TR/SVG11/text.html) - baseline positioning
+- [MDN: SVG Transform](https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/transform) - practical rotation examples
+- [MDN: SVG Text Element](https://developer.mozilla.org/en-US/docs/Web/SVG/Element/text) - y attribute documentation
+- Code analysis: `src/mapper/coordinate-mapper.ts` (parseTransform lines 52-57, mapCoordinates lines 113-217)
+- Code analysis: `src/transformer/transform-to-pptel.ts` (text case lines 480-515, rotate handling lines 255-542)
 
 ---
-*Feature research for: SVG to PowerPoint JSON converter*
-*Researched: 2026-06-26*
+*Feature research for: SVG to PowerPoint JSON converter v1.1 transform-fixes*
+*Researched: 2026-06-27*
