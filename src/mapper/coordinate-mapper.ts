@@ -31,7 +31,7 @@ export function extractNumber(value: string | number | undefined, fallback: numb
  * Per D-04: translate/scale/rotate parsed; D-05: matrix marked as special.
  */
 export function parseTransform(transform: string | undefined): TransformResult {
-  if (!transform) return {}
+  if (!transform) return { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotateDeg: 0 }
   const result: TransformResult = {}
 
   // translate(dx, dy) or translate(dx) — allow negative values
