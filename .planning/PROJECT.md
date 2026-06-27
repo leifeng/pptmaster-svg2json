@@ -58,5 +58,32 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 | Canvas 1000×562.5 | 16:9 standard slide proportion | ✓ Confirmed |
 | 0.75 multiplier for text baseline | Empirical approximation; actual font metric varies | ⚠️ Revisit |
 
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
 ---
-*Last updated: 2026-06-26 after initialization*
+
+## Current Milestone: v1.1 transform-fixes
+
+**Goal:** Fix two critical SVG transform bugs: rotate transform center support and text baseline offset
+
+**Target features:**
+- Correct rotate transform with rotation center — `rotate(deg, cx, cy)` in SVG transform attribute; current code ignores rotation center
+- Correct text y coordinate (baseline → top) — SVG text y is baseline, use configurable multiplier instead of hardcoded 0.75
+
+---
+*Last updated: 2026-06-27 after v1.1 milestone start*
