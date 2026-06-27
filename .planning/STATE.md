@@ -2,9 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: PPTist格式对齐
-status: planning
-last_updated: "2026-06-27"
+current_phase_name: defining requirements
+status: executing
+last_updated: "2026-06-27T09:36:59.643Z"
 last_activity: 2026-06-27
+last_activity_desc: Milestone v1.2 started
 progress:
   total_phases: 0
   completed_phases: 0
@@ -19,7 +21,7 @@ progress:
 
 Phase: Not started (defining requirements)
 Plan: —
-Status: Defining requirements
+Status: Ready to execute
 Last activity: 2026-06-27 — Milestone v1.2 started
 
 ## Milestone Context

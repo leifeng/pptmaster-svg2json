@@ -21,6 +21,7 @@
 **Requirements**: TRANS-01, TRANS-02, TRANS-03
 
 **Success Criteria** (what must be TRUE):
+
 1. `transform="rotate(45, 100, 100)"` 正确应用旋转，元素围绕 (100,100) 旋转
 2. `transform="translate(10, 20) scale(2)"` 正确应用平移和缩放
 3. 解析结果正确映射到 PPTist 的 `rotate`/`flipH`/`flipV` 字段
@@ -30,8 +31,17 @@
 **Plans:** 2 plans
 
 Plans:
+
 - [ ] 01-01-PLAN.md — Wave 0: Create TDD test files for TRANS-01/02/03
 - [ ] 01-02-PLAN.md — Wave 1: Implement transform system (apply-transform.ts, wire into transformElement)
+
+**Cross-cutting constraints:**
+
+- parseTransform() correctly extracts translate/scale/rotate/rotateCX/rotateCY from transform string
+- rotate(deg, cx, cy) with explicit center pre-transforms element coordinates using translate->rotate->translate-back formula
+- rotate(deg) without center sets PPTElement.rotate to rotateDeg
+- scale(-1, 1) sets flipH: true on PPTElement
+- scale(1, -1) sets flipV: true on PPTElement
 
 ---
 
@@ -42,6 +52,7 @@ Plans:
 **Requirements**: TEXT-01, TEXT-02, TEXT-03, TEXT-04, TEXT-05, TEXT-06, TEXT-07, TEXT-08, TEXT-09
 
 **Success Criteria** (what must be TRUE):
+
 1. `text-anchor="middle"` 生成 `style="text-align: center"` 在 `<p>` 标签
 2. `font-weight="bold"` 生成 `<strong>` 标签
 3. Text 元素输出包含 `fill`/`outline`/`shadow`/`vAlign`/`fixedHeight`/`wordSpace`/`paragraphSpace` 字段
@@ -57,6 +68,7 @@ Plans:
 **Requirements**: GRAD-01, GRAD-02, GRAD-03, GRAD-04, OPAC-01, OPAC-02, OPAC-03
 
 **Success Criteria** (what must be TRUE):
+
 1. `<radialGradient>` 和 `<linearGradient>` 被正确解析
 2. `fill="url(#gradientId)"` 解析为 PPTist `gradient` 对象
 3. `stop-opacity` 和元素 `fill-opacity`/`stroke-opacity` 正确映射到 alpha 通道
@@ -73,6 +85,7 @@ Plans:
 **Requirements**: SHPE-01, SHPE-02, SHPE-03, SHPE-04, IMGE-01, IMGE-02, LINE-01, GROUP-01
 
 **Success Criteria** (what must be TRUE):
+
 1. `<rect rx="8">` 生成带圆角的 path
 2. Shape 元素支持 `gradient` 和 `shadow` 字段
 3. Image 元素支持 `outline` 和 `shadow` 字段
@@ -90,6 +103,7 @@ Plans:
 **Requirements**: REQ-TF-01, REQ-TF-02, REQ-TF-03
 
 **Success Criteria** (what must be TRUE):
+
 1. SVG `rotate(deg, cx, cy)` with explicit rotation center produces correct PPTElement coordinates
 2. Ellipse `cx`/`cy` are correctly scaled like `rx`/`ry`
 3. Text baseline offset uses configurable `BASELINE_OFFSET_RATIO` constant (default 0.75)
