@@ -4,7 +4,7 @@
 
 ## Phases
 
-- [ ] **Phase 1: Transform 系统重构** — 完整解析 SVG transform 属性
+- [x] **Phase 1: Transform 系统重构** — 完整解析 SVG transform 属性 (completed 2026-06-27)
 - [ ] **Phase 2: Text 元素扩展** — text-anchor/font-weight/扩展字段
 - [ ] **Phase 3: Gradient 和 Opacity** — 渐变解析和透明度映射
 - [ ] **Phase 4: Shape/Image/Line/Group 扩展** — 补充缺失字段
@@ -28,12 +28,12 @@
 
 **Mode:** mvp
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 
-- [ ] 01-01-PLAN.md — Wave 0: Create TDD test files for TRANS-01/02/03
-- [ ] 01-02-PLAN.md — Wave 1: Implement transform system (apply-transform.ts, wire into transformElement)
+- [x] 01-01-PLAN.md — Wave 0: Create TDD test files for TRANS-01/02/03
+- [x] 01-02-PLAN.md — Wave 1: Implement transform system (apply-transform.ts, wire into transformElement)
 
 **Cross-cutting constraints:**
 
