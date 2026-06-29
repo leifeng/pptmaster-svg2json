@@ -135,6 +135,11 @@ Plans:
 
 **Mode:** mvp
 
+**Plans:** 1/1 plan
+
+Plans:
+- [ ] 05-01-PLAN.md — Wave 1: Fix ellipse cx/cy rotation (REQ-TF-01), ellipse scaling (REQ-TF-02), text baseline ratio (REQ-TF-03)
+
 ---
 
 ## Progress
