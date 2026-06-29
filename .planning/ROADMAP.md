@@ -59,6 +59,17 @@ Plans:
 
 **Mode:** mvp
 
+**Plans:** 2/2 plans
+
+Plans:
+
+- [ ] 02-01-PLAN.md — Wave 0: Create TDD test files for TEXT-01~09
+- [ ] 02-02-PLAN.md — Wave 1: Implement text case (text-anchor, font-weight, fields)
+
+**Cross-cutting constraints:**
+
+- text-anchor='middle' generates style='text-align: center' on <p>' tag
+
 ---
 
 ### Phase 3: Gradient 和 Opacity
