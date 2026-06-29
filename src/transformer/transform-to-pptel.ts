@@ -335,6 +335,17 @@ export function transformElement(
         fill: colorToHex(element.attrs.fill) || '#000000',
         opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
       }
+      // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
+      if (element.attrs.gradient) {
+        result.gradient = element.attrs.gradient
+        delete result.fill
+      } else {
+        // D-18: fill-opacity < 1 → rgba() color
+        const fillOpacity = element.attrs['fill-opacity']
+        if (fillOpacity && parseFloat(fillOpacity) < 1) {
+          result.fill = colorToRgba(element.attrs.fill, parseFloat(fillOpacity))
+        }
+      }
       if (flipH) result.flipH = true
       if (flipV) result.flipV = true
       if (element.attrs.stroke) {
@@ -368,6 +379,17 @@ export function transformElement(
         fixedRatio: false,
         fill: colorToHex(element.attrs.fill) || '#000000',
         opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+      }
+      // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
+      if (element.attrs.gradient) {
+        result.gradient = element.attrs.gradient
+        delete result.fill
+      } else {
+        // D-18: fill-opacity < 1 → rgba() color
+        const fillOpacity = element.attrs['fill-opacity']
+        if (fillOpacity && parseFloat(fillOpacity) < 1) {
+          result.fill = colorToRgba(element.attrs.fill, parseFloat(fillOpacity))
+        }
       }
       if (flipH) result.flipH = true
       if (flipV) result.flipV = true
@@ -404,6 +426,17 @@ export function transformElement(
         fill: colorToHex(element.attrs.fill) || '#000000',
         opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
       }
+      // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
+      if (element.attrs.gradient) {
+        result.gradient = element.attrs.gradient
+        delete result.fill
+      } else {
+        // D-18: fill-opacity < 1 → rgba() color
+        const fillOpacity = element.attrs['fill-opacity']
+        if (fillOpacity && parseFloat(fillOpacity) < 1) {
+          result.fill = colorToRgba(element.attrs.fill, parseFloat(fillOpacity))
+        }
+      }
       if (flipH) result.flipH = true
       if (flipV) result.flipV = true
       if (element.attrs.stroke) {
@@ -435,6 +468,17 @@ export function transformElement(
         fixedRatio: false,
         fill: colorToHex(element.attrs.fill) || '#000000',
         opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+      }
+      // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
+      if (element.attrs.gradient) {
+        result.gradient = element.attrs.gradient
+        delete result.fill
+      } else {
+        // D-18: fill-opacity < 1 → rgba() color
+        const fillOpacity = element.attrs['fill-opacity']
+        if (fillOpacity && parseFloat(fillOpacity) < 1) {
+          result.fill = colorToRgba(element.attrs.fill, parseFloat(fillOpacity))
+        }
       }
       if (flipH) result.flipH = true
       if (flipV) result.flipV = true
@@ -469,6 +513,17 @@ export function transformElement(
         fill: colorToHex(element.attrs.fill) || '#000000',
         opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
       }
+      // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
+      if (element.attrs.gradient) {
+        result.gradient = element.attrs.gradient
+        delete result.fill
+      } else {
+        // D-18: fill-opacity < 1 → rgba() color
+        const fillOpacity = element.attrs['fill-opacity']
+        if (fillOpacity && parseFloat(fillOpacity) < 1) {
+          result.fill = colorToRgba(element.attrs.fill, parseFloat(fillOpacity))
+        }
+      }
       if (flipH) result.flipH = true
       if (flipV) result.flipV = true
       if (element.attrs.stroke) {
@@ -501,6 +556,17 @@ export function transformElement(
         fixedRatio: false,
         fill: colorToHex(element.attrs.fill) || 'none',
         opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+      }
+      // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
+      if (element.attrs.gradient) {
+        result.gradient = element.attrs.gradient
+        delete result.fill
+      } else {
+        // D-18: fill-opacity < 1 → rgba() color
+        const fillOpacity = element.attrs['fill-opacity']
+        if (fillOpacity && parseFloat(fillOpacity) < 1) {
+          result.fill = colorToRgba(element.attrs.fill, parseFloat(fillOpacity))
+        }
       }
       if (flipH) result.flipH = true
       if (flipV) result.flipV = true
