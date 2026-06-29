@@ -51,19 +51,42 @@ Text 元素扩展：完整支持 Text 元素的样式属性和 HTML 内容格式
   - `fixedHeight` — PPTist 无此字段
   - `wordSpace` / `paragraphSpace` — PPTist 有字段但 SVG 无对应属性 → 使用默认值（见下表）
 
-### 字段默认值
+### 字段默认值（仅必填字段）
 
-如果 SVG 中不存在对应属性，使用 PPTist 默认值：
+只有**必填字段**才需要默认值，可选字段不需要强制赋值。
 
-| 字段 | PPTist 默认值 | 来源 |
-|-----|-------------|------|
+**Text 必填字段：**
+| 字段 | 默认值 | 来源 |
+|-----|-------|------|
 | `defaultFontName` | `"SourceHanSans"` | `code/PPTist/src/hooks/useCreateElement.ts:178` |
 | `defaultColor` | `"#1F2937"` 或 theme 值 | `code/PPTist/src/hooks/useCreateElement.ts:179` |
-| `lineHeight` | `1.5` | `code/PPTist/src/types/slides.ts:166` |
-| `wordSpace` | `0` | `code/PPTist/src/types/slides.ts:168` |
-| `paragraphSpace` | `5` | `code/PPTist/src/types/slides.ts:174` |
-| `opacity` | `1` | `code/PPTist/src/types/slides.ts:170` |
-| `vertical` | `false` | `code/PPTist/src/hooks/useCreateElement.ts:234` |
+
+**Image 必填字段：**
+| 字段 | 默认值 | 来源 |
+|-----|-------|------|
+| `src` | `"https://images.pexels.com/photos/730670/pexels-photo-730670.jpeg"` | AI_PPT_SCHEMA.md |
+| `fixedRatio` | `true` | — |
+
+**Shape 必填字段：**
+| 字段 | 默认值 | 来源 |
+|-----|-------|------|
+| `fill` | `theme.value.themeColors[0]` (主题色) | `useCreateElement.ts:205` |
+| `fixedRatio` | `false` | `useCreateElement.ts:206` |
+
+**Line 必填字段：**
+| 字段 | 默认值 | 来源 |
+|-----|-------|------|
+| `style` | 来自 `LinePoolItem.data.style` | 必填，无法静态确定 |
+| `color` | `theme.value.themeColors[0]` (主题色) | `useCreateElement.ts:242` |
+| `points` | 来自 `LinePoolItem.data.points` | 必填，无法静态确定 |
+
+**注意:** `theme.value.themeColors[0]` 是 PPTist 主题色，如果无法获取 theme 上下文，可考虑使用 `#000000` 作为 fallback。
+
+**可选字段（不需要强制赋值）：**
+- Text: `lineHeight`, `wordSpace`, `opacity`, `paragraphSpace`, `vertical`, `fixedHeight`, `vAlign`
+- Image: `outline`, `filters`, `clip`, `flipH`, `flipV`, `shadow`, `radius`, `colorMask`
+- Shape: `gradient`, `pattern`, `outline`, `opacity`, `flipH`, `flipV`, `shadow`, `special`, `text`
+- Line: `shadow`, `broken`, `broken2`, `broken2Direction`, `curve`, `cubic`
 
 ## Canonical References
 
