@@ -57,9 +57,9 @@
 
 ### Transform System
 
-- [ ] **REQ-TF-01**: Apply SVG `rotate(deg, cx, cy)` with correct rotation center — implement rotate-around-center using translate → rotate → translate-back formula
-- [ ] **REQ-TF-02**: Fix ellipse center scaling — `cx`/`cy` must be scaled same as `rx`/`ry`
-- [ ] **REQ-TF-03**: Fix text baseline offset — use configurable `BASELINE_OFFSET_RATIO` constant
+- [x] **REQ-TF-01**: Apply SVG `rotate(deg, cx, cy)` with correct rotation center — implement rotate-around-center using translate → rotate → translate-back formula
+- [x] **REQ-TF-02**: Fix ellipse center scaling — `cx`/`cy` must be scaled same as `rx`/`ry`
+- [x] **REQ-TF-03**: Fix text baseline offset — use configurable `BASELINE_OFFSET_RATIO` constant
 
 ## v2 Requirements (deferred)
 
@@ -112,9 +112,9 @@
 | IMGE-02 | Phase 4 | Complete |
 | LINE-01 | Phase 4 | Complete |
 | GROUP-01 | Phase 4 | Complete |
-| REQ-TF-01 | Phase 5 | Pending |
-| REQ-TF-02 | Phase 5 | Pending |
-| REQ-TF-03 | Phase 5 | Pending |
+| REQ-TF-01 | Phase 5 | Complete |
+| REQ-TF-02 | Phase 5 | Complete |
+| REQ-TF-03 | Phase 5 | Complete |
 
 **Coverage:**
 

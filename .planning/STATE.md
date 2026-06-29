@@ -5,15 +5,15 @@ milestone_name: PPTist格式对齐
 current_phase: 5
 current_phase_name: v1.1 Transform 遗留修复
 status: executing
-stopped_at: Phase 05 context gathered
-last_updated: "2026-06-29T07:15:30.416Z"
+stopped_at: Phase 05 plan 01 complete
+last_updated: "2026-06-29T07:33:00.000Z"
 last_activity: 2026-06-29
-last_activity_desc: Phase 04 complete, transitioned to Phase 5
+last_activity_desc: Phase 05 plan 01 complete - ellipse/text transform fixes
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 9
+  completed_plans: 9
   percent: 80
 ---
 
@@ -22,9 +22,9 @@ progress:
 ## Current Position
 
 Phase: 5 — v1.1 Transform 遗留修复
-Plan: Not started
-Status: Executing Phase 04
-Last activity: 2026-06-29 — Phase 04 complete, transitioned to Phase 5
+Plan: 01 complete (ellipse cx/cy rotation+scaling, text baseline ratio)
+Status: Ready for next plan
+Last activity: 2026-06-29 — Phase 05 plan 01 complete
 
 ## Milestone Context
 
@@ -46,9 +46,12 @@ Last activity: 2026-06-29 — Phase 04 complete, transitioned to Phase 5
 ### Decisions
 
 - Rotate-center math: translate-to-center, rotate, translate-back formula
-- Text baseline: 0.75 multiplier exposed as configurable `BASELINE_OFFSET_RATIO`
+- Text baseline: 0.75 multiplier exposed as configurable `BASELINE_OFFSET_RATIO` (now 0.8 per D-28)
 - Ellipse scaling: cx/cy must be scaled same as rx/ry
 - SVG transform 顺序: translate → rotate → scale (SVG规范)
+- D-26: Ellipse cx/cy need separate rotation via applyRotateWithCenter - rx/ry do NOT rotate
+- D-27: Ellipse rx/ry use Math.abs on scale factors to remain positive (radius cannot be negative)
+- D-28: BASELINE_OFFSET_RATIO = 0.8 is more accurate for SVG text baseline approximation
 
 ### Implementation Notes
 
@@ -62,13 +65,13 @@ None currently.
 
 ## Session Continuity
 
-**Last session:** 2026-06-29T07:15:30.398Z
-**Stopped at:** Phase 05 context gathered
-**Resume file:** .planning/phases/05-v1-1-transform/05-CONTEXT.md
+**Last session:** 2026-06-29T07:33:00.000Z
+**Stopped at:** Phase 05 plan 01 complete
+**Resume file:** .planning/phases/05-v1-1-transform/05-01-SUMMARY.md
 
 - v1.1 started: 2026-06-27
 - v1.2 started: 2026-06-27 (this session)
 
 ---
 
-*State last updated: 2026-06-27*
+*State last updated: 2026-06-29*

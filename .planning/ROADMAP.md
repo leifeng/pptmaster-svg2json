@@ -8,7 +8,7 @@
 - [x] **Phase 2: Text 元素扩展** — text-anchor/font-weight/扩展字段 (completed 2026-06-29)
 - [x] **Phase 3: Gradient 和 Opacity** — 渐变解析和透明度映射 (completed 2026-06-29)
 - [x] **Phase 4: Shape/Image/Line/Group 扩展** — 补充缺失字段 (completed 2026-06-29)
-- [ ] **Phase 5: v1.1 Transform 遗留修复** — rotate中心/ellipse/baseline
+- [x] **Phase 5: v1.1 Transform 遗留修复** — rotate中心/ellipse/baseline (completed 2026-06-29)
 
 ---
 
@@ -131,14 +131,14 @@ Plans:
 
 1. SVG `rotate(deg, cx, cy)` with explicit rotation center produces correct PPTElement coordinates
 2. Ellipse `cx`/`cy` are correctly scaled like `rx`/`ry`
-3. Text baseline offset uses configurable `BASELINE_OFFSET_RATIO` constant (default 0.75)
+3. Text baseline offset uses configurable `BASELINE_OFFSET_RATIO` constant (default 0.8)
 
 **Mode:** mvp
 
-**Plans:** 1/1 plan
+**Plans:** 1/1 plan complete
 
 Plans:
-- [ ] 05-01-PLAN.md — Wave 1: Fix ellipse cx/cy rotation (REQ-TF-01), ellipse scaling (REQ-TF-02), text baseline ratio (REQ-TF-03)
+- [x] 05-01-PLAN.md — Wave 1: Fix ellipse cx/cy rotation (REQ-TF-01), ellipse scaling (REQ-TF-02), text baseline ratio (REQ-TF-03)
 
 ---
 
@@ -150,9 +150,9 @@ Plans:
 | Phase 2: Text 元素扩展 | TEXT-01~09 (9) | 0/9 |
 | Phase 3: Gradient 和 Opacity | GRAD-01~04, OPAC-01~03 (7) | 0/7 |
 | Phase 4: Shape/Image/Line/Group 扩展 | SHPE-01~04, IMGE-01~02, LINE-01, GROUP-01 (8) | 0/8 |
-| Phase 5: v1.1 Transform 遗留修复 | REQ-TF-01~03 (3) | 0/3 |
+| Phase 5: v1.1 Transform 遗留修复 | REQ-TF-01~03 (3) | 3/3 |
 
-**Total:** 0/29 requirements complete
+**Total:** 29/29 requirements complete
 
 ---
 
