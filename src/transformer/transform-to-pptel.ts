@@ -365,6 +365,10 @@ export function transformElement(
           result.outline.opacity = parseFloat(strokeOpacity)
         }
       }
+      // D-22: SVG filter="url(#shadowId)" → shadow (resolved at parse time)
+      if (element.attrs.shadow) {
+        result.shadow = element.attrs.shadow
+      }
       return result
     }
 
@@ -414,6 +418,10 @@ export function transformElement(
         if (strokeOpacity !== undefined) {
           result.outline.opacity = parseFloat(strokeOpacity)
         }
+      }
+      // D-22: SVG filter="url(#shadowId)" → shadow
+      if (element.attrs.shadow) {
+        result.shadow = element.attrs.shadow
       }
       return result
     }
@@ -466,6 +474,10 @@ export function transformElement(
           result.outline.opacity = parseFloat(strokeOpacity)
         }
       }
+      // D-22: SVG filter="url(#shadowId)" → shadow
+      if (element.attrs.shadow) {
+        result.shadow = element.attrs.shadow
+      }
       return result
     }
 
@@ -513,6 +525,10 @@ export function transformElement(
         if (strokeOpacity !== undefined) {
           result.outline.opacity = parseFloat(strokeOpacity)
         }
+      }
+      // D-22: SVG filter="url(#shadowId)" → shadow
+      if (element.attrs.shadow) {
+        result.shadow = element.attrs.shadow
       }
       return result
     }
@@ -563,6 +579,10 @@ export function transformElement(
           result.outline.opacity = parseFloat(strokeOpacity)
         }
       }
+      // D-22: SVG filter="url(#shadowId)" → shadow
+      if (element.attrs.shadow) {
+        result.shadow = element.attrs.shadow
+      }
       return result
     }
 
@@ -611,6 +631,10 @@ export function transformElement(
         if (strokeOpacity !== undefined) {
           result.outline.opacity = parseFloat(strokeOpacity)
         }
+      }
+      // D-22: SVG filter="url(#shadowId)" → shadow
+      if (element.attrs.shadow) {
+        result.shadow = element.attrs.shadow
       }
       return result
     }
@@ -753,6 +777,10 @@ export function transformElement(
             color: colorToHex(element.attrs.stroke),
           }
         }
+      }
+      // D-22: shadow from filter def (IMGE-02)
+      if (element.attrs.shadow) {
+        result.shadow = element.attrs.shadow
       }
       return result
     }

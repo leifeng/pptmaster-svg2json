@@ -70,6 +70,8 @@ export interface SvgAttrs {
   // resolved gradient object (per D-15: fill="url(#id)" resolved at parse time)
   // Using 'any' to avoid conflict with string index signature
   gradient?: any;
+  // resolved shadow object (per D-22: filter="url(#id)" with feDropShadow resolved at parse time)
+  shadow?: any;
 }
 
 export interface SvgElement {

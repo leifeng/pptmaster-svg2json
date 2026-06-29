@@ -1,6 +1,11 @@
 import { XMLParser } from 'fast-xml-parser'
 import { SvgParseResult, SvgElement, SvgAttrs, GradientDef, GradientColorDef } from '../types/ast'
-import { colorToRgba } from '../transformer/transform-to-pptel'
+import { colorToRgba, colorToHex } from '../transformer/transform-to-pptel'
+
+export interface FilterDef {
+  id: string
+  children: SvgElement[]  // the filter primitives like feDropShadow
+}
 
 interface TextRun {
   content: string
@@ -66,7 +71,8 @@ function collectGradientDefs(xmlNode: any, registry: Map<string, GradientDef>): 
             if (!stop) continue
             const offset = stop['@_offset'] || '0%'
             const stopColor = stop['@_stop-color'] || '#000000'
-            const stopOpacity = parseFloat(stop['@_stop-opacity'] || '1')
+            const stopOpacityAttr = stop['@_stop-opacity']
+            const stopOpacity = stopOpacityAttr !== undefined ? parseFloat(stopOpacityAttr) : 1
             const pos = offset.endsWith('%') ? parseFloat(offset) / 100 : parseFloat(offset)
             colors.push({ pos, color: colorToRgba(stopColor, stopOpacity) })
           }
@@ -103,7 +109,8 @@ function collectGradientDefs(xmlNode: any, registry: Map<string, GradientDef>): 
             if (!stop) continue
             const offset = stop['@_offset'] || '0%'
             const stopColor = stop['@_stop-color'] || '#000000'
-            const stopOpacity = parseFloat(stop['@_stop-opacity'] || '1')
+            const stopOpacityAttr = stop['@_stop-opacity']
+            const stopOpacity = stopOpacityAttr !== undefined ? parseFloat(stopOpacityAttr) : 1
             const pos = offset.endsWith('%') ? parseFloat(offset) / 100 : parseFloat(offset)
             colors.push({ pos, color: colorToRgba(stopColor, stopOpacity) })
           }
@@ -122,6 +129,46 @@ function collectGradientDefs(xmlNode: any, registry: Map<string, GradientDef>): 
           colors,
         }
         registry.set(id, gradientDef)
+      }
+    }
+  }
+}
+
+/**
+ * Collect all filter definitions from parsed XML into a registry.
+ * D-22: filter defs collected and resolved at parse time.
+ */
+function collectFilterDefs(xmlNode: any, registry: Map<string, FilterDef>): void {
+  const defs = xmlNode['defs']
+  if (!defs) return
+
+  const defsArr = Array.isArray(defs) ? defs : [defs]
+
+  for (const def of defsArr) {
+    if (!def) continue
+    if (def['filter']) {
+      const filters = Array.isArray(def['filter']) ? def['filter'] : [def['filter']]
+      for (const filter of filters) {
+        if (!filter) continue
+        const id = filter['@_id']
+        if (!id) continue
+        // Collect filter primitive children (feDropShadow, etc.) as SvgElement-like objects
+        const filterChildren: SvgElement[] = []
+        if (filter['feDropShadow']) {
+          const feDsArr = Array.isArray(filter['feDropShadow']) ? filter['feDropShadow'] : [filter['feDropShadow']]
+          for (const feDs of feDsArr) {
+            if (!feDs) continue
+            // Extract feDropShadow attributes with @_ prefix
+            const feDsAttrs: SvgAttrs = {}
+            for (const key of Object.keys(feDs)) {
+              if (key.startsWith('@_')) {
+                feDsAttrs[key.substring(2)] = feDs[key]
+              }
+            }
+            filterChildren.push({ type: 'feDropShadow', attrs: feDsAttrs, children: [] })
+          }
+        }
+        registry.set(id, { id, children: filterChildren })
       }
     }
   }
@@ -153,6 +200,35 @@ function resolveFillReference(attrs: SvgAttrs, registry: Map<string, GradientDef
   attrs.gradient = gradient
   // Clear fill since gradient is now in attrs.gradient
   delete attrs.fill
+}
+
+/**
+ * Resolve filter="url(#id)" references using the filter registry.
+ * D-22: filter="url(#shadowId)" with feDropShadow → PPTElementShadow object.
+ */
+function resolveFilterReference(attrs: SvgAttrs, registry: Map<string, FilterDef>): void {
+  const filter = attrs.filter
+  if (!filter || !filter.startsWith('url(#')) return
+
+  const match = filter.match(/url\(#([^)]+)\)/)
+  if (!match) return
+
+  const filterId = match[1]
+  const filterDef = registry.get(filterId)
+  if (!filterDef) return
+
+  // Find feDropShadow child
+  const feDropShadow = filterDef.children.find(c => c.type === 'feDropShadow')
+  if (!feDropShadow) return
+
+  // Build PPTElementShadow from feDropShadow attributes
+  // D-22: dx→h, dy→v, stdDeviation→blur, flood-color→color
+  attrs.shadow = {
+    h: parseFloat(String(feDropShadow.attrs.dx || '0')),
+    v: parseFloat(String(feDropShadow.attrs.dy || '0')),
+    blur: parseFloat(String(feDropShadow.attrs.stdDeviation || '0')),
+    color: colorToHex(feDropShadow.attrs['flood-color'] || feDropShadow.attrs['shadow-color'] || '#000000'),
+  }
 }
 
 function extractTextContent(node: any): { content: string; runs: TextRun[] } {
@@ -189,7 +265,7 @@ export function parseViewBox(viewBoxStr: string | undefined): [number, number, n
   return [parts[0], parts[1], parts[2], parts[3]]
 }
 
-function convertToSvgElement(node: any, parentTag: string = '', gradientRegistry?: Map<string, GradientDef>): SvgElement {
+function convertToSvgElement(node: any, parentTag: string = '', gradientRegistry?: Map<string, GradientDef>, filterRegistry?: Map<string, FilterDef>): SvgElement {
   const tagName = (node['#tag'] || parentTag || '').toLowerCase()
 
   // Extract attributes with @_ prefix
@@ -210,6 +286,11 @@ function convertToSvgElement(node: any, parentTag: string = '', gradientRegistry
     resolveFillReference(attrs, gradientRegistry)
   }
 
+  // Resolve filter="url(#id)" references using filter registry (D-22)
+  if (filterRegistry) {
+    resolveFilterReference(attrs, filterRegistry)
+  }
+
   // Handle text content
   let text: string | undefined
   if (node['#text']) {
@@ -224,7 +305,7 @@ function convertToSvgElement(node: any, parentTag: string = '', gradientRegistry
     if (node[tag]) {
       const childNodes = Array.isArray(node[tag]) ? node[tag] : [node[tag]]
       for (const child of childNodes) {
-        children.push(convertToSvgElement(child, tag, gradientRegistry))
+        children.push(convertToSvgElement(child, tag, gradientRegistry, filterRegistry))
       }
     }
   }
@@ -299,8 +380,12 @@ export function parseSvg(xmlString: string): SvgParseResult {
   const gradientRegistry = new Map<string, GradientDef>()
   collectGradientDefs(svgRoot, gradientRegistry)
 
-  // Build clean element tree from svg root with gradient registry for resolving references
-  const root = convertToSvgElement(svgRoot, 'svg', gradientRegistry)
+  // First pass: collect all filter definitions into registry
+  const filterRegistry = new Map<string, FilterDef>()
+  collectFilterDefs(svgRoot, filterRegistry)
+
+  // Build clean element tree from svg root with gradient and filter registries for resolving references
+  const root = convertToSvgElement(svgRoot, 'svg', gradientRegistry, filterRegistry)
   root.attrs = rootAttrs
 
   return {
