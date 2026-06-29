@@ -1,3 +1,28 @@
+export interface GradientColorDef {
+  pos: number
+  color: string
+}
+
+export interface GradientDef {
+  type: 'linear' | 'radial'
+  // linear attrs
+  x1?: string
+  y1?: string
+  x2?: string
+  y2?: string
+  // radial attrs
+  cx?: string
+  cy?: string
+  r?: string
+  fx?: string
+  fy?: string
+  // common
+  spreadMethod?: string
+  gradientUnits?: string
+  gradientTransform?: string
+  colors: GradientColorDef[]
+}
+
 export interface SvgAttrs {
   [key: string]: string | number | undefined;
   fill?: string;
@@ -26,6 +51,25 @@ export interface SvgAttrs {
   preserveAspectRatio?: string;
   id?: string;
   'stroke-dasharray'?: string;
+  // linearGradient attributes
+  x1?: string;
+  y1?: string;
+  x2?: string;
+  y2?: string;
+  // radialGradient attributes
+  fx?: string;
+  fy?: string;
+  // common gradient attributes
+  spreadMethod?: string;
+  gradientUnits?: string;
+  gradientTransform?: string;
+  // stop element attributes
+  'stop-color'?: string;
+  'stop-opacity'?: string;
+  offset?: string;
+  // resolved gradient object (per D-15: fill="url(#id)" resolved at parse time)
+  // Using 'any' to avoid conflict with string index signature
+  gradient?: any;
 }
 
 export interface SvgElement {
