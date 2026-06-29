@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { SvgParseResult, SvgElement } from '../types/ast'
 import { mapCoordinates, parseTransform } from '../mapper/coordinate-mapper'
 import { applyTransform } from './apply-transform'
-import { rectToPath, circleToPath, ellipseToPath, lineToPath, polygonToPath } from '../shapes/shape-to-path'
+import { rectToPath, roundedRectToPath, circleToPath, ellipseToPath, lineToPath, polygonToPath } from '../shapes/shape-to-path'
 import type { PPTElement, PPTTextElement, PPTShapeElement, PPTLineElement, PPTImageElement, LineStyleType } from '../slides'
 
 export type { PPTElement }
@@ -314,12 +314,17 @@ export function transformElement(
     case 'rect': {
       const transformed = applyTransform(left, top, width, height, transform)
       const { rotate, flipH, flipV } = transformed
-      const path = rectToPath(
-        Number(element.attrs.x) || 0,
-        Number(element.attrs.y) || 0,
-        Number(element.attrs.width) || 0,
-        Number(element.attrs.height) || 0,
-      )
+      const rx = Number(element.attrs.rx) || 0
+      // ry: use explicit value if provided (including 0 for sharp corners), otherwise fall back to rx
+      const ry = element.attrs.ry !== undefined ? Number(element.attrs.ry) || 0 : rx
+      const rectWidth = Number(element.attrs.width) || 0
+      const rectHeight = Number(element.attrs.height) || 0
+
+      // D-21: Use roundedRectToPath when rx or ry > 0, otherwise rectToPath
+      const effectiveRy = element.attrs.ry !== undefined ? ry : rx
+      const path = (rx > 0 || effectiveRy > 0)
+        ? roundedRectToPath(rectWidth, rectHeight, rx, effectiveRy)
+        : rectToPath(0, 0, rectWidth, rectHeight)
       const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'))
       const result: PPTShapeElement = {
         id,
