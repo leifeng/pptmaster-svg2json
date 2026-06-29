@@ -87,6 +87,13 @@ Plans:
 
 **Mode:** mvp
 
+**Plans:** 2/2 plans
+
+Plans:
+
+- [ ] 03-01-PLAN.md — Wave 0: TDD test files + gradient registry implementation (GRAD-01~04)
+- [ ] 03-02-PLAN.md — Wave 1: Opacity mapping implementation (OPAC-01~03)
+
 ---
 
 ### Phase 4: Shape/Image/Line/Group 扩展
