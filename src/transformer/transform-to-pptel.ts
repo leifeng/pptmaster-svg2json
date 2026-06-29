@@ -1,8 +1,11 @@
 import { v4 as uuidv4 } from 'uuid'
 import { SvgParseResult, SvgElement } from '../types/ast'
 import { mapCoordinates, parseTransform } from '../mapper/coordinate-mapper'
-import { applyTransform } from './apply-transform'
+import { applyTransform, applyRotateWithCenter } from './apply-transform'
 import { rectToPath, roundedRectToPath, circleToPath, ellipseToPath, lineToPath, polygonToPath } from '../shapes/shape-to-path'
+
+// D-28: SVG text baseline ratio constant
+const BASELINE_OFFSET_RATIO = 0.8
 import type { PPTElement, PPTTextElement, PPTShapeElement, PPTLineElement, PPTImageElement, LineStyleType } from '../slides'
 
 export type { PPTElement }
@@ -439,11 +442,26 @@ export function transformElement(
     case 'ellipse': {
       const transformed = applyTransform(left, top, width, height, transform)
       const { rotate, flipH, flipV } = transformed
-      const cx = Number(element.attrs.cx) || 0
-      const cy = Number(element.attrs.cy) || 0
-      const rx = Number(element.attrs.rx) || 0
-      const ry = Number(element.attrs.ry) || 0
-      const path = ellipseToPath(cx, cy, rx, ry)
+      // D-26/D-27: Scale cx/cy and rx/ry by scaleX/scaleY
+      const scaledCx = (Number(element.attrs.cx) || 0) * scaleX
+      const scaledCy = (Number(element.attrs.cy) || 0) * scaleY
+      const scaledRx = Math.abs(Number(element.attrs.rx) || 0) * Math.abs(scaleX)
+      const scaledRy = Math.abs(Number(element.attrs.ry) || 0) * Math.abs(scaleY)
+      // D-26: Apply rotation to cx/cy if rotate center is defined
+      let finalCx = scaledCx
+      let finalCy = scaledCy
+      if (transform.rotateCX !== undefined && transform.rotateCY !== undefined) {
+        const rotated = applyRotateWithCenter(
+          scaledCx,
+          scaledCy,
+          transform.rotateDeg!,
+          transform.rotateCX * scaleX,
+          transform.rotateCY * scaleY,
+        )
+        finalCx = rotated.x
+        finalCy = rotated.y
+      }
+      const path = ellipseToPath(finalCx, finalCy, scaledRx, scaledRy)
       const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'))
       const result: PPTShapeElement = {
         id,
@@ -710,7 +728,7 @@ export function transformElement(
       // SVG text y is baseline, convert to top edge for JSON with scaling
       // Formula: jsonTop = (svgY + fontSize * 0.75) * scale
       const textLeft = transformed.left
-      const textTop = (transformed.top + fontSize * 0.75) * scaleY
+      const textTop = (transformed.top + fontSize * BASELINE_OFFSET_RATIO) * scaleY
 
       // D-09: text-anchor → text-align on <p> style
       const textAnchor = element.attrs['text-anchor']
