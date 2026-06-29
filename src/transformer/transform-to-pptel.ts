@@ -281,12 +281,14 @@ function extractTextContentFromElement(element: SvgElement): string {
  * @param viewBox - SVG viewBox [minX, minY, width, height]
  * @param index - Element index in the output
  * @param targetCanvas - Target canvas size [width, height], defaults to [1000, 562.5]
+ * @param groupId - Current groupId context from parent g elements
  */
 export function transformElement(
   element: SvgElement,
   viewBox: [number, number, number, number],
   index: number,
   targetCanvas: [number, number] = [1000, 562.5],
+  groupId?: string,
 ): PPTElement | null {
   const tag = element.type.toLowerCase()
   const coords = mapCoordinates(element, viewBox)
@@ -369,6 +371,10 @@ export function transformElement(
       if (element.attrs.shadow) {
         result.shadow = element.attrs.shadow
       }
+      // D-23: groupId propagation from parent g element
+      if (groupId) {
+        result.groupId = groupId
+      }
       return result
     }
 
@@ -422,6 +428,10 @@ export function transformElement(
       // D-22: SVG filter="url(#shadowId)" → shadow
       if (element.attrs.shadow) {
         result.shadow = element.attrs.shadow
+      }
+      // D-23: groupId propagation from parent g element
+      if (groupId) {
+        result.groupId = groupId
       }
       return result
     }
@@ -478,6 +488,10 @@ export function transformElement(
       if (element.attrs.shadow) {
         result.shadow = element.attrs.shadow
       }
+      // D-23: groupId propagation from parent g element
+      if (groupId) {
+        result.groupId = groupId
+      }
       return result
     }
 
@@ -529,6 +543,10 @@ export function transformElement(
       // D-22: SVG filter="url(#shadowId)" → shadow
       if (element.attrs.shadow) {
         result.shadow = element.attrs.shadow
+      }
+      // D-23: groupId propagation from parent g element
+      if (groupId) {
+        result.groupId = groupId
       }
       return result
     }
@@ -583,6 +601,10 @@ export function transformElement(
       if (element.attrs.shadow) {
         result.shadow = element.attrs.shadow
       }
+      // D-23: groupId propagation from parent g element
+      if (groupId) {
+        result.groupId = groupId
+      }
       return result
     }
 
@@ -636,6 +658,10 @@ export function transformElement(
       if (element.attrs.shadow) {
         result.shadow = element.attrs.shadow
       }
+      // D-23: groupId propagation from parent g element
+      if (groupId) {
+        result.groupId = groupId
+      }
       return result
     }
 
@@ -659,6 +685,10 @@ export function transformElement(
       // D-24: stroke-width → PPTLineElement.width, default to 1 when absent or 0
       const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'))
       result.width = strokeWidth || 1
+      // D-23: groupId propagation from parent g element
+      if (groupId) {
+        result.groupId = groupId
+      }
       return result
     }
 
@@ -746,6 +776,10 @@ export function transformElement(
         paragraphSpace: 5,
         vertical,
       }
+      // D-23: groupId propagation from parent g element
+      if (groupId) {
+        result.groupId = groupId
+      }
       return result
     }
 
@@ -782,6 +816,10 @@ export function transformElement(
       if (element.attrs.shadow) {
         result.shadow = element.attrs.shadow
       }
+      // D-23: groupId propagation from parent g element
+      if (groupId) {
+        result.groupId = groupId
+      }
       return result
     }
 
@@ -808,20 +846,29 @@ export function transformToPPTElement(
 ): PPTElement[] {
   const elements: PPTElement[] = []
 
-  function walk(element: SvgElement, viewBox: [number, number, number, number]) {
+  function walk(element: SvgElement, viewBox: [number, number, number, number], currentGroupId?: string) {
     const tag = element.type.toLowerCase()
 
-    // Skip non-renderable container elements
-    if (!['defs', 'linearGradient', 'stop', 'filter', 'marker', 'clippath'].includes(tag)) {
-      const pptel = transformElement(element, viewBox, elements.length, targetCanvas)
-      if (pptel !== null) {
-        elements.push(pptel)
-      }
-    }
+    // D-23: When tag='g' with id, update groupId context for children
+    // Children inherit parent g id as their groupId. Nested g: innermost id takes precedence.
+    // If g has no id, children get undefined (break the chain - no inheritance through unnamed g)
+    const isG = tag === 'g'
+    const effectiveGroupId = isG ? (element.attrs.id || undefined) : currentGroupId
 
-    // Process children (for groups)
+    // Process children (for groups - g elements themselves are not output)
     for (const child of element.children) {
-      walk(child, viewBox)
+      if (child.type.toLowerCase() === 'g') {
+        // Recursively process group children with inherited/overridden groupId
+        walk(child, viewBox, effectiveGroupId)
+      } else {
+        // Skip non-renderable container elements
+        if (!['defs', 'linearGradient', 'stop', 'filter', 'marker', 'clippath'].includes(child.type.toLowerCase())) {
+          const pptel = transformElement(child, viewBox, elements.length, targetCanvas, effectiveGroupId)
+          if (pptel !== null) {
+            elements.push(pptel)
+          }
+        }
+      }
     }
   }
 
