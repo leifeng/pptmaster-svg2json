@@ -1,5 +1,6 @@
 import { XMLParser } from 'fast-xml-parser'
-import { SvgParseResult, SvgElement, SvgAttrs } from '../types/ast'
+import { SvgParseResult, SvgElement, SvgAttrs, GradientDef, GradientColorDef } from '../types/ast'
+import { colorToRgba } from '../transformer/transform-to-pptel'
 
 interface TextRun {
   content: string
@@ -8,6 +9,150 @@ interface TextRun {
   fontFamily?: string
   fontSize?: string
   fill?: string
+}
+
+/**
+ * Parse gradientTransform attribute to extract rotation angle.
+ * D-17: gradientTransform matrix rotation extracted via matrix decomposition.
+ */
+function parseGradientTransform(transform: string | undefined): number {
+  if (!transform) return 0
+
+  // rotate(N) or rotate(N, cx, cy) — extract degrees directly
+  const rotateMatch = transform.match(/rotate\(\s*([\d.-]+)(?:[,\s]+([\d.-]+),?\s*([\d.-]+))?\s*\)/)
+  if (rotateMatch) {
+    return parseFloat(rotateMatch[1])
+  }
+
+  // matrix(a,b,c,d,e,f) — extract rotation from matrix decomposition
+  // For 2D rotation matrix: angle = atan2(b, a)
+  const matrixMatch = transform.match(/matrix\(\s*([\d.-]+),?\s*([\d.-]+),?\s*([\d.-]+),?\s*([\d.-]+),?\s*([\d.-]+),?\s*([\d.-]+)\s*\)/)
+  if (matrixMatch) {
+    const a = parseFloat(matrixMatch[1])
+    const b = parseFloat(matrixMatch[2])
+    // Extract rotation angle: atan2(b, a) in degrees
+    return Math.atan2(b, a) * 180 / Math.PI
+  }
+
+  // translate+rotate+scale matrix — for now just return 0 (not a pure rotation)
+  return 0
+}
+
+/**
+ * Collect all gradient definitions from parsed XML into a registry.
+ */
+function collectGradientDefs(xmlNode: any, registry: Map<string, GradientDef>): void {
+  const defs = xmlNode['defs']
+  if (!defs) return
+
+  const defsArr = Array.isArray(defs) ? defs : [defs]
+
+  for (const def of defsArr) {
+    if (!def) continue
+
+    // Process linearGradient
+    if (def['linearGradient']) {
+      const linearGradients = Array.isArray(def['linearGradient']) ? def['linearGradient'] : [def['linearGradient']]
+      for (const grad of linearGradients) {
+        if (!grad) continue
+        const id = grad['@_id']
+        if (!id) continue
+
+        const colors: GradientColorDef[] = []
+        const stops = grad['stop']
+        if (stops) {
+          const stopArr = Array.isArray(stops) ? stops : [stops]
+          for (const stop of stopArr) {
+            if (!stop) continue
+            const offset = stop['@_offset'] || '0%'
+            const stopColor = stop['@_stop-color'] || '#000000'
+            const stopOpacity = parseFloat(stop['@_stop-opacity'] || '1')
+            const pos = offset.endsWith('%') ? parseFloat(offset) / 100 : parseFloat(offset)
+            colors.push({ pos, color: colorToRgba(stopColor, stopOpacity) })
+          }
+        }
+
+        const gradientDef: GradientDef = {
+          type: 'linear',
+          x1: grad['@_x1'],
+          y1: grad['@_y1'],
+          x2: grad['@_x2'],
+          y2: grad['@_y2'],
+          gradientTransform: grad['@_gradientTransform'],
+          spreadMethod: grad['@_spreadMethod'],
+          gradientUnits: grad['@_gradientUnits'],
+          colors,
+        }
+        registry.set(id, gradientDef)
+      }
+    }
+
+    // Process radialGradient
+    if (def['radialGradient']) {
+      const radialGradients = Array.isArray(def['radialGradient']) ? def['radialGradient'] : [def['radialGradient']]
+      for (const grad of radialGradients) {
+        if (!grad) continue
+        const id = grad['@_id']
+        if (!id) continue
+
+        const colors: GradientColorDef[] = []
+        const stops = grad['stop']
+        if (stops) {
+          const stopArr = Array.isArray(stops) ? stops : [stops]
+          for (const stop of stopArr) {
+            if (!stop) continue
+            const offset = stop['@_offset'] || '0%'
+            const stopColor = stop['@_stop-color'] || '#000000'
+            const stopOpacity = parseFloat(stop['@_stop-opacity'] || '1')
+            const pos = offset.endsWith('%') ? parseFloat(offset) / 100 : parseFloat(offset)
+            colors.push({ pos, color: colorToRgba(stopColor, stopOpacity) })
+          }
+        }
+
+        const gradientDef: GradientDef = {
+          type: 'radial',
+          cx: grad['@_cx'],
+          cy: grad['@_cy'],
+          r: grad['@_r'],
+          fx: grad['@_fx'],
+          fy: grad['@_fy'],
+          gradientTransform: grad['@_gradientTransform'],
+          spreadMethod: grad['@_spreadMethod'],
+          gradientUnits: grad['@_gradientUnits'],
+          colors,
+        }
+        registry.set(id, gradientDef)
+      }
+    }
+  }
+}
+
+/**
+ * Resolve fill="url(#id)" references using the gradient registry.
+ * D-15: fill="url(#gradientId)" resolved at parse time to gradient object.
+ */
+function resolveFillReference(attrs: SvgAttrs, registry: Map<string, GradientDef>): void {
+  const fill = attrs.fill
+  if (!fill || !fill.startsWith('url(#')) return
+
+  const match = fill.match(/url\(#([^)]+)\)/)
+  if (!match) return
+
+  const gradientId = match[1]
+  const gradientDef = registry.get(gradientId)
+  if (!gradientDef) return
+
+  // Build PPTist Gradient object from GradientDef
+  // The PPTist Gradient type is { type: 'linear' | 'radial', colors: {pos, color}[], rotate: number }
+  const gradient = {
+    type: gradientDef.type,
+    colors: gradientDef.colors.map(c => ({ pos: c.pos, color: c.color })),
+    rotate: parseGradientTransform(gradientDef.gradientTransform),
+  }
+
+  attrs.gradient = gradient
+  // Clear fill since gradient is now in attrs.gradient
+  delete attrs.fill
 }
 
 function extractTextContent(node: any): { content: string; runs: TextRun[] } {
@@ -44,7 +189,7 @@ export function parseViewBox(viewBoxStr: string | undefined): [number, number, n
   return [parts[0], parts[1], parts[2], parts[3]]
 }
 
-function convertToSvgElement(node: any, parentTag: string = ''): SvgElement {
+function convertToSvgElement(node: any, parentTag: string = '', gradientRegistry?: Map<string, GradientDef>): SvgElement {
   const tagName = (node['#tag'] || parentTag || '').toLowerCase()
 
   // Extract attributes with @_ prefix
@@ -60,6 +205,11 @@ function convertToSvgElement(node: any, parentTag: string = ''): SvgElement {
   if (node['xlink:href']) attrs['xlink:href'] = node['xlink:href']
   if (node.href) attrs.href = node.href
 
+  // Resolve fill="url(#id)" references using gradient registry
+  if (gradientRegistry) {
+    resolveFillReference(attrs, gradientRegistry)
+  }
+
   // Handle text content
   let text: string | undefined
   if (node['#text']) {
@@ -68,13 +218,13 @@ function convertToSvgElement(node: any, parentTag: string = ''): SvgElement {
 
   // Recursively process children
   const children: SvgElement[] = []
-  const childTags = ['rect', 'circle', 'ellipse', 'path', 'polygon', 'polyline', 'line', 'text', 'tspan', 'image', 'g', 'defs', 'linearGradient', 'stop']
+  const childTags = ['rect', 'circle', 'ellipse', 'path', 'polygon', 'polyline', 'line', 'text', 'tspan', 'image', 'g', 'defs', 'linearGradient', 'radialGradient', 'stop']
 
   for (const tag of childTags) {
     if (node[tag]) {
       const childNodes = Array.isArray(node[tag]) ? node[tag] : [node[tag]]
       for (const child of childNodes) {
-        children.push(convertToSvgElement(child, tag))
+        children.push(convertToSvgElement(child, tag, gradientRegistry))
       }
     }
   }
@@ -109,6 +259,7 @@ export function parseSvg(xmlString: string): SvgParseResult {
         'g',
         'defs',
         'linearGradient',
+        'radialGradient',
         'stop',
       ].includes(name),
   })
@@ -144,8 +295,12 @@ export function parseSvg(xmlString: string): SvgParseResult {
   const height =
     parseFloat(String(svgRoot['@_height'] || rootAttrs.height || viewBox[3]))
 
-  // Build clean element tree from svg root
-  const root = convertToSvgElement(svgRoot, 'svg')
+  // First pass: collect all gradient definitions into registry
+  const gradientRegistry = new Map<string, GradientDef>()
+  collectGradientDefs(svgRoot, gradientRegistry)
+
+  // Build clean element tree from svg root with gradient registry for resolving references
+  const root = convertToSvgElement(svgRoot, 'svg', gradientRegistry)
   root.attrs = rootAttrs
 
   return {
