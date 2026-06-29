@@ -333,7 +333,7 @@ export function transformElement(
         path,
         fixedRatio: false,
         fill: colorToHex(element.attrs.fill) || '#000000',
-        opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+        opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
       }
       // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
       if (element.attrs.gradient) {
@@ -353,6 +353,11 @@ export function transformElement(
           style: parseDashArray(element.attrs['stroke-dasharray']),
           width: strokeWidth || 1,
           color: colorToHex(element.attrs.stroke),
+        }
+        // D-19: stroke-opacity → outline.opacity
+        const strokeOpacity = element.attrs['stroke-opacity']
+        if (strokeOpacity !== undefined) {
+          result.outline.opacity = parseFloat(strokeOpacity)
         }
       }
       return result
@@ -378,7 +383,7 @@ export function transformElement(
         path,
         fixedRatio: false,
         fill: colorToHex(element.attrs.fill) || '#000000',
-        opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+        opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
       }
       // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
       if (element.attrs.gradient) {
@@ -398,6 +403,11 @@ export function transformElement(
           style: parseDashArray(element.attrs['stroke-dasharray']),
           width: strokeWidth || 1,
           color: colorToHex(element.attrs.stroke),
+        }
+        // D-19: stroke-opacity → outline.opacity
+        const strokeOpacity = element.attrs['stroke-opacity']
+        if (strokeOpacity !== undefined) {
+          result.outline.opacity = parseFloat(strokeOpacity)
         }
       }
       return result
@@ -424,7 +434,7 @@ export function transformElement(
         path,
         fixedRatio: false,
         fill: colorToHex(element.attrs.fill) || '#000000',
-        opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+        opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
       }
       // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
       if (element.attrs.gradient) {
@@ -444,6 +454,11 @@ export function transformElement(
           style: parseDashArray(element.attrs['stroke-dasharray']),
           width: strokeWidth || 1,
           color: colorToHex(element.attrs.stroke),
+        }
+        // D-19: stroke-opacity → outline.opacity
+        const strokeOpacity = element.attrs['stroke-opacity']
+        if (strokeOpacity !== undefined) {
+          result.outline.opacity = parseFloat(strokeOpacity)
         }
       }
       return result
@@ -467,7 +482,7 @@ export function transformElement(
         path: d,
         fixedRatio: false,
         fill: colorToHex(element.attrs.fill) || '#000000',
-        opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+        opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
       }
       // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
       if (element.attrs.gradient) {
@@ -487,6 +502,11 @@ export function transformElement(
           style: parseDashArray(element.attrs['stroke-dasharray']),
           width: strokeWidth || 1,
           color: colorToHex(element.attrs.stroke),
+        }
+        // D-19: stroke-opacity → outline.opacity
+        const strokeOpacity = element.attrs['stroke-opacity']
+        if (strokeOpacity !== undefined) {
+          result.outline.opacity = parseFloat(strokeOpacity)
         }
       }
       return result
@@ -511,7 +531,7 @@ export function transformElement(
         path,
         fixedRatio: false,
         fill: colorToHex(element.attrs.fill) || '#000000',
-        opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+        opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
       }
       // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
       if (element.attrs.gradient) {
@@ -531,6 +551,11 @@ export function transformElement(
           style: parseDashArray(element.attrs['stroke-dasharray']),
           width: strokeWidth || 1,
           color: colorToHex(element.attrs.stroke),
+        }
+        // D-19: stroke-opacity → outline.opacity
+        const strokeOpacity = element.attrs['stroke-opacity']
+        if (strokeOpacity !== undefined) {
+          result.outline.opacity = parseFloat(strokeOpacity)
         }
       }
       return result
@@ -555,7 +580,7 @@ export function transformElement(
         path,
         fixedRatio: false,
         fill: colorToHex(element.attrs.fill) || 'none',
-        opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+        opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
       }
       // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
       if (element.attrs.gradient) {
@@ -575,6 +600,11 @@ export function transformElement(
           style: parseDashArray(element.attrs['stroke-dasharray']),
           width: strokeWidth || 1,
           color: colorToHex(element.attrs.stroke),
+        }
+        // D-19: stroke-opacity → outline.opacity
+        const strokeOpacity = element.attrs['stroke-opacity']
+        if (strokeOpacity !== undefined) {
+          result.outline.opacity = parseFloat(strokeOpacity)
         }
       }
       return result
@@ -674,7 +704,7 @@ export function transformElement(
         defaultFontName: fontFamily,
         defaultColor: colorToHex(fillColor) || '#000000',
         lineHeight: 1.5,
-        opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+        opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
         fill: colorToHex(fillColor) || '#000000',
         outline: { color: colorToHex(element.attrs.stroke) || '#000000', width: 1 },
         shadow: undefined,
