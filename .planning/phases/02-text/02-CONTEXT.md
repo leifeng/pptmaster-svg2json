@@ -45,12 +45,25 @@ Text 元素扩展：完整支持 Text 元素的样式属性和 HTML 内容格式
 
 ### 不映射的字段
 
-- **D-13:** 以下字段不映射（PPTist 无对应字段）：
-  - `wordSpace` — 无对应
-  - `paragraphSpace` — 无对应
+- **D-13:** 以下字段不映射（PPTist 无对应 SVG 属性）：
   - `outline` — PPTist 无 text outline 概念
   - `shadow` — PPTist 无 text shadow 概念
   - `fixedHeight` — PPTist 无此字段
+  - `wordSpace` / `paragraphSpace` — PPTist 有字段但 SVG 无对应属性 → 使用默认值（见下表）
+
+### 字段默认值
+
+如果 SVG 中不存在对应属性，使用 PPTist 默认值：
+
+| 字段 | PPTist 默认值 | 来源 |
+|-----|-------------|------|
+| `defaultFontName` | `"SourceHanSans"` | `code/PPTist/src/hooks/useCreateElement.ts:178` |
+| `defaultColor` | `"#1F2937"` 或 theme 值 | `code/PPTist/src/hooks/useCreateElement.ts:179` |
+| `lineHeight` | `1.5` | `code/PPTist/src/types/slides.ts:166` |
+| `wordSpace` | `0` | `code/PPTist/src/types/slides.ts:168` |
+| `paragraphSpace` | `5` | `code/PPTist/src/types/slides.ts:174` |
+| `opacity` | `1` | `code/PPTist/src/types/slides.ts:170` |
+| `vertical` | `false` | `code/PPTist/src/hooks/useCreateElement.ts:234` |
 
 ## Canonical References
 
@@ -101,6 +114,8 @@ interface PPTTextElement extends PPTBaseElement {
 ### 待确认的映射
 - `writing-mode` → `vertical` 的具体转换规则（planning 阶段研究）
 - `dominant-baseline` / `alignment-baseline` 是否影响 vAlign
+- `wordSpace` 和 `paragraphSpace` — SVG 无对应属性，但 PPTist 有这些字段（TEXT-07/TEXT-08/TEXT-09）
+  - 处理方式：使用 PPTist 默认值（wordSpace=0, paragraphSpace=5）
 
 ## Deferred Ideas
 
