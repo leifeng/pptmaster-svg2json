@@ -5,7 +5,7 @@
 ## Phases
 
 - [x] **Phase 1: Transform 系统重构** — 完整解析 SVG transform 属性 (completed 2026-06-27)
-- [ ] **Phase 2: Text 元素扩展** — text-anchor/font-weight/扩展字段
+- [x] **Phase 2: Text 元素扩展** — text-anchor/font-weight/扩展字段 (completed 2026-06-29)
 - [ ] **Phase 3: Gradient 和 Opacity** — 渐变解析和透明度映射
 - [ ] **Phase 4: Shape/Image/Line/Group 扩展** — 补充缺失字段
 - [ ] **Phase 5: v1.1 Transform 遗留修复** — rotate中心/ellipse/baseline
@@ -59,12 +59,12 @@ Plans:
 
 **Mode:** mvp
 
-**Plans:** 2/2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 
-- [ ] 02-01-PLAN.md — Wave 0: Create TDD test files for TEXT-01~09
-- [ ] 02-02-PLAN.md — Wave 1: Implement text case (text-anchor, font-weight, fields)
+- [x] 02-01-PLAN.md — Wave 0: Create TDD test files for TEXT-01~09
+- [x] 02-02-PLAN.md — Wave 1: Implement text case (text-anchor, font-weight, fields)
 
 **Cross-cutting constraints:**
 

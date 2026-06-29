@@ -10,15 +10,15 @@
 
 ### Text (TEXT)
 
-- [ ] **TEXT-01**: Map `text-anchor` (`start`/`middle`/`end`) to HTML `text-align` style in content
-- [ ] **TEXT-02**: Map `font-weight="bold"` to `<strong>` tag in HTML content
-- [ ] **TEXT-03**: Add `fill` field to PPTTextElement (text background color)
-- [ ] **TEXT-04**: Add `outline` field to PPTTextElement (text border)
-- [ ] **TEXT-05**: Add `shadow` field to PPTTextElement
-- [ ] **TEXT-06**: Add `vAlign` field to PPTTextElement (`top`/`middle`/`bottom`)
-- [ ] **TEXT-07**: Add `fixedHeight` field to PPTTextElement
-- [ ] **TEXT-08**: Add `wordSpace` field to PPTTextElement
-- [ ] **TEXT-09**: Add `paragraphSpace` field to PPTTextElement
+- [x] **TEXT-01**: Map `text-anchor` (`start`/`middle`/`end`) to HTML `text-align` style in content
+- [x] **TEXT-02**: Map `font-weight="bold"` to `<strong>` tag in HTML content
+- [x] **TEXT-03**: Add `fill` field to PPTTextElement (text background color)
+- [x] **TEXT-04**: Add `outline` field to PPTTextElement (text border)
+- [x] **TEXT-05**: Add `shadow` field to PPTTextElement
+- [x] **TEXT-06**: Add `vAlign` field to PPTTextElement (`top`/`middle`/`bottom`)
+- [x] **TEXT-07**: Add `fixedHeight` field to PPTTextElement
+- [x] **TEXT-08**: Add `wordSpace` field to PPTTextElement
+- [x] **TEXT-09**: Add `paragraphSpace` field to PPTTextElement
 
 ### Gradient (GRAD)
 
@@ -88,15 +88,15 @@
 | TRANS-01 | Phase 1 | Complete |
 | TRANS-02 | Phase 1 | Complete |
 | TRANS-03 | Phase 1 | Complete |
-| TEXT-01 | Phase 2 | Pending |
-| TEXT-02 | Phase 2 | Pending |
-| TEXT-03 | Phase 2 | Pending |
-| TEXT-04 | Phase 2 | Pending |
-| TEXT-05 | Phase 2 | Pending |
-| TEXT-06 | Phase 2 | Pending |
-| TEXT-07 | Phase 2 | Pending |
-| TEXT-08 | Phase 2 | Pending |
-| TEXT-09 | Phase 2 | Pending |
+| TEXT-01 | Phase 2 | Complete |
+| TEXT-02 | Phase 2 | Complete |
+| TEXT-03 | Phase 2 | Complete |
+| TEXT-04 | Phase 2 | Complete |
+| TEXT-05 | Phase 2 | Complete |
+| TEXT-06 | Phase 2 | Complete |
+| TEXT-07 | Phase 2 | Complete |
+| TEXT-08 | Phase 2 | Complete |
+| TEXT-09 | Phase 2 | Complete |
 | GRAD-01 | Phase 3 | Pending |
 | GRAD-02 | Phase 3 | Pending |
 | GRAD-03 | Phase 3 | Pending |
