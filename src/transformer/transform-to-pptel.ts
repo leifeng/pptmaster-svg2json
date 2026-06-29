@@ -632,6 +632,9 @@ export function transformElement(
         color: colorToHex(element.attrs.stroke) || '#000000',
         points: ['', ''],
       }
+      // D-24: stroke-width → PPTLineElement.width, default to 1 when absent or 0
+      const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'))
+      result.width = strokeWidth || 1
       return result
     }
 
