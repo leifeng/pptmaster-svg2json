@@ -6,8 +6,8 @@
 
 - [x] **Phase 1: Transform 系统重构** — 完整解析 SVG transform 属性 (completed 2026-06-27)
 - [x] **Phase 2: Text 元素扩展** — text-anchor/font-weight/扩展字段 (completed 2026-06-29)
-- [ ] **Phase 3: Gradient 和 Opacity** — 渐变解析和透明度映射
-- [ ] **Phase 4: Shape/Image/Line/Group 扩展** — 补充缺失字段
+- [x] **Phase 3: Gradient 和 Opacity** — 渐变解析和透明度映射 (completed 2026-06-29)
+- [x] **Phase 4: Shape/Image/Line/Group 扩展** — 补充缺失字段 (completed 2026-06-29)
 - [ ] **Phase 5: v1.1 Transform 遗留修复** — rotate中心/ellipse/baseline
 
 ---
@@ -87,12 +87,12 @@ Plans:
 
 **Mode:** mvp
 
-**Plans:** 2/2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 
-- [ ] 03-01-PLAN.md — Wave 0: TDD test files + gradient registry implementation (GRAD-01~04)
-- [ ] 03-02-PLAN.md — Wave 1: Opacity mapping implementation (OPAC-01~03)
+- [x] 03-01-PLAN.md — Wave 0: TDD test files + gradient registry implementation (GRAD-01~04)
+- [x] 03-02-PLAN.md — Wave 1: Opacity mapping implementation (OPAC-01~03)
 
 ---
 
@@ -111,6 +111,13 @@ Plans:
 5. `<g id="header">` 的子元素带有 `groupId: "header"`
 
 **Mode:** mvp
+
+**Plans:** 2/2 plans complete
+
+Plans:
+
+- [x] 04-01-PLAN.md — Wave 0: SHPE-01 (rounded rect rx/ry), LINE-01 (stroke-width to width)
+- [x] 04-02-PLAN.md — Wave 1: SHPE-03 (shadow), IMGE-01 (image outline), IMGE-02 (image shadow), GROUP-01 (groupId propagation)
 
 ---
 

@@ -22,36 +22,36 @@
 
 ### Gradient (GRAD)
 
-- [ ] **GRAD-01**: Parse SVG `<linearGradient>` and `<radialGradient>` from `defs`
-- [ ] **GRAD-02**: Extract gradient `stop-color` and `stop-opacity` into PPTist `gradient.colors[]`
-- [ ] **GRAD-03**: Resolve `fill="url(#gradientId)"` references to PPTist `gradient` object
-- [ ] **GRAD-04**: Support `gradient.type` (`linear`/`radial`) and `gradient.rotate`
+- [x] **GRAD-01**: Parse SVG `<linearGradient>` and `<radialGradient>` from `defs`
+- [x] **GRAD-02**: Extract gradient `stop-color` and `stop-opacity` into PPTist `gradient.colors[]`
+- [x] **GRAD-03**: Resolve `fill="url(#gradientId)"` references to PPTist `gradient` object
+- [x] **GRAD-04**: Support `gradient.type` (`linear`/`radial`) and `gradient.rotate`
 
 ### Opacity (OPAC)
 
-- [ ] **OPAC-01**: Map SVG element `fill-opacity` to PPTist `opacity` field
-- [ ] **OPAC-02**: Map SVG element `stroke-opacity` to PPTist `outline` opacity
-- [ ] **OPAC-03**: Map gradient `stop-opacity` to `gradient.colors[].color` alpha channel
+- [x] **OPAC-01**: Map SVG element `fill-opacity` to PPTist `opacity` field
+- [x] **OPAC-02**: Map SVG element `stroke-opacity` to PPTist `outline` opacity
+- [x] **OPAC-03**: Map gradient `stop-opacity` to `gradient.colors[].color` alpha channel
 
 ### Shape Extensions (SHPE)
 
-- [ ] **SHPE-01**: Map `rx`/`ry` (rect corner radius) to PPTist `path` with rounded corners
-- [ ] **SHPE-02**: Add `gradient` field to PPTShapeElement for gradient fills
-- [ ] **SHPE-03**: Add `shadow` field to PPTShapeElement
-- [ ] **SHPE-04**: Map `flipH`/`flipV` from transform to PPTist fields
+- [x] **SHPE-01**: Map `rx`/`ry` (rect corner radius) to PPTist `path` with rounded corners
+- [x] **SHPE-02**: Add `gradient` field to PPTShapeElement for gradient fills
+- [x] **SHPE-03**: Add `shadow` field to PPTShapeElement
+- [x] **SHPE-04**: Map `flipH`/`flipV` from transform to PPTist fields
 
 ### Image Extensions (IMGE)
 
-- [ ] **IMGE-01**: Add `outline` field to PPTImageElement
-- [ ] **IMGE-02**: Add `shadow` field to PPTImageElement
+- [x] **IMGE-01**: Add `outline` field to PPTImageElement
+- [x] **IMGE-02**: Add `shadow` field to PPTImageElement
 
 ### Line Extensions (LINE)
 
-- [ ] **LINE-01**: Map SVG `stroke-width` to PPTist `width` field on PPTLineElement
+- [x] **LINE-01**: Map SVG `stroke-width` to PPTist `width` field on PPTLineElement
 
 ### Group (GROUP)
 
-- [ ] **GROUP-01**: Parse `id` attribute on `<g>` elements as `groupId` for related elements
+- [x] **GROUP-01**: Parse `id` attribute on `<g>` elements as `groupId` for related elements
 
 ## v1.1 Requirements (transform-fixes milestone — current)
 
@@ -97,21 +97,21 @@
 | TEXT-07 | Phase 2 | Complete |
 | TEXT-08 | Phase 2 | Complete |
 | TEXT-09 | Phase 2 | Complete |
-| GRAD-01 | Phase 3 | Pending |
-| GRAD-02 | Phase 3 | Pending |
-| GRAD-03 | Phase 3 | Pending |
-| GRAD-04 | Phase 3 | Pending |
-| OPAC-01 | Phase 3 | Pending |
-| OPAC-02 | Phase 3 | Pending |
-| OPAC-03 | Phase 3 | Pending |
-| SHPE-01 | Phase 4 | Pending |
-| SHPE-02 | Phase 4 | Pending |
-| SHPE-03 | Phase 4 | Pending |
-| SHPE-04 | Phase 4 | Pending |
-| IMGE-01 | Phase 4 | Pending |
-| IMGE-02 | Phase 4 | Pending |
-| LINE-01 | Phase 4 | Pending |
-| GROUP-01 | Phase 4 | Pending |
+| GRAD-01 | Phase 3 | Complete |
+| GRAD-02 | Phase 3 | Complete |
+| GRAD-03 | Phase 3 | Complete |
+| GRAD-04 | Phase 3 | Complete |
+| OPAC-01 | Phase 3 | Complete |
+| OPAC-02 | Phase 3 | Complete |
+| OPAC-03 | Phase 3 | Complete |
+| SHPE-01 | Phase 4 | Complete |
+| SHPE-02 | Phase 4 | Complete |
+| SHPE-03 | Phase 4 | Complete |
+| SHPE-04 | Phase 4 | Complete |
+| IMGE-01 | Phase 4 | Complete |
+| IMGE-02 | Phase 4 | Complete |
+| LINE-01 | Phase 4 | Complete |
+| GROUP-01 | Phase 4 | Complete |
 | REQ-TF-01 | Phase 5 | Pending |
 | REQ-TF-02 | Phase 5 | Pending |
 | REQ-TF-03 | Phase 5 | Pending |
