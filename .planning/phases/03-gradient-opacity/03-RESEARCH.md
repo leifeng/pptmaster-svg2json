@@ -378,17 +378,15 @@ export function parseTransform(transform: string | undefined): TransformResult {
 
 > All claims in this research were verified from authoritative sources (source code, official schema definition in slides.ts) -- no user confirmation needed.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **radialGradient fx/fy (focal point)**
+1. **[RESOLVED] radialGradient fx/fy (focal point)**
    - What we know: PPTist `Gradient` schema has only `{type, colors, rotate}` -- no focal point field.
-   - What's unclear: Can radialGradient focal point (fx/fy) be represented in PPTist at all?
-   - Recommendation: Implement GRAD-01-04 without fx/fy; note as known limitation.
+   - Status: Known limitation -- implement GRAD-01-04 without fx/fy; note as known limitation.
 
-2. **gradientUnits (userSpaceOnUse vs objectBoundingBox)**
+2. **[RESOLVED] gradientUnits (userSpaceOnUse vs objectBoundingBox)**
    - What we know: SVG gradients default to objectBoundingBox; PPTist has no gradientUnits field.
-   - What's unclear: Whether this causes visible mis-alignment in typical SVGs.
-   - Recommendation: Default assumption is objectBoundingBox; implement without gradientUnits conversion.
+   - Status: Known limitation -- default to objectBoundingBox; implement without gradientUnits conversion.
 
 ## Environment Availability
 
