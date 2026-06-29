@@ -743,6 +743,17 @@ export function transformElement(
       }
       if (flipH) result.flipH = true
       if (flipV) result.flipV = true
+      // D-25: image with stroke → outline
+      if (element.attrs.stroke) {
+        const strokeWidthAttr = element.attrs['stroke-width']
+        const strokeWidth = strokeWidthAttr !== undefined ? parseFloat(String(strokeWidthAttr)) : 1
+        if (strokeWidth > 0) {
+          result.outline = {
+            width: strokeWidth,
+            color: colorToHex(element.attrs.stroke),
+          }
+        }
+      }
       return result
     }
 
