@@ -87,6 +87,7 @@ export interface PPTElementOutline {
   style?: LineStyleType
   width?: number
   color?: string
+  opacity?: number  // D-19: stroke-opacity maps here
 }
 
 export type ElementLinkType = 'web' | 'slide'
@@ -195,6 +196,8 @@ export interface PPTTextElement extends PPTBaseElement {
   vertical?: boolean
   textType?: TextType
   inset?: TextInset
+  vAlign?: TextAlignVertical
+  fixedHeight?: boolean
 }
 
 
