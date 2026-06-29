@@ -206,6 +206,35 @@ export function colorToHex(color: string | undefined): string {
 }
 
 /**
+ * Convert a CSS color + opacity to rgba() format.
+ */
+export function colorToRgba(color: string | undefined, opacity: number): string {
+  if (!color) return `rgba(0, 0, 0, ${opacity})`
+  // Already hex
+  if (color.startsWith('#')) {
+    const hex = colorToHex(color)
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`
+  }
+  // Named color lookup
+  if (namedColors[color.toLowerCase()]) {
+    const hex = namedColors[color.toLowerCase()]
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`
+  }
+  // rgb(r, g, b)
+  const rgbMatch = color.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/)
+  if (rgbMatch) {
+    return `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${opacity})`
+  }
+  return `rgba(0, 0, 0, ${opacity})`
+}
+
+/**
  * Parse points string into array of [x, y] tuples.
  */
 function parsePointsString(pointsStr: string): [number, number][] {
@@ -524,8 +553,48 @@ export function transformElement(
       // Formula: jsonTop = (svgY + fontSize * 0.75) * scale
       const textLeft = transformed.left
       const textTop = (transformed.top + fontSize * 0.75) * scaleY
-      // Use rich text HTML format with font-size in span style
-      const richContent = `<p style=""><span style="font-size: ${scaledFontSize}px;">${content}</span></p>`
+
+      // D-09: text-anchor → text-align on <p> style
+      const textAnchor = element.attrs['text-anchor']
+      let textAlign = ''
+      if (textAnchor === 'start') textAlign = 'left'
+      else if (textAnchor === 'end') textAlign = 'right'
+      else if (textAnchor === 'middle') textAlign = 'center'
+      const pStyle = textAlign ? `text-align: ${textAlign}` : ''
+
+      // D-11: font-weight bold/600/700 → <strong> mark
+      const fontWeight = element.attrs['font-weight']
+      const isBold = fontWeight === 'bold' || fontWeight === '600' || fontWeight === '700'
+
+      // D-11: font-style italic → <em> mark
+      const fontStyle = element.attrs['font-style']
+      const isItalic = fontStyle === 'italic'
+
+      // D-12: fill-opacity < 1 → rgba() color in span style
+      const fillColor = element.attrs.fill || '#000000'
+      const fillOpacity = element.attrs['fill-opacity']
+      const hasRgba = fillOpacity && parseFloat(fillOpacity) < 1
+      let spanStyle = `font-size: ${scaledFontSize}px`
+      if (hasRgba) {
+        const rgbaColor = colorToRgba(fillColor, parseFloat(fillOpacity))
+        spanStyle += `; color: ${rgbaColor}`
+      }
+
+      // Build content HTML: <p style="text-align: ..."><strong><em><span style="...">content</span></em></strong></p>
+      // ProseMirror marks order: strong > em > fontsize > fontname > forecolor > backcolor > underline > strikethrough
+      const innerSpan = `<span style="${spanStyle}">${content}</span>`
+      let weightedContent = innerSpan
+      if (isItalic) weightedContent = `<em>${weightedContent}</em>`
+      if (isBold) weightedContent = `<strong>${weightedContent}</strong>`
+      const richContent = `<p${pStyle ? ` style="${pStyle}"` : ''}>${weightedContent}</p>`
+
+      // D-07: writing-mode vertical-rl/vertical-lr → vertical: true
+      const writingMode = element.attrs['writing-mode']
+      const vertical = writingMode === 'vertical-rl' || writingMode === 'vertical-lr'
+
+      // D-09: fixedHeight based on SVG height attribute presence
+      const fixedHeight = !!element.attrs.height
+
       const result: PPTTextElement = {
         id,
         type: 'text',
@@ -537,9 +606,17 @@ export function transformElement(
         rotate,
         content: richContent,
         defaultFontName: fontFamily,
-        defaultColor: colorToHex(element.attrs.fill) || '#000000',
+        defaultColor: colorToHex(fillColor) || '#000000',
         lineHeight: 1.5,
         opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+        fill: colorToHex(fillColor) || '#000000',
+        outline: { color: colorToHex(element.attrs.stroke) || '#000000', width: 1 },
+        shadow: undefined,
+        vAlign: 'middle',
+        fixedHeight,
+        wordSpace: 0,
+        paragraphSpace: 5,
+        vertical,
       }
       return result
     }
