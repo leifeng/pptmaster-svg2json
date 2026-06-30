@@ -1,243 +1,262 @@
-# Feature Research: SVG Transform Fixes
+# Feature Research
 
-**Domain:** SVG to PowerPoint JSON converter library
-**Subsequent Milestone:** v1.1 transform-fixes
-**Researched:** 2026-06-27
-**Confidence:** HIGH
+**Domain:** SVG to PPTElement JSON conversion library (svg-to-pptel)
+**Current Milestone:** v1.2 PPTist schema alignment
+**Researched:** 2026-06-30
+**Confidence:** HIGH (source: PPTist TypeScript schema + existing implementation)
 
-## Executive Summary
+## Feature Landscape
 
-This research covers two specific fixes for the svg-to-pptel library: (1) implementing proper `rotate(deg, cx, cy)` transform with center point, and (2) improving text y-coordinate baseline-to-top conversion. Both issues have table-stakes severity and have been previously documented in PITFALLS.md. This document provides deeper technical specifications for implementation.
-
-## SVG Rotate Transform
-
-### How SVG Rotation Works
-
-**SVG `rotate(deg)` without center:**
-- Rotates around the SVG coordinate system origin (0, 0)
-- All points are transformed by: `x' = x * cos(theta) - y * sin(theta)`, `y' = x * sin(theta) + y * cos(theta)`
-- This means elements near (0,0) rotate almost in place, while elements far from origin sweep in large arcs
-
-**SVG `rotate(deg, cx, cy)` with center point:**
-- Rotates around the specified point (cx, cy)
-- The three-step math:
-  1. Translate: subtract center to make it the origin: `(x - cx, y - cy)`
-  2. Rotate: apply 2D rotation matrix
-  3. Translate back: add center to result
-- Formula: `x' = cx + (x - cx) * cos(theta) - (y - cy) * sin(theta)`
-          `y' = cy + (x - cx) * sin(theta) + (y - cy) * cos(theta)`
-- Where theta = deg * (PI / 180)
-
-**Current Code Status:**
-- Parser (`coordinate-mapper.ts` lines 52-57): Correctly extracts `rotateDeg`, `rotateCX`, `rotateCY`
-- Transformer (`transform-to-pptel.ts`): Never uses rotation values; all elements output `rotate: 0`
-- The parsed rotation center is simply discarded
-
-### Feature Landscape: Rotate Transform
-
-| Feature | Why Expected | Complexity | Current Status |
-|---------|--------------|------------|----------------|
-| `rotate(deg)` without center | Basic SVG transform | LOW | Not implemented (rotation ignored entirely) |
-| `rotate(deg, cx, cy)` with center | Diagrams use pivot-based rotation | MEDIUM | Parsed but not applied |
-| Multiple rotate() in transform | Some SVGs chain rotations | MEDIUM | Regex only captures first rotate |
-| Nested transform inheritance | Groups with transforms | MEDIUM | Transforms not accumulated through hierarchy |
-
-### Table Stakes: Rotate Fix
-
-| Feature | Implementation Detail |
-|---------|----------------------|
-| `rotate(deg)` around origin | Apply rotation matrix to element coordinates before other transforms |
-| `rotate(deg, cx, cy)` around center | Use translate-rotate-translate formula; `rotateCX/rotateCY` are in SVG coordinate space (before viewBox scaling) |
-
-**Key Implementation Notes:**
-- Rotation center (cx, cy) is in SVG coordinate space, not affected by the element's own transform
-- The rotation angle is in degrees (not radians)
-- After rotation, element bounding box may change (rotated rectangles need larger bounding boxes)
-- PowerPoint `rotate` property rotates around the element's top-left corner, not its center
-
-### Differentiators: Rotate Fix
-
-| Feature | Value Proposition | Complexity | When to Use |
-|---------|-------------------|------------|-------------|
-| Multiple `rotate()` in chain | Some SVG editors emit `rotate(45) rotate(30)` | MEDIUM | Regex needs to find all rotate(), apply in order |
-| Nested transform accumulation | `<g transform="rotate(15)"><rect transform="rotate(10)" /></g>` | HIGH | Walk parent chain, multiply transform matrices |
-
-### Anti-Features: Rotate
-
-| Anti-Feature | Why Avoid | Alternative |
-|--------------|-----------|-------------|
-| `skewX()` / `skewY()` | PPTElement schema does not support skew | Mark as special, warn user |
-| 3D rotation | PowerPoint does not support 3D rotation | Not applicable |
+This research maps PPTist schema properties to SVG equivalents, identifying what's already implemented, what's partially supported, and what's missing for the v1.2 PPTist schema alignment milestone.
 
 ---
 
-## SVG Text Y Coordinate: Baseline to Top
+### Table Stakes (Users Expect These)
 
-### How SVG Text Y Works
+Features users assume exist. Missing these = product feels incomplete or produces incorrect output.
 
-**SVG `<text y="N">` defines the baseline:**
-- The `y` attribute positions the text's baseline
-- Baseline = the line where letters "sit" (bottom of capital letters, not descenders)
-- For text "Hello" at y=100: the bottom of 'H', 'e', 'l', 'l', 'o' sits on y=100
-- Descenders (y, g, p, q) extend below the baseline
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| `rotate` on shapes/text/image | SVG `transform="rotate(deg cx cy)"` must render with correct rotation | MEDIUM | Already implemented via `applyTransform` with center support (D-01). rotateDeg stored on PPTElement, not baked into coordinates. |
+| `flipH` / `flipV` on shapes/image | SVG `scale(-1, 1)` or `scale(1, -1)` must produce mirror effect | LOW | Already implemented via `getFlipFromScale` — negative scaleX → flipH, negative scaleY → flipV (D-03/D-04). |
+| `fill` on text | SVG `fill` attribute or `<tspan fill="...">` must map to text color | LOW | Already implemented: `defaultColor` on PPTTextElement, per-span `color` style in HTML content (D-12). |
+| `outline` on text | SVG `stroke` on text element must render as text border | LOW | Implemented for stroke color via `outline: { color, width }` (D-09, line 831). stroke-dasharray not applicable to text. |
+| `outline` on shape | SVG `stroke` + `stroke-width` must render as shape border | LOW | Already implemented: `PPTElementOutline` with style/width/color (D-05, D-19). |
+| `shadow` on shape/image | SVG `filter="url(#shadowId)"` must produce drop shadow | MEDIUM | Partially implemented — `element.attrs.shadow` resolved at parse time, but text shadow is hardcoded `undefined` (line 832). Shape/image shadow works. |
+| `gradient` on shape | SVG `<linearGradient>` must render as gradient fill | MEDIUM | Already implemented: `attrs.gradient` resolved at parse time, output as `PPTShapeElement.gradient` (D-15). |
+| `width` on line | SVG `stroke-width` must control line thickness | LOW | Already implemented: `stroke-width` → `PPTLineElement.width`, defaults to 1 (D-24, line 750-751). |
+| `fixedHeight` on text | SVG `height` attribute presence controls text box auto-height behavior | LOW | Implemented: `!!element.attrs.height` (D-09, line 815). Maps to `PPTTextElement.fixedHeight`. |
+| `vAlign` on text | Text vertical alignment inside text box | LOW | Schema supports `'top' \| 'middle' \| 'bottom'` but code hardcodes `'middle'` (line 833). Needs SVG mapping. |
+| `wordSpace` on text | SVG `letter-spacing` must control character spacing | LOW | Schema supports `number` but code hardcodes `0` (line 835). SVG `letter-spacing` is already parsed but not propagated. |
 
-**Anatomy of font metrics:**
-```
-        <-- ascent (top of em box to baseline)
-   +----+
-   | H  |  <-- capital height
-   +----+
-   |    |
-   | He |  <-- x-height
-   | llo|
-   +----+
-   | y  |  <-- descender (below baseline)
-  baseline
-```
+---
 
-**Font size and baseline offset:**
-- `font-size` defines the em-box height (the "cap height" approximation)
-- Baseline-to-top offset varies by font:
-  - Typical Latin fonts: 0.7 to 0.85 * fontSize
-  - Many fonts use approximately 0.75 (750 units per 1000 em unit in TrueType)
-  - CSS `1em` = font-size; baseline typically at 0.25em from bottom of em-box
-  - Therefore: baseline-to-top = fontSize * 0.75
+### Differentiators (Competitive Advantage)
 
-**Current Code (transform-to-pptel.ts line 494-496):**
-```typescript
-// SVG text y is baseline, convert to top edge for JSON with scaling
-// Formula: jsonTop = (svgY + fontSize * 0.75) * scale
-const textTop = (coords.top + fontSize * 0.75) * scaleY
-```
+Features that set the product apart. Not required, but valuable.
 
-### Feature Landscape: Text Baseline
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| `filters` on image | SVG `<filter>` effects (blur, brightness, grayscale, etc.) on images | HIGH | Missing. Schema supports `ImageElementFilters`: blur, brightness, contrast, grayscale, saturate, hue-rotate, sepia, invert, opacity. Requires parsing SVG filter elements and mapping to CSS filter strings. |
+| `clip` on image | SVG `<clipPath>` must crop images to defined shape | HIGH | Missing. Schema supports `ImageElementClip` with `range: [[x1,y1],[x2,y2]]` (percentages) and `shape: string`. Complex — requires clip-path parsing and range calculation. |
+| `shadow` on text | SVG `filter="url(#shadowId)"` on text elements | MEDIUM | Currently `shadow: undefined` is hardcoded (line 832). SVG text shadow would require same filter resolution as shape/image. |
+| `outline` on image | SVG `stroke` on image element produces image border | LOW | Implemented (D-25). `stroke` + `stroke-width` → `PPTImageElement.outline`. |
+| `colorMask` on image | SVG color overlay on images | MEDIUM | Missing. PPTist schema supports `colorMask?: string` — color tint/mask on image. |
 
-| Feature | Why Expected | Complexity | Current Status |
-|---------|--------------|------------|----------------|
-| Text y as baseline coordinate | SVG spec defines it this way | LOW | Correctly identified, uses 0.75 approximation |
-| Baseline-to-top offset | PowerPoint JSON expects top-left corner | LOW | 0.75 multiplier applied |
-| Dynamic offset per font | Different fonts have different metrics | HIGH | Not supported; requires font metric library |
+---
 
-### Table Stakes: Text Baseline Fix
+### Anti-Features (Commonly Requested, Often Problematic)
 
-| Feature | Implementation Detail |
-|---------|----------------------|
-| `text y` as baseline | Parser correctly gets `y` attribute; this is SVG spec behavior |
-| Baseline-to-top conversion | Add `fontSize * 0.75` to baseline y to get top edge |
-| Scale-aware calculation | `textTop = (svgBaselineY + fontSize * 0.75) * scaleY` |
+Features that seem good but create problems.
 
-**Key Implementation Notes:**
-- `fontSize` should use the parsed SVG `font-size` attribute (default 16)
-- The multiplier 0.75 is a font-agnostic approximation
-- This works reasonably well for Latin fonts; CJK fonts may differ significantly
-- The offset is applied BEFORE viewBox-to-canvas scaling
-
-### Differentiators: Text Baseline
-
-| Feature | Value Proposition | Complexity | When to Use |
-|---------|-------------------|------------|-------------|
-| Configurable multiplier | Users with known fonts can tune | LOW | Add `textBaselineMultiplier` option (default 0.75) |
-| Empirical font measurement | Use canvas or offscreen measurement | MEDIUM | For non-Latin scripts or precision needs |
-| Per-font baseline table | Accurate metrics for common fonts | HIGH | Load known baseline data for Arial, Helvetica, Times, etc. |
-
-### Anti-Features: Text Baseline
-
-| Anti-Feature | Why Avoid | Alternative |
-|--------------|-----------|-------------|
-| Dynamic font loading | Cannot guarantee fonts are available | Use fixed multipliers or table |
-| Full OpenType metric parsing | Massive complexity for rarely-needed accuracy | Accept approximation for MVP |
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| SVG `<filter>` blur on shapes | "Make shape edges soft" | Filter effects are raster operations; SVG filter resolution is complex and not well-supported in PPT | Recommend using gradient fills to simulate soft edges |
+| SVG `<mask>` on shapes | "Cut out part of a shape" | Masks require canvas compositing that PPTist may not support | Use clipPath if available, or advise users to expand masks |
+| `stroke-dasharray` text outline | "Dashed border on text" | Stroke dasharray on text is not a standard PPT concept and renders poorly | Skip or implement as separate dashed underline, not full outline |
+| `writing-mode: vertical-*` full vertical text | "Support vertical CJK text" | While `vertical: boolean` is in schema, vertical text layout is complex (line breaks, punctuation handling) | Partial support: flag is set but content rendering may be inconsistent |
 
 ---
 
 ## Feature Dependencies
 
 ```
-Rotate Transform Fix
-    └──requires──> Rotation math (2D transformation matrix)
-                      └──requires──> Angle conversion (deg → radians)
-                                         └──requires──> cos/sin functions (built-in)
+[rotate with center] ──requires──> [applyTransform D-01]
+                              └──requires──> [applyRotateWithCenter]
 
-Text Baseline Fix
-    └──requires──> fontSize extraction
-                      └──requires──> SVG font-size attribute parsing
-                                         └──requires──> Default font-size (16)
-                      
-Combined: Both need coordinate-mapper.ts modification
-    └──requires──> parseTransform() already correct
-    └──requires──> mapCoordinates() needs update
+[flipH/flipV] ──requires──> [getFlipFromScale D-03/D-04]
+                       └──requires──> [parseTransform coordinate-mapper]
+
+[gradient] ──requires──> [SVG linearGradient/radialGradient parsing]
+                   └──requires──> [attrs.gradient resolution at parse time]
+
+[shadow] ──requires──> [SVG filter="url(#id)" resolution at parse time]
+             └──requires──> [shadow parser in svg-parser]
+
+[filters on image] ──requires──> [SVG <filter> element parsing]
+                   └──requires──> [CSS filter string generation]
+                   └──requires──> [ImageElementFilters schema mapping]
+
+[clip on image] ──requires──> [SVG <clipPath> element parsing]
+              └──requires──> [range calculation (percentages)]
+              └──requires──> [CLIPPATHS shape lookup]
+
+[text shadow] ──requires──> [shadow parser (same as shape shadow)]
+             └──requires──> [remove hardcoded undefined]
+
+[text vAlign] ──requires──> [SVG baseline-shift or dominant-baseline mapping]
+             └──requires──> [remove hardcoded 'middle']
+
+[text wordSpace] ──requires──> [propagate letter-spacing from SVG]
+                 └──requires──> [remove hardcoded 0]
 ```
 
 ---
 
-## MVP Definition: v1.1 Transform Fixes
+## MVP Definition
 
-### Launch With
+### Launch With (v1.2)
 
-| Feature | Acceptance Criteria |
-|---------|---------------------|
-| `rotate(deg)` without center | Element rotates around SVG origin (0,0); output has correct `rotate` property |
-| `rotate(deg, cx, cy)` with center | Element rotates around (cx, cy) point; output positioned correctly |
-| Text baseline to top | `textTop = svgBaselineY + fontSize * 0.75`; text renders at correct vertical position |
+Minimum viable set for PPTist schema alignment.
 
-### Defer
+- [x] `rotate` — Already implemented (D-01)
+- [x] `flipH` / `flipV` — Already implemented (D-03/D-04)
+- [x] `fill` on text — Already implemented
+- [x] `outline` on shape/text/image — Already implemented
+- [x] `gradient` on shape — Already implemented (D-15)
+- [x] `width` on line — Already implemented (D-24)
+- [x] `fixedHeight` on text — Already implemented (D-09)
+- [ ] `shadow` on text — Remove hardcoded `undefined`, propagate from SVG filter
+- [ ] `vAlign` on text — Remove hardcoded `'middle'`, derive from SVG `dominant-baseline` or `baseline-shift`
+- [ ] `wordSpace` on text — Remove hardcoded `0`, propagate from SVG `letter-spacing`
 
-| Feature | Reason |
-|---------|--------|
-| Multiple rotate() in chain | Rare; complexity not justified |
-| Nested transform accumulation | Rare; complexity not justified |
-| Per-font baseline table | Complexity without demonstrated need |
+### Add After Validation (v1.x)
+
+- [ ] `filters` on image — SVG filter effects on images
+- [ ] `clip` on image — SVG clipPath support
+
+### Future Consideration (v2+)
+
+- [ ] `colorMask` on image — Color overlay/tint on images
+- [ ] Full vertical text layout engine — CJK vertical writing mode
 
 ---
 
-## Technical Implementation Reference
+## Feature Prioritization Matrix
 
-### Rotate Math (for implementation)
+| Feature | User Value | Implementation Cost | Priority |
+|---------|------------|---------------------|----------|
+| `shadow` on text | MEDIUM | LOW | P1 — remove hardcoded undefined, wire up existing shadow parser |
+| `vAlign` on text | MEDIUM | LOW | P1 — derive from SVG attributes instead of hardcoding 'middle' |
+| `wordSpace` on text | MEDIUM | LOW | P1 — propagate letter-spacing instead of hardcoding 0 |
+| `filters` on image | HIGH | HIGH | P2 — requires SVG filter element parsing + CSS filter string generation |
+| `clip` on image | HIGH | HIGH | P2 — requires clipPath parsing + range calculation + shape lookup |
+| `colorMask` on image | MEDIUM | MEDIUM | P3 — future consideration |
 
+**Priority key:**
+- P1: Must have for v1.2 launch (schema alignment completeness)
+- P2: Should have, add when possible (feature parity)
+- P3: Nice to have, future consideration
+
+---
+
+## PPTist Schema Reference
+
+### Transform Properties (on all elements via PPTBaseElement)
+
+| Property | Type | SVG Source | Current Status |
+|----------|------|------------|----------------|
+| `rotate` | `number` | `transform="rotate(deg)"` or `rotate(deg,cx,cy)` | IMPLEMENTED — D-01 handles center rotation |
+| `flipH` | `boolean` | `transform="scale(-1, 1)"` | IMPLEMENTED — D-03 via negative scaleX |
+| `flipV` | `boolean` | `transform="scale(1, -1)"` | IMPLEMENTED — D-04 via negative scaleY |
+
+### Text Element (PPTTextElement)
+
+| Property | Type | SVG Source | Current Status |
+|----------|------|------------|----------------|
+| `fill` | `string` | `fill` attribute, `<tspan fill="...">` | IMPLEMENTED — `defaultColor` + per-span color style |
+| `outline` | `PPTElementOutline` | `stroke` on text element | IMPLEMENTED — outline with color/width (D-09) |
+| `shadow` | `PPTElementShadow` | `filter="url(#shadowId)"` | PARTIAL — hardcoded `undefined`, needs wiring |
+| `vAlign` | `'top' \| 'middle' \| 'bottom'` | `dominant-baseline` or `baseline-shift` | PARTIAL — hardcoded `'middle'` |
+| `fixedHeight` | `boolean` | SVG `height` attribute presence | IMPLEMENTED — `!!element.attrs.height` (D-09) |
+| `wordSpace` | `number` | `letter-spacing` attribute | PARTIAL — hardcoded `0`, SVG value not propagated |
+| `lineHeight` | `number` | Default 1.5 | IMPLEMENTED — hardcoded 1.5 |
+| `opacity` | `number` | `opacity` attribute | IMPLEMENTED — propagated from SVG |
+| `vertical` | `boolean` | `writing-mode: vertical-rl/vertical-lr` | IMPLEMENTED — derived from writing-mode (D-07) |
+| `paragraphSpace` | `number` | Default 5 | IMPLEMENTED — hardcoded 5 |
+
+### Image Element (PPTImageElement)
+
+| Property | Type | SVG Source | Current Status |
+|----------|------|------------|----------------|
+| `outline` | `PPTElementOutline` | `stroke` + `stroke-width` | IMPLEMENTED — D-25 |
+| `shadow` | `PPTElementShadow` | `filter="url(#shadowId)"` | IMPLEMENTED — via attrs.shadow (D-22) |
+| `filters` | `ImageElementFilters` | `<filter>` element with blur/brightness/etc. | MISSING |
+| `clip` | `ImageElementClip` | `<clipPath>` element | MISSING |
+| `flipH` | `boolean` | `scale(-1, 1)` | IMPLEMENTED — D-03 |
+| `flipV` | `boolean` | `scale(1, -1)` | IMPLEMENTED — D-04 |
+| `radius` | `number` | Not directly SVG | MISSING — image corner radius |
+| `colorMask` | `string` | Not directly SVG | MISSING — color overlay |
+
+### Shape Element (PPTShapeElement)
+
+| Property | Type | SVG Source | Current Status |
+|----------|------|------------|----------------|
+| `gradient` | `Gradient` | `<linearGradient>` / `<radialGradient>` | IMPLEMENTED — D-15 |
+| `shadow` | `PPTElementShadow` | `filter="url(#shadowId)"` | IMPLEMENTED — D-22 |
+| `flipH` | `boolean` | `scale(-1, 1)` | IMPLEMENTED — D-03 |
+| `flipV` | `boolean` | `scale(1, -1)` | IMPLEMENTED — D-04 |
+| `outline` | `PPTElementOutline` | `stroke` + `stroke-width` + `stroke-dasharray` | IMPLEMENTED — D-05, D-19 |
+| `fill` | `string` | `fill` attribute | IMPLEMENTED — solid color or rgba for opacity |
+
+### Line Element (PPTLineElement)
+
+| Property | Type | SVG Source | Current Status |
+|----------|------|------------|----------------|
+| `width` | `number` | `stroke-width` attribute | IMPLEMENTED — D-24, defaults to 1 |
+| `shadow` | `PPTElementShadow` | `filter="url(#shadowId)"` | NOT IMPLEMENTED — line shadow not wired |
+| `style` | `LineStyleType` | `stroke-dasharray` | IMPLEMENTED — D-05, parseDashArray |
+| `points` | `[LinePoint, LinePoint]` | Not directly SVG | NOT IMPLEMENTED — arrow/dot endpoints |
+
+---
+
+## Implementation Notes
+
+### Shadow Schema (PPTElementShadow)
 ```typescript
-function rotatePoint(x: number, y: number, deg: number, cx: number, cy: number): [number, number] {
-  const rad = deg * Math.PI / 180
-  const cos = Math.cos(rad)
-  const sin = Math.sin(rad)
-  const dx = x - cx
-  const dy = y - cy
-  return [
-    cx + dx * cos - dy * sin,
-    cy + dx * sin + dy * cos
-  ]
+interface PPTElementShadow {
+  h: number   // horizontal offset
+  v: number   // vertical offset
+  blur: number
+  color: string
 }
 ```
+SVG `filter="url(#shadowId)"` with `<feDropShadow>` resolves to this schema. The shadow is already being parsed in `svg-parser.ts` and stored in `attrs.shadow`. The issue is that for text elements, `shadow: undefined` is hardcoded in `transform-to-pptel.ts` line 832 instead of reading from `element.attrs.shadow`.
 
-### PowerPoint Rotation Caveat
-
-- PowerPoint's `rotate` property rotates around the element's top-left corner
-- SVG's `rotate(deg, cx, cy)` rotates around the specified center
-- Converting SVG rotation with non-zero center to PowerPoint requires:
-  1. Calculate rotated bounding box corners
-  2. Compute new top-left position
-  3. Set PowerPoint `rotate` = deg
-  4. Set `left/top` = new position
-
-### Text Baseline Math (for implementation)
-
+### Image Filters Schema (ImageElementFilters)
 ```typescript
-// SVG: text element with y="baselineY" and font-size="N"
-// Target: top-left corner of text bounding box
-
-const baselineToTop = fontSize * 0.75  // approximation
-const topY = baselineY + baselineToTop  // still in SVG coordinate space
+interface ImageElementFilters {
+  'blur'?: string      // px
+  'brightness'?: string // %
+  'contrast'?: string   // %
+  'grayscale'?: string  // %
+  'saturate'?: string   // %
+  'hue-rotate'?: string // deg
+  'sepia'?: string      // %
+  'invert'?: string     // %
+  'opacity'?: string    // %
+}
 ```
+Maps CSS filter functions. SVG `<filter>` with `<feGaussianBlur>`, `<feColorMatrix>` etc. would need to be converted to these CSS filter strings.
+
+### Image Clip Schema (ImageElementClip)
+```typescript
+interface ImageElementClip {
+  range: [[number, number], [number, number]]  // [[x1%, y1%], [x2%, y2%]]
+  shape: string  // from CLIPPATHS
+}
+```
+Range is percentage-based (0-100). Shape is a named clip path from `configs/imageClip.ts`.
+
+### vAlign Mapping
+SVG text vertical alignment can be inferred from:
+- `dominant-baseline="hanging"` → `'top'`
+- `dominant-baseline="middle"` → `'middle'`
+- `dominant-baseline="baseline"` (default) → `'bottom'`
+- `baseline-shift` values could also inform this
+
+### wordSpace Mapping
+SVG `letter-spacing` maps directly to `wordSpace: number`. The value is already being parsed (line 768) but not being used.
 
 ---
 
 ## Sources
 
-- [SVG 1.1 Specification: Transform Attribute](https://www.w3.org/TR/SVG11/coords.html#TransformAttribute) - rotation around center point formula
-- [SVG 1.1 Specification: Text Element](https://www.w3.org/TR/SVG11/text.html) - baseline positioning
-- [MDN: SVG Transform](https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/transform) - practical rotation examples
-- [MDN: SVG Text Element](https://developer.mozilla.org/en-US/docs/Web/SVG/Element/text) - y attribute documentation
-- Code analysis: `src/mapper/coordinate-mapper.ts` (parseTransform lines 52-57, mapCoordinates lines 113-217)
-- Code analysis: `src/transformer/transform-to-pptel.ts` (text case lines 480-515, rotate handling lines 255-542)
+- PPTist TypeScript schema: `code/PPTist/src/types/slides.ts` (HIGH confidence — authoritative schema)
+- svg-to-pptel transformer: `src/transformer/transform-to-pptel.ts` (HIGH confidence — existing implementation)
+- svg-to-pptel apply-transform: `src/transformer/apply-transform.ts` (HIGH confidence — existing implementation)
+- SVG filter spec: https://developer.mozilla.org/zh-CN/docs/Web/SVG/Element/filter (MEDIUM confidence — web reference)
 
 ---
-*Feature research for: SVG to PowerPoint JSON converter v1.1 transform-fixes*
-*Researched: 2026-06-27*
+*Feature research for: SVG to PowerPoint JSON converter v1.2 PPTist schema alignment*
+*Researched: 2026-06-30*

@@ -1,435 +1,268 @@
-# Pitfalls Research
+# Domain Pitfalls: Adding PPTist Schema Properties to svg-to-pptel
 
-**Domain:** SVG-to-PowerPoint JSON conversion library (coordinate transformation focus)
-**Researched:** 2026-06-27
+**Domain:** SVG-to-PowerPoint JSON conversion library (brownfield, existing v1.0.0)
+**Researched:** 2026-06-30
 **Confidence:** HIGH
 
 ## Critical Pitfalls
 
-### Pitfall 1: Rotation Center Ignored
-
-**What goes wrong:**
-Elements with `rotate(deg, cx, cy)` transform render at wrong positions. The rotation center point (cx, cy) is silently dropped. An element at (100, 100) with `rotate(45, 150, 150)` rotates around (150, 150) but the code behaves as if it rotates around (0, 0).
-
-**Why it happens:**
-`parseTransform()` in `coordinate-mapper.ts` correctly extracts `rotateCX` and `rotateCY` from the SVG transform attribute (lines 51-57), but `mapCoordinates()` never uses them. The transform pipeline applies `translateX/Y` and `scaleX/Y` but completely ignores `rotateCX/rotateCY`. The math for rotating around an arbitrary center requires: (1) translate point so center becomes origin, (2) rotate, (3) translate back. Current code has no rotation math at all.
-
-**How to avoid:**
-Implement proper rotate-around-center math in `mapCoordinates()`:
-```
-// For rotate(deg, cx, cy):
-// 1. Translate: subtract (cx, cy) from point
-// 2. Rotate: apply 2D rotation matrix
-// 3. Translate back: add (cx, cy)
-x' = cx + (x - cx) * cos(theta) - (y - cy) * sin(theta)
-y' = cy + (x - cx) * sin(theta) + (y - cy) * cos(theta)
-```
-
-**Warning signs:**
-- Elements with `rotate(N, cx, cy)` in SVG appear offset from expected positions
-- Rotated text labels point in wrong direction
-- Shapes that should pivot around a visual center instead pivot around SVG origin
-
-**Phase to address:**
-Active work item: Correct rotate transform with rotation center
+Mistakes that cause data loss, incorrect rendering, or breaking changes to existing output.
 
 ---
 
-### Pitfall 2: Text Baseline-to-Top Conversion Uses Fixed 0.75 Multiplier
+### Pitfall 1: Dual-Copy Coordinate Bug (ellipse cx/cy)
 
-**What goes wrong:**
-SVG `<text y="30">` places the text baseline at y=30. The code converts this to top-edge by adding `fontSize * 0.75`. This is an empirical approximation that breaks for non-Latin fonts, unusual font metrics, or bold/italic variants. Different fonts have different baseline-to-top ratios (typically 0.7 to 0.85).
+**What goes wrong:** When adding rotation-center support to ellipse, `cx`/`cy` get scaled twice: once during the initial coordinate mapping (`mapCoordinates`) and again when applying the rotation center transform. This produces a wildly incorrect center point.
 
-**Why it happens:**
-SVG spec defines `y` as the baseline position. PowerPoint JSON expects top-left corner of the text bounding box. The correct conversion requires actual font metric data (ascent + descent), but the library has no font metric library and the PPTElement schema does not include baseline information. A single multiplier is used as a workaround.
+**Why it happens:** `mapCoordinates` returns `left`/`top` which are already-scaled coordinates. But the ellipse case additionally scales `cx`/`cy` independently:
 
-**How to avoid:**
-- Accept the approximation for MVP but log a warning when font metrics may be wrong
-- Consider adding an optional `textBaselineOffset` override in the conversion options
-- For CJK or mixed-script text, the 0.75 multiplier is especially unreliable
-
-**Warning signs:**
-- Text appears vertically misaligned by a few pixels to several points
-- Different fonts of same size produce different vertical offsets
-- Text near the top of an SVG appears cut off in PowerPoint output
-
-**Phase to address:**
-Active work item: Correct text y coordinate (baseline to top)
-
----
-
-### Pitfall 3: Ellipse Transform Applies Translation Incorrectly
-
-**What goes wrong:**
-In `coordinate-mapper.ts` lines 152-160, ellipse coordinate extraction applies translation without scaling:
 ```typescript
-case 'ellipse': {
-  const cx = extractNumber(attrs.cx, 0) + tx   // <-- BUG: no scale applied
-  const cy = extractNumber(attrs.cy, 0) + ty   // <-- BUG: no scale applied
-  const rx = extractNumber(attrs.rx, 0) * sx
-  const ry = extractNumber(attrs.ry, 0) * sy
-```
-While `rx` and `ry` (radii) are scaled, the center coordinates `cx` and `cy` are only translated, not scaled. This means if the SVG has a `scale(2)` transform, the ellipse center will be wrong.
+// coordinate-mapper.ts — coords.left/top already scaled by mapCoordinates
+const coords = mapCoordinates(element, viewBox)
+const scaleX = targetCanvas[0] / viewBox[2]
+const scaleY = targetCanvas[1] / viewBox[3]
 
-**Why it happens:**
-Copy-paste inconsistency. Compare with `circle` case (line 142-143) which correctly applies both:
+// ellipse case: cx/cy re-scaled independently
+const scaledCx = (Number(element.attrs.cx) || 0) * scaleX
+const scaledCy = (Number(element.attrs.cy) || 0) * scaleY
+
+// But: rotation center is scaled again
+transform.rotateCX * scaleX  // rotateCX from parseTransform on raw SVG attrs
+```
+
+`rotateCX`/`rotateCY` from `parseTransform` are in SVG coordinate space (not yet scaled). But the element's `cx`/`cy` have already been scaled. Comparing a scaled center point against an unscaled rotation center produces wrong results.
+
+**Consequences:** Ellipse renders at completely wrong position when rotation center is specified.
+
+**Prevention:** Always ensure rotation center and element coordinates are in the same coordinate space before comparison. Best practice: keep all values in SVG space until the final output step, then scale once.
+
+**Warning signs:** Ellipse cx/cy values are approximately 1.77x larger than expected (the 720p-to-1000px scale factor).
+
+**Phase:** Phase 5 (transform fixes) already addressed this with per-element scaling, but the pattern applies to any new features touching ellipse/circle.
+
+---
+
+### Pitfall 2: Gradient Resolution Order Confusion
+
+**What goes wrong:** Adding gradient support to shape elements, but the gradient object gets placed on the wrong attribute name (`attrs.gradient` vs the actual PPTElement `gradient` field), causing the gradient to be silently dropped.
+
+**Why it happens:** The parser resolves `fill="url(#gradientId)"` at parse time and stores the gradient object in `attrs.gradient` (D-15). The transformer checks `element.attrs.gradient` and assigns it to `result.gradient`. This works correctly **only if** the gradient resolution happens before `convertToSvgElement` processes the element. The dependency chain must be: collect gradient defs first, then resolve references during element conversion.
+
+**Consequences:** Shape renders with solid color instead of gradient. No error thrown — silent data loss.
+
+**Prevention:** Maintain the two-pass pattern: first pass collects all defs (gradient/filter registries), second pass resolves references. When adding new def types (e.g., pattern defs), follow this same two-pass pattern. Document the resolution order explicitly.
+
+**Warning signs:** `fill` property present on output when `fill="url(#...)"` was in input SVG.
+
+**Phase:** Affects shape gradient feature.
+
+---
+
+### Pitfall 3: Adding `undefined` Explicitly Breaks JSON Output
+
+**What goes wrong:** When adding new optional PPTist properties (e.g., `text.fill`, `image.filters`), code adds the property even when the SVG has no corresponding attribute, resulting in `{ ..., fill: undefined }` in the output JSON.
+
+**Why it happens:** Spread syntax with conditional properties and explicit `undefined` initialization:
+
 ```typescript
-const cx = extractNumber(attrs.cx, 0) * sx + tx
-const cy = extractNumber(attrs.cy, 0) * sy + ty
+// WRONG pattern
+const result: PPTTextElement = {
+  ...
+  ...(element.attrs.stroke && { outline: { color: colorToHex(element.attrs.stroke) } }),
+  shadow: undefined,  // This line always adds shadow: undefined
+  ...
+}
 ```
 
-**How to avoid:**
-Apply both scale and translation to center coordinates, matching the circle case pattern.
+The `shadow: undefined` line explicitly sets the property even when no shadow exists. While TypeScript types allow `undefined`, the serialized JSON includes the value or causes unexpected behavior in consumers.
 
-**Warning signs:**
-- Ellipses in scaled SVGs render with wrong center position
-- Ellipse that should be centered on a point appears offset from that point
+**Consequences:** Output JSON contains `shadow: null` after serialization. PPTist consumer may interpret `shadow: null` differently than absent `shadow` field. Bloats output size.
 
-**Phase to address:**
-Active work item: Verified canvas scaling
+**Prevention:** Only include properties when they have values. Use conditional spread pattern consistently:
 
----
+```typescript
+// CORRECT pattern — only include shadow when element.attrs.shadow exists
+...(element.attrs.shadow && { shadow: element.attrs.shadow })
+```
 
-### Pitfall 4: Matrix Transform Parsed but Not Applied
+Never initialize optional properties to `undefined` in the object literal.
 
-**What goes wrong:**
-`parseTransform()` detects `matrix(...)` and sets `result.special = true` and `result.raw = transform`. However, `mapCoordinates()` never checks for `special` or `raw` and silently skips the matrix transform. Elements with matrix transforms render without any transformation applied.
+**Warning signs:** New properties appear in output even for SVGs that don't use them.
 
-**Why it happens:**
-Matrix transforms encode arbitrary affine transformations (rotation, scale, skew, translation combined) as a 6-value array. Implementing full matrix math is complex and matrix is rarely used in manually-authored SVG. The "mark as special, do not apply" approach is a pragmatic deferral but creates silent failures.
-
-**How to avoid:**
-- Either implement matrix decomposition (preferred) or throw an error/warning when matrix is encountered
-- Add a test that fails if matrix-transformed SVG passes through without warning
-
-**Warning signs:**
-- No error or warning when matrix transform is encountered
-- Elements with `transform="matrix(...)"` appear untransformed in output
-
-**Phase to address:**
-Phase 2: Full transform pipeline completion
+**Phase:** Affects text shadow, text fill, image filters, image clip, shape shadow features.
 
 ---
 
-## Technical Debt Patterns
+### Pitfall 4: Attribute Name Case Collision in SVG Parser
 
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Hard-code target canvas 1000x562.5 | Simpler API, no configuration | Cannot handle different slide sizes | MVP only; never for a general-purpose library |
-| 0.75 text baseline multiplier | Avoids font metric dependency | Wrong vertical alignment for many fonts | MVP only; must add font metric support before production |
-| Matrix transform marked special, not applied | Avoids complex math | Silent failures on valid SVG | Never; must either implement or throw error |
-| Path bounding box only from M/L/H/V commands | Simple parser | Complex paths (C, S, Q, T, A) report wrong bounds | MVP only; need full path data parser |
+**What goes wrong:** When adding support for `flipH`/`flipV` from SVG `transform` attribute, the code uses the same field name as the output PPTElement property, but SVG `transform` parsing returns camelCase keys (`flipH`, `flipV`) from negative scale detection. These collide with shape element properties that are also named `flipH`/`flipV`.
 
----
+**Why it happens:** `parseTransform` returns a `TransformResult` with `flipH`/`flipV` from negative scale detection. The transformer extracts `{ rotate, flipH, flipV }` from `applyTransform`. But the actual element's attrs also have a `transform` string that was already parsed. Confusion arises when `flipH`/`flipV` appear both in the transform result AND as direct element attributes (from an SVG element using `flipH="true"` directly rather than via scale transform).
 
-## Integration Gotchas
+**Consequences:** `flipH`/`flipV` set from transform scale may be incorrectly overwritten by element attrs, or vice versa.
 
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| SVG with `xlink:href` on images | Only checking `href`, missing `xlink:href` | Check both: `attrs['xlink:href'] || attrs.href` |
-| SVG with `viewBox` different from width/height | Treating width/height as source of truth | Always use viewBox for coordinate mapping; width/height only for intrinsic size |
-| Nested groups with transforms | Applying child transforms without parent's accumulated transform | Walk hierarchy and accumulate transforms down the tree |
+**Prevention:** Clear separation between transform-derived flips and direct attribute flips. Document that `flipH`/`flipV` on shape/image come from two sources: (1) negative scale in transform attribute, (2) explicit flip attributes. Both should set the same property; if both are present they must agree.
+
+**Warning signs:** Flip behavior inconsistent between different SVG sources.
+
+**Phase:** Affects shape flipH/flipV, image flipH/flipV features.
 
 ---
 
-## Performance Traps
+### Pitfall 5: Color Opacity Encoding Inconsistency
 
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| Recursive element walk without memoization | Deep SVG (>100 elements) causes stack overflow | Convert recursive walk to iterative with explicit stack | SVGs with >100 nested elements |
-| Path bounding box recomputed on every reference | Same path used multiple times gets bbox recalculated | Cache path bounding box results by `d` string hash | SVGs with repeated identical paths |
+**What goes wrong:** When adding text fill with opacity, `fill-opacity` is converted to `rgba()` string for the inline span style, but the base text `defaultColor` retains the hex color without opacity. This means the text has two color representations that can diverge.
 
----
+**Why it happens:** Current text handling converts `fill-opacity < 1` to an rgba string in the span style:
 
-## Security Mistakes
+```typescript
+// Current pattern in text case
+const hasRgba = fillOpacity && parseFloat(fillOpacity) < 1
+let spanStyle = `font-size: ${scaledFontSize}px`
+if (hasRgba) {
+  const rgbaColor = colorToRgba(fillColor, parseFloat(fillOpacity))
+  spanStyle += `; color: ${rgbaColor}`
+}
+```
 
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| Unvalidated SVG input passed to XML parser | XXE injection if parser is not configured safely | Use `fast-xml-parser` with `isArray: true` and disable external entities |
-| Base64 image data in `href` not sanitized | Malformed image data crashes downstream PowerPoint | Validate base64 image headers before passing through |
+But `defaultColor` remains a hex color without opacity. If PPTist consumer ignores the inline span style, it sees the wrong color.
 
----
+**Consequences:** Text renders at wrong color when consumer uses `defaultColor` directly instead of parsing the HTML content.
 
-## UX Pitfalls
+**Prevention:** When `fill-opacity < 1`, either (a) use rgba color for `defaultColor` as well, or (b) ensure `fill` is rendered as a separate PPTist property and the inline style is the authoritative source. Document which approach is used.
 
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| No warning when transform cannot be fully represented | User sees wrong output with no explanation | Log warnings for unsupported transforms (matrix, skew) |
-| Silent failure for unrecognized elements | User draws complex SVG, output is missing shapes | At minimum log unrecognized element types at verbose level |
+**Warning signs:** Text opacity works in some consumers but not others.
 
----
-
-## "Looks Done But Isn't" Checklist
-
-- [ ] **Transforms:** Code parses `rotate(deg, cx, cy)` correctly but never applies the rotation center -- verify with a rotated-rectangle test case
-- [ ] **Text baseline:** Uses 0.75 multiplier but this is font-dependent -- verify with different font-size values and non-Latin text
-- [ ] **Ellipse:** Scale is applied to radii but not center -- verify with a scaled ellipse
-- [ ] **Matrix:** Detected and marked special but not applied -- verify matrix-transformed elements either error or warn
-- [ ] **Image href:** Only one variant is tested -- verify both `href` and `xlink:href` work
+**Phase:** Affects text fill feature.
 
 ---
 
-## Recovery Strategies
+### Pitfall 6: Image Filter Syntax Mismatch
 
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| Rotation center ignored | MEDIUM | Implement rotate-around-center math; add integration test with known rotated SVG |
-| Text baseline wrong | LOW | Adjust multiplier; better: add font metric table or user-configurable offset |
-| Ellipse scale bug | LOW | Fix 2 lines; add test case with scaled ellipse |
-| Matrix not applied | MEDIUM | Implement 6-value matrix decomposition, or add clear error/warning |
+**What goes wrong:** When adding image filter support (blur, brightness, etc.), the SVG `filter` attribute uses `url(#filterId)` referencing a `<filter>` element with `<feGaussianBlur>` etc. But PPTist's `ImageElementFilters` type uses CSS-like string values (`'blur: 5px'`, `'brightness: 150%'`). Direct attribute mapping produces wrong format.
+
+**Why it happens:** SVG filter primitives (`feGaussianBlur stdDeviation="5"`, `feColorMatrix type="hueRotate" values="90"`) map to CSS filter syntax differently than 1:1. The conversion requires parsing SVG filter primitives and emitting CSS filter strings.
+
+**Consequences:** Image filters either not applied or applied with wrong values in PowerPoint output.
+
+**Prevention:** Build an explicit SVG filter-to-CSS filter conversion function. Do not attempt direct attribute mapping. Test with multiple filter types combined.
+
+**Warning signs:** filters property present but with wrong format (e.g., object instead of string).
+
+**Phase:** Affects image filters feature.
 
 ---
 
-## Pitfall-to-Phase Mapping
+### Pitfall 7: Text Shadow vs SVG Filter Shadow Schema Mismatch
 
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| Rotation center ignored | Phase 1: Transform pipeline | Test SVG with `rotate(30, 100, 100)` renders around (100,100) not (0,0) |
-| Text baseline approximation | Phase 1: Text element handling | Compare output y with expected top-edge for known baseline values |
-| Ellipse transform bug | Phase 1: Canvas scaling verification | Test ellipse inside a scaled group |
-| Matrix transform silent fail | Phase 2: Full transform support | Add test that passes matrix SVG and either succeeds or warns clearly |
-| Path bbox incomplete | Phase 2: Path data handling | Test SVG with bezier curves (C, S, Q, T, A commands) |
+**What goes wrong:** SVG text shadows are typically implemented via `filter="url(#shadowId)"` referencing a `<feDropShadow>` element. This gets resolved to a shadow object in `attrs.shadow`. PPTist's `PPTTextElement.shadow` is the same `PPTElementShadow` type used by shapes. However, text shadow renders differently from shape shadow in PowerPoint due to character spacing.
+
+**Why it happens:** The shadow object structure (`h`, `v`, `blur`, `color`) is shared, but the rendering effect differs between text and shape contexts in PowerPoint. Reusing the same shadow object may produce inconsistent results.
+
+**Consequences:** Text shadow renders with wrong offset/blur compared to shape shadow with identical parameters.
+
+**Prevention:** Document that text shadow conversion needs verification against actual PowerPoint rendering. Consider whether PPTist has separate shadow handling for text vs shape, and ensure the conversion matches. If PPTist schema shares the shadow type, flag this as a known limitation.
+
+**Warning signs:** Text shadow and shape shadow with identical parameters produce visibly different effects.
+
+**Phase:** Affects text shadow feature.
+
+---
+
+### Pitfall 8: Image Clip Schema Misalignment
+
+**What goes wrong:** PPTist's `ImageElementClip` has `{ range: [[x1,y1], [x2,y2]], shape: string }`. SVG clipping uses `<clipPath>` with `<rect>` or `<path>` child. The conversion requires parsing SVG clipPath geometry into PPTist's percentage-based range + named shape. Direct attribute mapping is impossible.
+
+**Why it happens:** SVG clip coordinates are in SVG units; PPTist clip range is percentages `[0,100]`. The mapping requires knowing the intrinsic image dimensions and converting units.
+
+**Consequences:** Image clip either not implemented or produces wrong clip region.
+
+**Prevention:** Design the clip conversion carefully: extract clipPath child geometry, map to image pixel coordinates, convert to percentage range, infer the closest PPTist named clip shape. Consider deprioritizing clip conversion or implementing it as a separate pass.
+
+**Warning signs:** Image with `clip-path="url(#clipId)"` produces no `clip` property in output JSON.
+
+**Phase:** Affects image clip feature.
+
+---
+
+### Pitfall 9: Line Stroke Width Collides with Coordinate Width
+
+**What goes wrong:** The `line` element uses `width` to mean stroke width (D-24: `stroke-width` maps to `result.width = strokeWidth || 1`). But `line` element also has `left`/`top`/`width`/`height` from `mapCoordinates`. The `width` property name is overloaded: in `PPTLineElement` it means stroke width, but in other elements it means element width.
+
+**Why it happens:** `PPTLineElement` extends `Omit<PPTBaseElement, 'height' | 'rotate'>` — it removes `height` and `rotate` but **keeps** `width`. However, the line's `width` in the base interface means element width, while the line-specific `width` means stroke width. This naming collision makes the code confusing.
+
+**Consequences:** When modifying line handling, developers may incorrectly assume `width` refers to element width. Adding new line properties requires careful disambiguation.
+
+**Prevention:** Document the `width` overload clearly. When adding new line properties, check whether they refer to stroke width or element dimensions. Use explicit variable names to disambiguate in transformer code.
+
+**Warning signs:** Confusion in code comments about what `width` represents.
+
+**Phase:** Affects line width feature.
+
+---
+
+### Pitfall 10: Backwards Compatibility — Adding New Required Fields
+
+**What goes wrong:** Adding new features introduces new optional fields to PPTElement types. If a future change makes one of these fields required, or if the PPTist schema evolves to require them, existing output JSON would become invalid.
+
+**Why it happens:** Schema evolution. The current `PPTTextElement` has many optional fields. Adding `fill`, `shadow`, `vAlign`, `fixedHeight`, `wordSpace` as properties to the object output means the JSON structure changes, even if the values are absent.
+
+**Consequences:** Existing consumers of the JSON output may break if they don't handle new fields, or if the JSON parser is strict about unexpected fields.
+
+**Prevention:** New fields must always be optional (or omitted entirely via conditional spread). Never make a new field required. Add fields only via conditional spread. Write tests that verify new optional fields don't appear when not applicable.
+
+**Warning signs:** Output JSON has more fields than before.
+
+**Phase:** Affects all new features.
+
+---
+
+## Integration Pitfalls
+
+### Copy-Paste Error in Shape Switch Cases
+
+The transformer has nearly identical code for `rect`, `circle`, `ellipse`, `path`, `polygon`, `polyline` shape cases. Each sets `fill`, `gradient`, `flipH`, `flipV`, `outline`, `shadow`, `groupId`. When adding a new property to shapes, it must be added to ALL shape cases consistently. A common mistake is adding it to one case (e.g., `rect`) and forgetting others.
+
+**Prevention:** When adding a shape property, write a helper function that builds the common properties and call it from each case. Do not duplicate the property-setting logic across 6 switch cases.
+
+### Transform Parsing Side Effects
+
+`parseTransform` in coordinate-mapper.ts is called during transformation. If new features add new transform types (e.g., `skewX`, `skewY`), `parseTransform` must be updated. Changes there affect ALL element types. Test thoroughly when modifying transform parsing.
+
+### Conflicting Property Names Across Element Types
+
+`outline` exists on `PPTShapeElement`, `PPTImageElement`, `PPTTextElement`, `PPTChartElement`, `PPTTableElement`. Each has the same type `PPTElementOutline`. However, the shape case already assigns `outline` from `stroke` attribute, the text case assigns it from `stroke` attribute too, and the image case does the same (D-25). Adding new outline sources must not duplicate or overwrite correctly-set outline objects.
+
+---
+
+## Phase-Specific Warnings
+
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| Shape gradient | Pitfall 2 (resolution order) | Follow existing two-pass def collection pattern |
+| Shape shadow | Pitfall 3 (undefined explicit) | Use conditional spread, never initialize to undefined |
+| Shape flipH/flipV | Pitfall 4 (case collision) | Separate transform-derived vs direct-attr flips |
+| Text fill | Pitfall 5 (opacity encoding) | Use rgba consistently across defaultColor and span style |
+| Text outline | Pitfall 3, Pitfall 10 | Conditional spread, no undefined |
+| Text shadow | Pitfall 7 (schema mismatch) | Verify PowerPoint rendering matches |
+| Image outline | Pitfall 3 | Conditional spread |
+| Image filters | Pitfall 6 (syntax mismatch) | Build explicit SVG-to-CSS filter converter |
+| Image clip | Pitfall 8 (schema misalignment) | Consider deprioritizing; complex conversion |
+| Image flipH/flipV | Pitfall 4 | Same as shape flip |
+| Line width | Pitfall 9 (overloaded name) | Document clearly; disambiguate in code |
 
 ---
 
 ## Sources
 
-- SVG 1.1 Specification: Transform attribute https://www.w3.org/TR/SVG11/coords.html#TransformAttribute
-- SVG 1.1 Specification: Text element https://www.w3.org/TR/SVG11/text.html
-- fast-xml-parser documentation for safe XML parsing
-- Code analysis of `src/coordinate-mapper.ts` (lines 52-57 for rotation parse, lines 152-160 for ellipse bug)
-- Code analysis of `src/transformer/transform-to-pptel.ts` (lines 496 for text baseline conversion)
-- Reference implementation from user for `applyTransform(x, y, transform)` - handles translate-rotate-scale chain but not rotation center
+- Codebase analysis: `src/transformer/transform-to-pptel.ts` (existing transformer implementation)
+- Codebase analysis: `src/parser/svg-parser.ts` (gradient/filter resolution)
+- Codebase analysis: `src/types/ast.ts` (SVG AST types)
+- Codebase analysis: `src/slides.ts` (PPTElement schema)
+- Codebase analysis: `src/transformer/apply-transform.ts` (transform application)
+- Project state: `.planning/PROJECT.md` (milestone v1.2 goals)
 
 ---
 
-## v1.1 Transform-Fixes Milestone: Specific Pitfalls When Fixing
-
-This section documents the specific mistakes to avoid when implementing the rotate transform center and text baseline corrections.
-
----
-
-### Fix Pitfall R1: Wrong Transform Order When Adding Rotation Center
-
-**What goes wrong:**
-When adding rotation center support, developer applies the center offset incorrectly relative to translation and scale.
-
-**The mistake:**
-```typescript
-// WRONG: Applying translate then rotate around origin
-const x2 = (x * sx + tx) * cos - (y * sy + ty) * sin
-const y2 = (x * sx + tx) * sin + (y * sy + ty) * cos
-```
-This rotates around (0,0) after translation, not around the specified center.
-
-**The correct approach:**
-```typescript
-// RIGHT: Translate to center, rotate, translate back, THEN apply scale
-const theta = rotateDeg * Math.PI / 180
-const cos = Math.cos(theta)
-const sin = Math.sin(theta)
-
-// Step 1: Translate point so center becomes origin
-const dx = x - rotateCX
-const dy = y - rotateCY
-
-// Step 2: Rotate around origin
-const rx = dx * cos - dy * sin
-const ry = dx * sin + dy * cos
-
-// Step 3: Translate back
-const rx2 = rx + rotateCX
-const ry2 = ry + rotateCY
-
-// Step 4: Apply scale and translation
-const finalX = rx2 * sx + tx
-const finalY = ry2 * sy + ty
-```
-
-**Why this is subtle:**
-SVG transform order is `translate -> rotate -> scale` conceptually, but the center for rotate is part of the rotate operation itself. If you mix up the order, you get different results.
-
-**Verification:**
-Use a known test case: `<rect x="100" y="100" width="50" height="50" transform="rotate(90, 125, 125)"/>`
-- The rectangle's center is at (125, 125)
-- After 90-degree rotation around (125, 125), the top-left corner (100, 100) should move to (125, 100)
-- Test fails if you cannot predict where the element goes
-
----
-
-### Fix Pitfall R2: Confusing SVG rotate Syntax with CSS rotate
-
-**What goes wrong:**
-Developer implements `rotate(deg)` as CSS `rotate(deg)` without realizing SVG allows a 3-argument form.
-
-**SVG rotate syntax:**
-- `rotate(45)` - rotate 45 degrees around origin (0,0)
-- `rotate(45, 100, 100)` - rotate 45 degrees around point (100, 100)
-
-**CSS rotate syntax:**
-- `rotate(45deg)` - always around element center (or transform-origin)
-- No 3-argument form exists in CSS
-
-**The mistake:**
-```typescript
-// WRONG: Treating SVG rotate like CSS rotate
-element.style.transform = `rotate(${rotateDeg}deg)`
-```
-This ignores the center point entirely.
-
-**The correct approach:**
-The SVG `rotate(deg, cx, cy)` must be decomposed into:
-1. A translation that moves (cx, cy) to origin
-2. A rotation around origin
-3. A translation that moves (cx, cy) back
-
-**Also watch for:**
-- Negative angles: SVG allows `rotate(-45, 100, 100)` - the math must handle this correctly
-- The regex in `parseTransform` at line 52 already handles 3 arguments correctly - ensure the implementation uses all 3
-
----
-
-### Fix Pitfall R3: Not Handling the No-Center Case
-
-**What goes wrong:**
-Developer adds center support but breaks the case where no center is specified.
-
-**The mistake:**
-```typescript
-// WRONG: Assuming center always exists
-const x2 = (x - rotateCX) * cos - (y - rotateCY) * sin + rotateCX
-```
-When `rotateCX` is undefined (from `rotate(45)` without center), this produces `NaN`.
-
-**The correct approach:**
-```typescript
-// RIGHT: Default to origin when no center specified
-const cx = rotateCX ?? 0
-const cy = rotateCY ?? 0
-// Then proceed with rotation around (cx, cy)
-```
-
----
-
-### Fix Pitfall T1: Confusing Baseline with Bottom or Top
-
-**What goes wrong:**
-Developer thinks "baseline" means "bottom of the text" and converts incorrectly.
-
-**The actual SVG text coordinate system:**
-- `y` attribute specifies the **baseline** position
-- The baseline is the line the letters "sit on" - not the top edge, not the bottom edge
-- Ascenders (like 'h', 'b', 'k') extend above the baseline
-- Descenders (like 'g', 'p', 'y') extend below the baseline
-
-```
-     top
-      |
-   ascent |  <- typically ~0.75em above baseline for Latin fonts
-      |    |
- baseline --|--> y attribute points here
-      |    |
-   descent | <- typically ~0.25em below baseline for Latin fonts
-      |
-    bottom
-```
-
-**The mistake:**
-```typescript
-// WRONG: baseline IS NOT bottom
-const textTop = svgY  // treating y as top - WRONG
-const textTop = svgY - fontSize  // treating y as bottom - WRONG
-```
-
-**The correct approach:**
-```typescript
-// RIGHT: Baseline to top means moving DOWN by the ascent
-// For Latin fonts, ascent is roughly 0.75-0.85 of font size
-const textTop = svgY - (fontSize * 0.75)
-```
-
-**Verification:**
-For `<text y="100" font-size="16">Hello</text>`:
-- Baseline is at y=100
-- With 0.75 multiplier, top edge = 100 - (16 * 0.75) = 88
-- This means the text box top is 12 pixels ABOVE the baseline
-
----
-
-### Fix Pitfall T2: Wrong Font Metric Approximation
-
-**What goes wrong:**
-Developer hardcodes a single multiplier without understanding when it fails.
-
-**The mistake:**
-```typescript
-// WRONG: Assuming 0.75 works for all fonts
-const offset = fontSize * 0.75
-
-// Also wrong: Assuming it's fontSize * 1.0 (baseline to bottom)
-const offset = fontSize
-```
-
-**Why 0.75 is approximate:**
-Different font metrics have different baseline-to-top ratios:
-- Arial/Helvetica: ~0.75-0.80
-- Times New Roman: ~0.72-0.78
-- CJK (Chinese/Japanese/Korean): ~0.85-0.95 (different baseline model)
-- Script fonts: varies widely
-- Bold/Italic variants: same ratio as parent (metrics defined by font, not style)
-
-**The correct approach:**
-```typescript
-// BETTER: Accept approximation but log a warning for unusual cases
-const baselineRatio = getBaselineRatio(fontFamily) // from a metric table
-
-// Or at minimum, acknowledge the approximation:
-const BASELINE_RATIO = 0.75 // Approximation for Latin fonts; wrong for CJK
-const textTop = svgY - (fontSize * BASELINE_RATIO)
-```
-
-**When the 0.75 fails most:**
-1. CJK text - baseline model is different
-2. Very small font sizes (8px or less) - rounding errors amplify
-3. Very large font sizes (72px+) - metric differences become visible
-4. Mixed script text (Latin + CJK in same line) - cannot use single ratio
-
----
-
-### Fix Pitfall T3: Not Accounting for Scale When Converting Baseline
-
-**What goes wrong:**
-Developer converts baseline to top but forgets that the result still needs to be scaled.
-
-**The mistake:**
-```typescript
-// WRONG: Conversion not followed by scaling
-const textTop = svgY - (fontSize * 0.75)
-// Uses textTop directly without scale factor
-```
-
-**The correct approach (as in current code at line 496):**
-```typescript
-// RIGHT: Convert baseline to top, THEN scale
-// coords.top is baseline, fontSize is untransformed
-const textTop = (coords.top + fontSize * 0.75) * scaleY
-```
-
-**Why this matters:**
-If SVG viewBox is 800x600 and target canvas is 1000x562.5:
-- scaleY = 562.5/600 = 0.9375
-- Without scaling, text appears in wrong position relative to other elements
-
----
-
-## Sources
-
-- SVG 1.1 Specification: Transform attribute https://www.w3.org/TR/SVG11/coords.html#TransformAttribute
-- SVG 1.1 Specification: Text element https://www.w3.org/TR/SVG11/text.html
-- Code analysis of `src/coordinate-mapper.ts` (lines 51-57 for rotation parse, lines 189-196 for text handling)
-- Code analysis of `src/transformer/transform-to-pptel.ts` (lines 493-496 for text baseline conversion)
-
----
-
-*Pitfalls research for: svg-to-pptel coordinate transformation library*
-*Researched: 2026-06-27*
+*Pitfalls research for: svg-to-pptel v1.2 PPTist format alignment*
+*Researched: 2026-06-30*
