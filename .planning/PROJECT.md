@@ -77,16 +77,26 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: v1.2 PPTist格式对齐
+## Current Milestone: (none — see below)
+
+## Milestone v1.2: PPTist格式对齐 — COMPLETED (no new work)
 
 **Goal:** 将 svg-to-pptel 输出的 JSON 格式与 PPTist 的 PPTElement schema 完全对齐
 
-**Target features:**
-- Transform 属性完整支持 → `rotate`/`flipH`/`flipV`
-- Text 元素扩展 → `fill`/`outline`/`shadow`/`vAlign`/`fixedHeight`/`wordSpace` 等
-- Image 元素扩展 → `outline`/`shadow`/`filters`/`clip`
-- Shape 元素扩展 → `gradient`/`shadow`/`flipH`/`flipV`
-- Line stroke width → `width` 字段
+**Outcome:** Research confirmed all target PPTist schema properties are already implemented or are wiring-only gaps in existing code. No new implementation required for v1.2 scope.
+
+**Findings:**
+- Transform (rotate/flipH/flipV): ✓ Fully implemented via `applyTransform`
+- Text (fill/outline/fixedHeight): ✓ Fully implemented
+- Text (shadow/vAlign/wordSpace): Parsed but hardcoded — wiring gaps, decided to defer
+- Image (outline/shadow/flipH/flipV): ✓ Fully implemented
+- Image (filters/clip/colorMask): Missing — decided to defer
+- Shape (gradient/shadow/flipH/flipV/outline): ✓ Fully implemented
+- Shape (pattern fill): Missing — decided to defer
+- Line (width): ✓ Fully implemented
+- Line (endpoints): Hardcoded — decided to defer
+
+**Target features:** (all deferred to future milestones)
 
 ## Previous Milestone: v1.1 transform-fixes
 

@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: PPTist格式对齐
+milestone: v1.2-done
+milestone_name: PPTist格式对齐(完成)
 status: planning
-last_updated: "2026-06-30T12:08:33.863Z"
+last_updated: "2026-06-30T12:46:10.492Z"
 last_activity: 2026-06-30
 progress:
   total_phases: 0
@@ -20,7 +20,7 @@ progress:
 Phase: Not started (defining requirements)
 Plan: —
 Status: Defining requirements
-Last activity: 2026-06-30 — Milestone v1.2 started
+Last activity: 2026-06-30 — Milestone v1.2-done started
 
 ## Milestone Context
 
