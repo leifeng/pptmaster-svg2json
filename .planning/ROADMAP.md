@@ -27,7 +27,11 @@
 5. `transformElement()` text case uses `measureTextBBox()` — `calcTextWidthYaHei()` and `BASELINE_OFFSET_RATIO` are removed
 6. All existing tests pass without regression
 
-**Plans:** TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — Install @resvg/resvg-js, create text-measurer module, integrate into transformElement, propagate async
+- [ ] 06-02-PLAN.md — Remove calcTextWidthYaHei and BASELINE_OFFSET_RATIO, verify all tests pass
 
 ---
 
@@ -35,7 +39,7 @@
 
 | Phase | Requirements | Plans | Status | Completed |
 |-------|-------------|-------|--------|-----------|
-| Phase 6: resvg-js Text Measurement | MEAS-01~11 (11) | 0/1 | Not started | - |
+| Phase 6: resvg-js Text Measurement | MEAS-01~11 (11) | 2/2 | Planning complete | - |
 
 **Coverage:** 11/11 v1.3 requirements mapped
 
