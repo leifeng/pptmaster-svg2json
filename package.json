@@ -16,6 +16,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "cac": "^6.7.14",
     "fast-xml-parser": "^5.9.3",
     "picocolors": "^1.1.1",
