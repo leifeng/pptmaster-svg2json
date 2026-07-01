@@ -5,53 +5,6 @@ import { applyTransform, applyRotateWithCenter } from './apply-transform'
 import { rectToPath, roundedRectToPath, circleToPath, ellipseToPath, lineToPath, polygonToPath } from '../shapes/shape-to-path'
 import { measureTextElement, TextMeasurementInput } from '../text-measurer'
 
-// D-28: SVG text baseline ratio constant
-const BASELINE_OFFSET_RATIO = 0.8
-
-/**
- * Calculate text width for Microsoft YaHei (微软雅黑) using character classification.
- * Chinese (CJK) characters are monospace (≈ fontSize), Latin characters are proportional.
- */
-function calcTextWidthYaHei(text: string, fontSize: number, letterSpacing: number = 0): number {
-  let width = 0
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-    const code = ch.charCodeAt(0)
-
-    // Chinese (CJK) characters and Chinese punctuation
-    if (
-      (code >= 0x4e00 && code <= 0x9fff) || // CJK Unified Ideographs (汉字)
-      (code >= 0x3000 && code <= 0x303f)    // Chinese punctuation
-    ) {
-      width += fontSize
-    }
-    // Space
-    else if (ch === ' ') {
-      width += fontSize * 0.25
-    }
-    // Digits 0-9
-    else if (code >= 48 && code <= 57) {
-      width += fontSize * 0.55
-    }
-    // Uppercase Latin A-Z
-    else if (code >= 65 && code <= 90) {
-      width += fontSize * 0.65
-    }
-    // Lowercase Latin a-z
-    else if (code >= 97 && code <= 122) {
-      width += fontSize * 0.55
-    }
-    // English punctuation and other
-    else {
-      width += fontSize * 0.3
-    }
-  }
-  // letter-spacing: applies between characters
-  if (text.length > 1 && letterSpacing > 0) {
-    width += (text.length - 1) * letterSpacing
-  }
-  return width
-}
 
 import type { PPTElement, PPTTextElement, PPTShapeElement, PPTLineElement, PPTImageElement, LineStyleType } from '../slides'
 
@@ -797,11 +750,14 @@ export async function transformElement(
         // to get the baseline-to-top offset, then scale
         textTop = (transformed.top + fontSize - measured.y) * scaleY
       } catch {
-        // D-35: Fallback to heuristic on measurement failure
-        textWidth = calcTextWidthYaHei(content, scaledFontSize, letterSpacing)
-        textHeight = scaledFontSize + Math.round(scaledFontSize * 0.14)
-        textTop = (transformed.top + fontSize * BASELINE_OFFSET_RATIO) * scaleY
+        // D-35: MEAS-06 fallback: heuristic estimate when resvg-js measurement fails
+        textWidth = fontSize * content.length * 0.6
+        textHeight = scaledFontSize
+        textTop = transformed.top * scaleY
       }
+
+      // Log text measurement info
+      console.log(`[text] "${content.substring(0, 30)}${content.length > 30 ? '...' : ''}" | fontSize=${fontSize} | width=${textWidth.toFixed(2)} | height=${textHeight.toFixed(2)}`)
 
       const textLeft = transformed.left
 
