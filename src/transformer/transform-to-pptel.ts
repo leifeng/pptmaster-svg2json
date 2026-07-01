@@ -3,9 +3,56 @@ import { SvgParseResult, SvgElement } from '../types/ast'
 import { mapCoordinates, parseTransform } from '../mapper/coordinate-mapper'
 import { applyTransform, applyRotateWithCenter } from './apply-transform'
 import { rectToPath, roundedRectToPath, circleToPath, ellipseToPath, lineToPath, polygonToPath } from '../shapes/shape-to-path'
+import { measureTextElement, TextMeasurementInput } from '../text-measurer'
 
 // D-28: SVG text baseline ratio constant
 const BASELINE_OFFSET_RATIO = 0.8
+
+/**
+ * Calculate text width for Microsoft YaHei (微软雅黑) using character classification.
+ * Chinese (CJK) characters are monospace (≈ fontSize), Latin characters are proportional.
+ */
+function calcTextWidthYaHei(text: string, fontSize: number, letterSpacing: number = 0): number {
+  let width = 0
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    const code = ch.charCodeAt(0)
+
+    // Chinese (CJK) characters and Chinese punctuation
+    if (
+      (code >= 0x4e00 && code <= 0x9fff) || // CJK Unified Ideographs (汉字)
+      (code >= 0x3000 && code <= 0x303f)    // Chinese punctuation
+    ) {
+      width += fontSize
+    }
+    // Space
+    else if (ch === ' ') {
+      width += fontSize * 0.25
+    }
+    // Digits 0-9
+    else if (code >= 48 && code <= 57) {
+      width += fontSize * 0.55
+    }
+    // Uppercase Latin A-Z
+    else if (code >= 65 && code <= 90) {
+      width += fontSize * 0.65
+    }
+    // Lowercase Latin a-z
+    else if (code >= 97 && code <= 122) {
+      width += fontSize * 0.55
+    }
+    // English punctuation and other
+    else {
+      width += fontSize * 0.3
+    }
+  }
+  // letter-spacing: applies between characters
+  if (text.length > 1 && letterSpacing > 0) {
+    width += (text.length - 1) * letterSpacing
+  }
+  return width
+}
+
 import type { PPTElement, PPTTextElement, PPTShapeElement, PPTLineElement, PPTImageElement, LineStyleType } from '../slides'
 
 export type { PPTElement }
@@ -286,13 +333,13 @@ function extractTextContentFromElement(element: SvgElement): string {
  * @param targetCanvas - Target canvas size [width, height], defaults to [1000, 562.5]
  * @param groupId - Current groupId context from parent g elements
  */
-export function transformElement(
+export async function transformElement(
   element: SvgElement,
   viewBox: [number, number, number, number],
   index: number,
   targetCanvas: [number, number] = [1000, 562.5],
   groupId?: string,
-): PPTElement | null {
+): Promise<PPTElement | null> {
   const tag = element.type.toLowerCase()
   const coords = mapCoordinates(element, viewBox)
   const id = uuidv4()
@@ -714,21 +761,49 @@ export function transformElement(
       const transformed = applyTransform(left, top, width, height, transform)
       const { rotate } = transformed
       const content = extractTextContentFromElement(element)
-      // Parse font-family: take first font, decode HTML entities, remove quotes
-      const rawFontFamily = typeof element.attrs['font-family'] === 'string'
-        ? element.attrs['font-family'].split(',')[0].trim()
-        : 'Arial'
-      const fontFamily = decodeHtmlEntities(rawFontFamily).replace(/"/g, '')
+      // Force Microsoft YaHei for all text (width calculation and output)
+      const fontFamily = element.attrs['font-family'] || 'Microsoft YaHei'
       const fontSize = Number(element.attrs['font-size']) || 16
-      // Calculate text dimensions: height = fontSize + fontSize*0.14, width = charCount * fontSize
       const scaledFontSize = fontSize * scaleY
-      const charCount = content.length
-      const textWidth = charCount * scaledFontSize
-      const textHeight = scaledFontSize + Math.round(scaledFontSize * 0.14)
-      // SVG text y is baseline, convert to top edge for JSON with scaling
-      // Formula: jsonTop = (svgY + fontSize * 0.75) * scale
+      const letterSpacing = parseFloat(String(element.attrs['letter-spacing'] || '0'))
+      const fillColor = element.attrs.fill || '#000000'
+      const fillOpacity = element.attrs['fill-opacity']
+      const hasRgba = fillOpacity && parseFloat(fillOpacity) < 1
+      const fontWeight = element.attrs['font-weight']
+      const isBold = fontWeight === 'bold' || fontWeight === '600' || fontWeight === '700'
+      const fontStyle = element.attrs['font-style']
+      const isItalic = fontStyle === 'italic'
+
+      // Measure text using resvg-js with fallback to heuristic
+      let textWidth: number
+      let textHeight: number
+      let textTop: number
+
+      try {
+        const measurementInput: TextMeasurementInput = {
+          content,
+          fontFamily,
+          fontSize,
+          fontWeight: isBold ? 'bold' : 'normal',
+          fontStyle: isItalic ? 'italic' : 'normal',
+          letterSpacing,
+          fill: fillColor,
+        }
+        const measured = await measureTextElement(measurementInput)
+        textWidth = measured.width * scaleX
+        textHeight = measured.height * scaleY
+        // SVG text y is baseline; convert to top using actual bbox top from measurement
+        // measured.y is the bbox top in SVG units, subtract from svgY (which is at baseline)
+        // to get the baseline-to-top offset, then scale
+        textTop = (transformed.top + fontSize - measured.y) * scaleY
+      } catch {
+        // D-35: Fallback to heuristic on measurement failure
+        textWidth = calcTextWidthYaHei(content, scaledFontSize, letterSpacing)
+        textHeight = scaledFontSize + Math.round(scaledFontSize * 0.14)
+        textTop = (transformed.top + fontSize * BASELINE_OFFSET_RATIO) * scaleY
+      }
+
       const textLeft = transformed.left
-      const textTop = (transformed.top + fontSize * BASELINE_OFFSET_RATIO) * scaleY
 
       // D-09: text-anchor → text-align on <p> style
       const textAnchor = element.attrs['text-anchor']
@@ -738,18 +813,6 @@ export function transformElement(
       else if (textAnchor === 'middle') textAlign = 'center'
       const pStyle = textAlign ? `text-align: ${textAlign}` : ''
 
-      // D-11: font-weight bold/600/700 → <strong> mark
-      const fontWeight = element.attrs['font-weight']
-      const isBold = fontWeight === 'bold' || fontWeight === '600' || fontWeight === '700'
-
-      // D-11: font-style italic → <em> mark
-      const fontStyle = element.attrs['font-style']
-      const isItalic = fontStyle === 'italic'
-
-      // D-12: fill-opacity < 1 → rgba() color in span style
-      const fillColor = element.attrs.fill || '#000000'
-      const fillOpacity = element.attrs['fill-opacity']
-      const hasRgba = fillOpacity && parseFloat(fillOpacity) < 1
       let spanStyle = `font-size: ${scaledFontSize}px`
       if (hasRgba) {
         const rgbaColor = colorToRgba(fillColor, parseFloat(fillOpacity))
@@ -785,8 +848,7 @@ export function transformElement(
         defaultColor: colorToHex(fillColor) || '#000000',
         lineHeight: 1.5,
         opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
-        fill: colorToHex(fillColor) || '#000000',
-        outline: { color: colorToHex(element.attrs.stroke) || '#000000', width: 1 },
+        ...(element.attrs.stroke && { outline: { color: colorToHex(element.attrs.stroke) || '#000000', width: 1 } }),
         shadow: undefined,
         vAlign: 'middle',
         fixedHeight,
@@ -858,13 +920,13 @@ export function transformElement(
  * @param ast - Parsed SVG result (root + viewBox + width/height)
  * @param targetCanvas - Target canvas size [width, height], defaults to [1000, 562.5]
  */
-export function transformToPPTElement(
+export async function transformToPPTElement(
   ast: SvgParseResult,
   targetCanvas: [number, number] = [1000, 562.5],
-): PPTElement[] {
+): Promise<PPTElement[]> {
   const elements: PPTElement[] = []
 
-  function walk(element: SvgElement, viewBox: [number, number, number, number], currentGroupId?: string) {
+  async function walk(element: SvgElement, viewBox: [number, number, number, number], currentGroupId?: string) {
     const tag = element.type.toLowerCase()
 
     // D-23: When tag='g' with id, update groupId context for children
@@ -877,11 +939,11 @@ export function transformToPPTElement(
     for (const child of element.children) {
       if (child.type.toLowerCase() === 'g') {
         // Recursively process group children with inherited/overridden groupId
-        walk(child, viewBox, effectiveGroupId)
+        await walk(child, viewBox, effectiveGroupId)
       } else {
         // Skip non-renderable container elements
         if (!['defs', 'linearGradient', 'stop', 'filter', 'marker', 'clippath'].includes(child.type.toLowerCase())) {
-          const pptel = transformElement(child, viewBox, elements.length, targetCanvas, effectiveGroupId)
+          const pptel = await transformElement(child, viewBox, elements.length, targetCanvas, effectiveGroupId)
           if (pptel !== null) {
             elements.push(pptel)
           }
@@ -890,6 +952,6 @@ export function transformToPPTElement(
     }
   }
 
-  walk(ast.root, ast.viewBox)
+  await walk(ast.root, ast.viewBox)
   return elements
 }

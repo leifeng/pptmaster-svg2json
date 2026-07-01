@@ -42,7 +42,7 @@ export function isValidPPTElement(obj: unknown): obj is PPTElement {
 /**
  * Round-trip test: SVG -> AST -> JSON -> re-parse -> validate
  */
-export function roundTripTest(svgContent: string): { valid: boolean, errors: string[] } {
+export async function roundTripTest(svgContent: string): Promise<{ valid: boolean, errors: string[] }> {
   const errors: string[] = []
 
   try {
@@ -50,7 +50,7 @@ export function roundTripTest(svgContent: string): { valid: boolean, errors: str
     const ast = parseSvg(svgContent)
 
     // Transform to PPTElement array
-    const elements = transformToPPTElement(ast)
+    const elements = await transformToPPTElement(ast)
 
     // Serialize to JSON
     const json = JSON.stringify({ elements })
@@ -168,7 +168,7 @@ async function main() {
 
     try {
       const content = readFileSync(file, 'utf-8')
-      const result = roundTripTest(content)
+      const result = await roundTripTest(content)
 
       results.push({ file, valid: result.valid, errors: result.errors })
 

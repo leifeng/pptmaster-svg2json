@@ -216,7 +216,7 @@ describe('GRAD-04: gradientTransform rotation extraction', () => {
 })
 
 describe('transform-to-pptel: attrs.gradient output', () => {
-  it('outputs attrs.gradient as PPTShapeElement.gradient field', () => {
+  it('outputs attrs.gradient as PPTShapeElement.gradient field', async () => {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
       <defs>
         <linearGradient id="grad1">
@@ -227,14 +227,14 @@ describe('transform-to-pptel: attrs.gradient output', () => {
       <rect width="100" height="100" fill="url(#grad1)"/>
     </svg>`
     const ast = parseSvg(svg)
-    const elements = transformToPPTElement(ast)
+    const elements = await transformToPPTElement(ast)
     const rect = elements.find(e => e.type === 'shape') as any
     expect(rect?.gradient).toBeDefined()
     expect(rect?.gradient?.type).toBe('linear')
     expect(rect?.gradient?.colors).toHaveLength(2)
   })
 
-  it('does not set fill when gradient is present', () => {
+  it('does not set fill when gradient is present', async () => {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
       <defs>
         <linearGradient id="grad1">
@@ -244,7 +244,7 @@ describe('transform-to-pptel: attrs.gradient output', () => {
       <rect width="100" height="100" fill="url(#grad1)"/>
     </svg>`
     const ast = parseSvg(svg)
-    const elements = transformToPPTElement(ast)
+    const elements = await transformToPPTElement(ast)
     const rect = elements.find(e => e.type === 'shape') as any
     // fill should not be a hex color when gradient is set
     expect(rect?.fill).toBeUndefined()
