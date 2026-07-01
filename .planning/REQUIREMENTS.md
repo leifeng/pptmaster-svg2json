@@ -61,6 +61,22 @@
 - [x] **REQ-TF-02**: Fix ellipse center scaling — `cx`/`cy` must be scaled same as `rx`/`ry`
 - [x] **REQ-TF-03**: Fix text baseline offset — use configurable `BASELINE_OFFSET_RATIO` constant
 
+## v1.3 Requirements (resvg-js text measurement)
+
+### Text Measurement
+
+- [ ] **MEAS-01**: Install @resvg/resvg-js as a project dependency
+- [ ] **MEAS-02**: Create `src/text-measurer.ts` module with `measureTextBBox()` function
+- [ ] **MEAS-03**: Single-line text: merge boundingBoxes array into width/height
+- [ ] **MEAS-04**: Multi-line text via tspan children: flatten with `\n`, merge all boxes
+- [ ] **MEAS-05**: Propagate font-family, font-size, font-weight, font-style, letter-spacing to measurement SVG
+- [ ] **MEAS-06**: Empty text fallback to heuristic (not zero-width)
+- [ ] **MEAS-07**: Large enough viewBox to prevent clipping overflow
+- [ ] **MEAS-08**: Modify `transformElement()` text case to use `measureTextBBox()` for width/height
+- [ ] **MEAS-09**: Propagate async through `transformToPPTElement()` and `walk()`
+- [ ] **MEAS-10**: Remove `calcTextWidthYaHei()` and `BASELINE_OFFSET_RATIO` after migration
+- [ ] **MEAS-11**: Existing tests pass after migration (no regression)
+
 ## v2 Requirements (deferred)
 
 - Full path command support (C/Q/A/S/T/Z) in bounding box calculation — currently only M/L/H/V parsed
@@ -115,14 +131,26 @@
 | REQ-TF-01 | Phase 5 | Complete |
 | REQ-TF-02 | Phase 5 | Complete |
 | REQ-TF-03 | Phase 5 | Complete |
+| MEAS-01 | Phase 6 | Pending |
+| MEAS-02 | Phase 6 | Pending |
+| MEAS-03 | Phase 6 | Pending |
+| MEAS-04 | Phase 6 | Pending |
+| MEAS-05 | Phase 6 | Pending |
+| MEAS-06 | Phase 6 | Pending |
+| MEAS-07 | Phase 6 | Pending |
+| MEAS-08 | Phase 6 | Pending |
+| MEAS-09 | Phase 6 | Pending |
+| MEAS-10 | Phase 6 | Pending |
+| MEAS-11 | Phase 6 | Pending |
 
 **Coverage:**
 
+- v1.3 requirements: 11 total
 - v1.2 requirements: 26 total
 - v1.1 requirements: 3 total
-- Mapped to phases: 29
+- Mapped to phases: 40
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-27*
-*Last updated: 2026-06-27 after v1.2 scope analysis from SVG examples*
+*Last updated: 2026-07-01 after v1.3 resvg-js text measurement requirements*

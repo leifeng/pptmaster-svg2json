@@ -77,9 +77,17 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: (none — see below)
+## Current Milestone: v1.3 Text 精确尺寸计算
 
-## Milestone v1.2: PPTist格式对齐 — COMPLETED (no new work)
+**Goal:** 用 resvg-js 替代纯 JS 字体度量计算，获取 text 元素的真实宽度和高度
+
+**Target features:**
+- 安装 @resvg/resvg-js 依赖
+- text 元素渲染时用 resvg-js 调用 getBBox() 获取真实宽高
+- 输出的 text 元素 width/height 字段使用真实渲染尺寸
+- 其他所有属性（坐标、颜色、transform 等）保持不变
+
+## Previous Milestone: v1.2 PPTist格式对齐 — COMPLETED
 
 **Goal:** 将 svg-to-pptel 输出的 JSON 格式与 PPTist 的 PPTElement schema 完全对齐
 

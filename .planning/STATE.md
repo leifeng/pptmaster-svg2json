@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2-done
-milestone_name: PPTist格式对齐(完成)
+milestone: v1.3
+milestone_name: resvg-js Text Measurement
 status: planning
-last_updated: "2026-06-30T12:46:10.492Z"
-last_activity: 2026-06-30
+last_updated: "2026-07-01"
+last_activity: 2026-07-01
 progress:
-  total_phases: 0
+  total_phases: 1
   completed_phases: 0
-  total_plans: 0
+  total_plans: 1
   completed_plans: 0
   percent: 0
 ---
@@ -17,57 +17,55 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-06-30 — Milestone v1.2-done started
+**Phase:** Phase 6 (not started)
+**Plan:** Not started
+**Status:** Planning
+**Last activity:** 2026-07-01 — Created v1.3 roadmap
 
 ## Milestone Context
 
-**Milestone**: v1.2 PPTist格式对齐
-**Goal**: 将 svg-to-pptel 输出的 JSON 格式与 PPTist 的 PPTElement schema 完全对齐
-**Target features**: Transform / Text扩展 / Image扩展 / Shape扩展 / Line stroke
-**Phases**: TBD
+**Milestone:** v1.3 resvg-js Text Measurement
+**Goal:** Use resvg-js to replace pure JS font metric calculation, get accurate text width/height
+**Target features:**
+- Install @resvg/resvg-js dependency
+- text 元素渲染时用 resvg-js 调用 getBBox() 获取真实宽高
+- 输出的 text 元素 width/height 字段使用真实渲染尺寸
+- 其他所有属性（坐标、颜色、transform 等）保持不变
+**Phases:** 1 (Phase 6)
 
 ## Performance Metrics
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Requirements (v1.2) | 0/？ | Pending |
-| Phases planned | 0 | — |
-| Plans completed | 0 | — |
+| Requirements (v1.3) | 11 | MEAS-01~11 |
+| Phases planned | 1 | Phase 6 |
+| Plans completed | 0 | - |
 
 ## Accumulated Context
 
-### Decisions
+### Decisions (v1.3)
 
-- Rotate-center math: translate-to-center, rotate, translate-back formula
-- Text baseline: 0.75 multiplier exposed as configurable `BASELINE_OFFSET_RATIO` (now 0.8 per D-28)
-- Ellipse scaling: cx/cy must be scaled same as rx/ry
-- SVG transform 顺序: translate → rotate → scale (SVG规范)
-- D-26: Ellipse cx/cy need separate rotation via applyRotateWithCenter - rx/ry do NOT rotate
-- D-27: Ellipse rx/ry use Math.abs on scale factors to remain positive (radius cannot be negative)
-- D-28: BASELINE_OFFSET_RATIO = 0.8 is more accurate for SVG text baseline approximation
+- **D-29:** Use @resvg/resvg-js for text measurement — NAPI native addon, zero dependencies
+- **D-30:** `boundingBoxes()` returns array — must merge via min/max computation
+- **D-31:** Tspan children must be flattened with `\n` before rendering as single SVG
+- **D-32:** Empty text fallback to heuristic (not zero-width)
 
-### Implementation Notes
+### Research Flags (v1.3)
 
-- New `transforms/apply-transform.ts` module for rotate-around-center
-- Ellipse fix: 2-line change in coordinate-mapper.ts
-- Text baseline: Named constant `BASELINE_OFFSET_RATIO` in transform-to-pptel.ts
+- **R-01:** Whether to bundle YaHei `.ttf` for cross-platform CI consistency
+- **R-02:** Whether `resvg.free()` exists for explicit WASM heap cleanup
+- **R-03:** How mixed-script (CJK + Latin) bounding boxes are fragmented
 
 ### Blockers
 
-None currently.
+None
 
 ## Session Continuity
 
-**Last session:** 2026-06-29T07:33:00.000Z
-**Stopped at:** Phase 05 plan 01 complete
-**Resume file:** .planning/phases/05-v1-1-transform/05-01-SUMMARY.md
-
-- v1.1 started: 2026-06-27
-- v1.2 started: 2026-06-27 (this session)
+**Last session:** 2026-07-01
+**Stopped at:** v1.3 roadmap created (Phase 6)
+**Next:** `/gsd-plan-phase 6`
 
 ---
 
-*State last updated: 2026-06-29*
+*State last updated: 2026-07-01*
