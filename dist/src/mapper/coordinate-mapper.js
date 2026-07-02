@@ -1,9 +1,34 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.parseGradientTransform = parseGradientTransform;
 exports.parseViewBox = parseViewBox;
 exports.extractNumber = extractNumber;
 exports.parseTransform = parseTransform;
 exports.mapCoordinates = mapCoordinates;
+/**
+ * Parse gradientTransform attribute to extract rotation angle.
+ * D-17: gradientTransform matrix rotation extracted via matrix decomposition.
+ */
+function parseGradientTransform(transform) {
+    if (!transform)
+        return 0;
+    // rotate(N) or rotate(N, cx, cy) — extract degrees directly
+    const rotateMatch = transform.match(/rotate\(\s*([\d.-]+)(?:[,\s]+([\d.-]+),?\s*([\d.-]+))?\s*\)/);
+    if (rotateMatch) {
+        return parseFloat(rotateMatch[1]);
+    }
+    // matrix(a,b,c,d,e,f) — extract rotation from matrix decomposition
+    // For 2D rotation matrix: angle = atan2(b, a)
+    const matrixMatch = transform.match(/matrix\(\s*([\d.-]+),?\s*([\d.-]+),?\s*([\d.-]+),?\s*([\d.-]+),?\s*([\d.-]+),?\s*([\d.-]+)\s*\)/);
+    if (matrixMatch) {
+        const a = parseFloat(matrixMatch[1]);
+        const b = parseFloat(matrixMatch[2]);
+        // Extract rotation angle: atan2(b, a) in degrees
+        return Math.atan2(b, a) * 180 / Math.PI;
+    }
+    // translate+rotate+scale matrix — for now just return 0 (not a pure rotation)
+    return 0;
+}
 /**
  * Parse a viewBox string into [minX, minY, width, height].
  * Per D-09: viewBox parsed as [minX, minY, width, height] format.
@@ -38,16 +63,16 @@ function extractNumber(value, fallback) {
  */
 function parseTransform(transform) {
     if (!transform)
-        return {};
+        return { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotateDeg: 0 };
     const result = {};
-    // translate(dx, dy) or translate(dx)
-    const translateMatch = transform.match(/translate\(\s*([\d.]+)(?:[,\s]+([\d.]+))?\s*\)/);
+    // translate(dx, dy) or translate(dx) — allow negative values
+    const translateMatch = transform.match(/translate\(\s*([\d.-]+)(?:[,\s]+([\d.-]+))?\s*\)/);
     if (translateMatch) {
         result.translateX = parseFloat(translateMatch[1]);
         result.translateY = translateMatch[2] ? parseFloat(translateMatch[2]) : 0;
     }
-    // scale(sx, sy) or scale(s)
-    const scaleMatch = transform.match(/scale\(\s*([\d.]+)(?:[,\s]+([\d.]+))?\s*\)/);
+    // scale(sx, sy) or scale(s) — allow negative values for flip transforms
+    const scaleMatch = transform.match(/scale\(\s*([\d.-]+)(?:[,\s]+([\d.-]+))?\s*\)/);
     if (scaleMatch) {
         result.scaleX = parseFloat(scaleMatch[1]);
         result.scaleY = scaleMatch[2] ? parseFloat(scaleMatch[2]) : result.scaleX;
@@ -125,24 +150,25 @@ function mapCoordinates(element, viewBox) {
     const transform = parseTransform(attrs.transform);
     const tx = transform.translateX || 0;
     const ty = transform.translateY || 0;
-    const sx = transform.scaleX || 1;
-    const sy = transform.scaleY || 1;
+    // Use absolute scale values — negative scale is handled via flipH/flipV in applyTransform
+    const sx = transform.scaleX ?? 1;
+    const sy = transform.scaleY ?? 1;
     let left = 0;
     let top = 0;
     let width = viewBox[2];
     let height = viewBox[3];
     switch (tag) {
         case 'rect': {
-            left = extractNumber(attrs.x, 0) * sx + tx;
-            top = extractNumber(attrs.y, 0) * sy + ty;
-            width = extractNumber(attrs.width, viewBox[2]) * sx;
-            height = extractNumber(attrs.height, viewBox[3]) * sy;
+            left = extractNumber(attrs.x, 0) * Math.abs(sx) + tx;
+            top = extractNumber(attrs.y, 0) * Math.abs(sy) + ty;
+            width = extractNumber(attrs.width, viewBox[2]) * Math.abs(sx);
+            height = extractNumber(attrs.height, viewBox[3]) * Math.abs(sy);
             break;
         }
         case 'circle': {
-            const cx = extractNumber(attrs.cx, 0) * sx + tx;
-            const cy = extractNumber(attrs.cy, 0) * sy + ty;
-            const r = extractNumber(attrs.r, 0) * Math.min(sx, sy);
+            const cx = extractNumber(attrs.cx, 0) * Math.abs(sx) + tx;
+            const cy = extractNumber(attrs.cy, 0) * Math.abs(sy) + ty;
+            const r = extractNumber(attrs.r, 0) * Math.min(Math.abs(sx), Math.abs(sy));
             left = cx - r;
             top = cy - r;
             width = 2 * r;
@@ -152,8 +178,8 @@ function mapCoordinates(element, viewBox) {
         case 'ellipse': {
             const cx = extractNumber(attrs.cx, 0) + tx;
             const cy = extractNumber(attrs.cy, 0) + ty;
-            const rx = extractNumber(attrs.rx, 0) * sx;
-            const ry = extractNumber(attrs.ry, 0) * sy;
+            const rx = extractNumber(attrs.rx, 0) * Math.abs(sx);
+            const ry = extractNumber(attrs.ry, 0) * Math.abs(sy);
             left = cx - rx;
             top = cy - ry;
             width = 2 * rx;
@@ -161,10 +187,10 @@ function mapCoordinates(element, viewBox) {
             break;
         }
         case 'line': {
-            const x1 = extractNumber(attrs.x1, 0) * sx + tx;
-            const y1 = extractNumber(attrs.y1, 0) * sy + ty;
-            const x2 = extractNumber(attrs.x2, 0) * sx + tx;
-            const y2 = extractNumber(attrs.y2, 0) * sy + ty;
+            const x1 = extractNumber(attrs.x1, 0) * Math.abs(sx) + tx;
+            const y1 = extractNumber(attrs.y1, 0) * Math.abs(sy) + ty;
+            const x2 = extractNumber(attrs.x2, 0) * Math.abs(sx) + tx;
+            const y2 = extractNumber(attrs.y2, 0) * Math.abs(sy) + ty;
             left = Math.min(x1, x2);
             top = Math.min(y1, y2);
             width = Math.abs(x2 - x1);
@@ -176,35 +202,35 @@ function mapCoordinates(element, viewBox) {
             const d = typeof attrs.d === 'string' ? attrs.d : '';
             const bbox = pathBoundingBox(d);
             if (bbox) {
-                left = bbox.left * sx + tx;
-                top = bbox.top * sy + ty;
-                width = bbox.width * sx;
-                height = bbox.height * sy;
+                left = bbox.left * Math.abs(sx) + tx;
+                top = bbox.top * Math.abs(sy) + ty;
+                width = bbox.width * Math.abs(sx);
+                height = bbox.height * Math.abs(sy);
             }
             break;
         }
         case 'text': {
             // Estimate bounds from font-size and character count
             const fontSize = extractNumber(attrs['font-size'], 16);
-            left = extractNumber(attrs.x, 0) * sx + tx;
-            top = extractNumber(attrs.y, 0) * sy + ty;
+            left = extractNumber(attrs.x, 0) * Math.abs(sx) + tx;
+            top = extractNumber(attrs.y, 0) * Math.abs(sy) + ty;
             width = fontSize * 10; // rough estimate
             height = fontSize * 1.5;
             break;
         }
         case 'image': {
-            left = extractNumber(attrs.x, 0) * sx + tx;
-            top = extractNumber(attrs.y, 0) * sy + ty;
-            width = extractNumber(attrs.width, viewBox[2]) * sx;
-            height = extractNumber(attrs.height, viewBox[3]) * sy;
+            left = extractNumber(attrs.x, 0) * Math.abs(sx) + tx;
+            top = extractNumber(attrs.y, 0) * Math.abs(sy) + ty;
+            width = extractNumber(attrs.width, viewBox[2]) * Math.abs(sx);
+            height = extractNumber(attrs.height, viewBox[3]) * Math.abs(sy);
             break;
         }
         default:
             // For groups and other elements, try direct attributes
-            left = extractNumber(attrs.x, 0) * sx + tx;
-            top = extractNumber(attrs.y, 0) * sy + ty;
-            width = extractNumber(attrs.width, viewBox[2]) * sx;
-            height = extractNumber(attrs.height, viewBox[3]) * sy;
+            left = extractNumber(attrs.x, 0) * Math.abs(sx) + tx;
+            top = extractNumber(attrs.y, 0) * Math.abs(sy) + ty;
+            width = extractNumber(attrs.width, viewBox[2]) * Math.abs(sx);
+            height = extractNumber(attrs.height, viewBox[3]) * Math.abs(sy);
             break;
     }
     return { left, top, width, height };

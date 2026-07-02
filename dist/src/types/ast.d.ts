@@ -1,3 +1,23 @@
+export interface GradientColorDef {
+    pos: number;
+    color: string;
+}
+export interface GradientDef {
+    type: 'linear' | 'radial';
+    x1?: string;
+    y1?: string;
+    x2?: string;
+    y2?: string;
+    cx?: string;
+    cy?: string;
+    r?: string;
+    fx?: string;
+    fy?: string;
+    spreadMethod?: string;
+    gradientUnits?: string;
+    gradientTransform?: string;
+    colors: GradientColorDef[];
+}
 export interface SvgAttrs {
     [key: string]: string | number | undefined;
     fill?: string;
@@ -26,6 +46,20 @@ export interface SvgAttrs {
     preserveAspectRatio?: string;
     id?: string;
     'stroke-dasharray'?: string;
+    x1?: string;
+    y1?: string;
+    x2?: string;
+    y2?: string;
+    fx?: string;
+    fy?: string;
+    spreadMethod?: string;
+    gradientUnits?: string;
+    gradientTransform?: string;
+    'stop-color'?: string;
+    'stop-opacity'?: string;
+    offset?: string;
+    gradient?: any;
+    shadow?: any;
 }
 export interface SvgElement {
     type: string;

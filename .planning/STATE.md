@@ -2,77 +2,50 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: resvg-js Text Measurement
-current_phase: 6
-status: checkpoint-awaiting-human-verify
-stopped_at: Phase 6 Plan 02 Task 1 complete - awaiting human verification
-last_updated: "2026-07-01T04:02:00.000Z"
+current_phase: null
+status: milestone-complete
+last_updated: "2026-07-01T06:20:00.000Z"
 last_activity: 2026-07-01
-last_activity_desc: Completed Plan 06-02 Task 1 - deprecated calcTextWidthYaHei removed
+last_activity_desc: Milestone v1.3 completed
 progress:
   total_phases: 1
-  completed_phases: 0
-  total_plans: 1
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 2
+  completed_plans: 2
+  percent: 100
 ---
 
 # Project State
 
 ## Current Position
 
-**Phase:** Phase 6 (not started)
-**Plan:** Not started
-**Status:** Ready to execute
-**Last activity:** 2026-07-01 — Created v1.3 roadmap
-
-## Milestone Context
-
-**Milestone:** v1.3 resvg-js Text Measurement
-**Goal:** Use resvg-js to replace pure JS font metric calculation, get accurate text width/height
-**Target features:**
-
-- Install @resvg/resvg-js dependency
-- text 元素渲染时用 resvg-js 调用 getBBox() 获取真实宽高
-- 输出的 text 元素 width/height 字段使用真实渲染尺寸
-- 其他所有属性（坐标、颜色、transform 等）保持不变
-
-**Phases:** 1 (Phase 6)
+**Milestone:** v1.3 — Complete
+**Status:** Ready for next milestone
 
 ## Performance Metrics
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Requirements (v1.3) | 11 | MEAS-01~11 |
-| Phases planned | 1 | Phase 6 |
-| Plans completed | 0 | - |
+| Requirements (v1.3) | 11 | All complete |
+| Phases completed | 1 | Phase 6 |
+| Plans completed | 2 | 06-01, 06-02 |
+| Tests | 151 | All passing |
 
 ## Accumulated Context
 
 ### Decisions (v1.3)
 
-- **D-29:** Use @resvg/resvg-js for text measurement — NAPI native addon, zero dependencies
-- **D-30:** `boundingBoxes()` returns array — must merge via min/max computation
-- **D-31:** Tspan children must be flattened with `\n` before rendering as single SVG
-- **D-32:** Empty text fallback to heuristic (not zero-width)
-
-### Research Flags (v1.3)
-
-- **R-01:** Whether to bundle YaHei `.ttf` for cross-platform CI consistency
-- **R-02:** Whether `resvg.free()` exists for explicit WASM heap cleanup
-- **R-03:** How mixed-script (CJK + Latin) bounding boxes are fragmented
+- **D-35:** Measurement failure falls back to heuristic
+- **D-36:** Tspan children flattened with newline before measurement
+- **D-37:** Fixed 1280x720 viewBox for measurement SVG
+- **D-38:** circleToPath uses scaledR for consistent path/width/height
+- **D-39:** fill="none" kept as 'none', not converted to black
+- **D-40:** parseStrokeColor extracts stroke opacity to outline.opacity
 
 ### Blockers
 
 None
 
-## Session Continuity
-
-**Resume file:** .planning/phases/06-resvg-js-text-measurement/06-CONTEXT.md
-
-**Last session:** 2026-07-01T04:02:00.000Z
-**Stopped at:** Phase 6 Plan 02 Task 1 complete — awaiting human verification checkpoint
-**Next:** Human verification of Phase 6 Plan 02
-
 ---
 
-*State last updated: 2026-07-01*
+*State last updated: 2026-07-01 after v1.3 milestone completion*

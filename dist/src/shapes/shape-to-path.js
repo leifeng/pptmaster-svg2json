@@ -6,6 +6,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.rectToPath = rectToPath;
+exports.roundedRectToPath = roundedRectToPath;
 exports.circleToPath = circleToPath;
 exports.ellipseToPath = ellipseToPath;
 exports.lineToPath = lineToPath;
@@ -13,6 +14,24 @@ exports.polygonToPath = polygonToPath;
 function rectToPath(x, y, w, h) {
     // path is relative to element origin (0,0), not SVG canvas
     return `M 0,0 L ${w},0 L ${w},${h} L 0,${h} Z`;
+}
+/**
+ * Generate rounded rectangle path using arc commands.
+ * Per D-21: sweep-flag = 1 (clockwise).
+ * When rx=0 or ry=0 → sharp corners (no arc).
+ * When rx/ry exceed half of min(width, height) → clamp to min(width, height)/2.
+ */
+function roundedRectToPath(w, h, rx, ry) {
+    // Degenerate to sharp corners when either radius is 0
+    if (rx === 0 || ry === 0) {
+        return `L ${w},0 L ${w},${h} L 0,${h} L 0,0 Z`;
+    }
+    // Clamp rx/ry to half of min dimension
+    const maxR = Math.min(w, h) / 2;
+    const r = Math.min(rx, ry, maxR);
+    // Path sequence per D-21:
+    // M r,0 L w-r,0 A r,r 0 0,1 w,r L w,h-r A r,r 0 0,1 w-r,h L r,h A r,r 0 0,1 0,h-r L 0,r A r,r 0 0,1 r,0 Z
+    return `M ${r},0 L ${w - r},0 A ${r},${r} 0 0,1 ${w},${r} L ${w},${h - r} A ${r},${r} 0 0,1 ${w - r},${h} L ${r},${h} A ${r},${r} 0 0,1 0,${h - r} L 0,${r} A ${r},${r} 0 0,1 ${r},0 Z`;
 }
 function circleToPath(cx, cy, r) {
     // Path relative to element origin (0,0), circle centered at (r, r)

@@ -19,55 +19,48 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 - ✓ Image element with href/xlink:href
 - ✓ CLI tool (svg2pptel) with file/directory input
 - ✓ Basic transform attribute (translate, scale only — no rotate center)
-- — SVG AST intermediate representation — **removed** in favor of direct transform pipeline
+- ✓ **resvg-js text measurement** — accurate bounding box via @resvg/resvg-js
+- ✓ **lineHeight default 1** — text line height set to 1 instead of 1.5
+- ✓ **transparent stroke handling** — stroke opacity extracted to outline.opacity field
 
 ### Active
 
-- [ ] **Correct rotate transform with rotation center** — `rotate(deg, cx, cy)` in SVG transform attribute; current code ignores rotation center
-- [ ] **Correct text y coordinate (baseline → top)** — SVG text y is baseline, needs offset by fontSize to get top edge
+- [ ] **Correct rotate transform with rotation center** — `rotate(deg, cx, cy)` in SVG transform attribute
 - [ ] **Verified canvas scaling** — confirm all elements land at correct positions on 1000×562.5 canvas
 
 ### Out of Scope
 
-- Additional SVG element types beyond rect/circle/ellipse/path/polygon/polyline/line/text/image — current set covers standard shapes
-- SVG filter effects (blur, drop-shadow, etc.) — PPTElement doesn't support these
+- Additional SVG element types beyond rect/circle/ellipse/path/polygon/polyline/line/text/image
+- SVG filter effects (blur, drop-shadow) — PPTElement doesn't support these
 - Gradient fills beyond solid color — not in current PPTElement schema
 - Font fallback or text layout engine — single-font text only
 
 ## Context
 
-**Existing library** — svg-to-pptel v1.0.0, published as npm package. Brownfield project with existing CLI, parser, transformer, and shape converters.
+**Existing library** — svg-to-pptel v1.3, published as npm package.
 
-**Reference implementation** provided by user for `applyTransform(x, y, transform)` — handles translate → rotate → scale chain. Rotation center support is the critical gap.
+**Text baseline issue** — SVG `<text y="30">` means the text's baseline sits at y=30. Current implementation uses fixed 0.8 ratio for baseline-to-top conversion.
 
-**Text baseline issue** — SVG `<text y="30">` means the text's baseline sits at y=30. The top edge of the text is approximately `y - fontSize * 0.75` in typical font metrics. Current code uses a 0.75 multiplier as an estimate.
-
-**Target canvas** — 1000×562.5 (16:9 aspect ratio, 1.777...×). Scale factors derived from SVG viewBox dimensions relative to this canvas.
+**Target canvas** — 1000×562.5 (16:9 aspect ratio).
 
 ## Constraints
 
 - **Target canvas**: 1000×562.5 — hard-coded, not configurable
 - **TypeScript**: Strict mode, compiled to CommonJS
-- **No runtime dependencies** beyond fast-xml-parser, cac, picocolors, uuid
+- **Dependencies**: fast-xml-parser, cac, picocolors, uuid, @resvg/resvg-js
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| No AST wrapper layer | Direct parse→transform pipeline; simpler, fewer allocations | — Pending |
+| No AST wrapper layer | Direct parse→transform pipeline | ✓ Confirmed |
 | Canvas 1000×562.5 | 16:9 standard slide proportion | ✓ Confirmed |
-| 0.75 multiplier for text baseline | Empirical approximation; actual font metric varies | ⚠️ Revisit |
+| 0.8 multiplier for text baseline | Fixed ratio for baseline→top | ✓ Confirmed |
+| resvg-js for text measurement | NAPI native addon, accurate glyph bounding box | ✓ Complete |
 
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
-
-**After each phase transition** (via `/gsd-transition`):
-1. Requirements invalidated? → Move to Out of Scope with reason
-2. Requirements validated? → Move to Validated with phase reference
-3. New requirements emerged? → Add to Active
-4. Decisions to log? → Add to Key Decisions
-5. "What This Is" still accurate? → Update if drifted
 
 **After each milestone** (via `/gsd-complete-milestone`):
 1. Full review of all sections
@@ -77,42 +70,29 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: v1.3 Text 精确尺寸计算
+## Current Milestone: v1.3 — Complete
 
-**Goal:** 用 resvg-js 替代纯 JS 字体度量计算，获取 text 元素的真实宽度和高度
+**Completed:** 2026-07-01
 
-**Target features:**
-- 安装 @resvg/resvg-js 依赖
-- text 元素渲染时用 resvg-js 调用 getBBox() 获取真实宽高
-- 输出的 text 元素 width/height 字段使用真实渲染尺寸
-- 其他所有属性（坐标、颜色、transform 等）保持不变
+**Achievements:**
+- @resvg/resvg-js integrated for accurate text bounding box
+- text-measurer.ts module created
+- Async propagation through transform pipeline
+- Deprecated calcTextWidthYaHei removed
+- lineHeight default changed from 1.5 to 1
+- transparent stroke handled via outline.opacity
 
-## Previous Milestone: v1.2 PPTist格式对齐 — COMPLETED
+## Previous Milestones
 
-**Goal:** 将 svg-to-pptel 输出的 JSON 格式与 PPTist 的 PPTElement schema 完全对齐
+### v1.2 — PPTist格式对齐 (2026-06-30)
 
-**Outcome:** Research confirmed all target PPTist schema properties are already implemented or are wiring-only gaps in existing code. No new implementation required for v1.2 scope.
+Research confirmed all target PPTist schema properties already implemented or deferred.
 
-**Findings:**
-- Transform (rotate/flipH/flipV): ✓ Fully implemented via `applyTransform`
-- Text (fill/outline/fixedHeight): ✓ Fully implemented
-- Text (shadow/vAlign/wordSpace): Parsed but hardcoded — wiring gaps, decided to defer
-- Image (outline/shadow/flipH/flipV): ✓ Fully implemented
-- Image (filters/clip/colorMask): Missing — decided to defer
-- Shape (gradient/shadow/flipH/flipV/outline): ✓ Fully implemented
-- Shape (pattern fill): Missing — decided to defer
-- Line (width): ✓ Fully implemented
-- Line (endpoints): Hardcoded — decided to defer
+### v1.1 — transform-fixes (2026-06-27~29)
 
-**Target features:** (all deferred to future milestones)
-
-## Previous Milestone: v1.1 transform-fixes
-
-**Goal:** Fix two critical SVG transform bugs: rotate transform center support and text baseline offset
-
-**Target features:**
-- Correct rotate transform with rotation center — `rotate(deg, cx, cy)` in SVG transform attribute; current code ignores rotation center
-- Correct text y coordinate (baseline → top) — SVG text y is baseline, use configurable multiplier instead of hardcoded 0.75
+- Correct rotate transform with rotation center
+- Correct text y coordinate (baseline → top)
 
 ---
-*Last updated: 2026-06-27 after v1.1 milestone start*
+
+*Last updated: 2026-07-01 after v1.3 milestone*

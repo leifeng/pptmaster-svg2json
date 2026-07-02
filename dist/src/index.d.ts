@@ -10,5 +10,5 @@ export interface ConvertResult {
 export declare function convert(svgContent: string, options?: ConvertOptions): Promise<ConvertResult>;
 export { parseSvg } from './parser/svg-parser';
 export { transformToPPTElement } from './transformer/transform-to-pptel';
-export type { PPTElement } from './slides';
+export type { PPTElement, Slide } from './slides';
 //# sourceMappingURL=index.d.ts.map

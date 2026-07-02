@@ -82,6 +82,7 @@ export interface PPTElementOutline {
     style?: LineStyleType;
     width?: number;
     color?: string;
+    opacity?: number;
 }
 export type ElementLinkType = 'web' | 'slide';
 /**
@@ -181,6 +182,8 @@ export interface PPTTextElement extends PPTBaseElement {
     vertical?: boolean;
     textType?: TextType;
     inset?: TextInset;
+    vAlign?: TextAlignVertical;
+    fixedHeight?: boolean;
 }
 /**
  * 图片翻转、形状翻转

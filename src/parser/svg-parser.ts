@@ -5,6 +5,8 @@ import { colorToRgba, colorToHex } from '../transformer/transform-to-pptel'
 export interface FilterDef {
   id: string
   children: SvgElement[]  // the filter primitives like feDropShadow
+  // For complex filter chains (feGaussianBlur + feOffset + feFlood + feComposite + feMerge)
+  rawFilter?: any  // the raw filter element for complex chain parsing
 }
 
 interface TextRun {
@@ -14,6 +16,25 @@ interface TextRun {
   fontFamily?: string
   fontSize?: string
   fill?: string
+}
+
+/**
+ * Apply fill-opacity to a color string (handles hex, rgb, rgba formats).
+ * D-15: fill-opacity must be applied after gradient reference resolution.
+ */
+function applyFillOpacityToColor(color: string | undefined, fillOpacity: number): string {
+  if (!color) return `rgba(0, 0, 0, ${fillOpacity})`
+
+  // rgba(r, g, b, a) — extract rgb and existing alpha, multiply by fillOpacity
+  const rgbaMatch = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,?\s*([\d.]*)\s*\)/)
+  if (rgbaMatch) {
+    const existingAlpha = rgbaMatch[4] !== '' ? parseFloat(rgbaMatch[4]) : 1
+    const newAlpha = existingAlpha * fillOpacity
+    return `rgba(${rgbaMatch[1]}, ${rgbaMatch[2]}, ${rgbaMatch[3]}, ${newAlpha})`
+  }
+
+  // Fallback to colorToRgba for hex/named colors
+  return colorToRgba(color, fillOpacity)
 }
 
 /**
@@ -168,7 +189,8 @@ function collectFilterDefs(xmlNode: any, registry: Map<string, FilterDef>): void
             filterChildren.push({ type: 'feDropShadow', attrs: feDsAttrs, children: [] })
           }
         }
-        registry.set(id, { id, children: filterChildren })
+        // Store raw filter for complex chain support (feGaussianBlur + feOffset + feFlood + feComposite + feMerge)
+        registry.set(id, { id, children: filterChildren, rawFilter: filter })
       }
     }
   }
@@ -189,26 +211,113 @@ function resolveFillReference(attrs: SvgAttrs, registry: Map<string, GradientDef
   const gradientDef = registry.get(gradientId)
   if (!gradientDef) return
 
+  // D-15: fill-opacity on the element multiplies with gradient stop opacity
+  // If fill-opacity is not set on the element, keep gradient's original stop opacities
+  const fillOpacityAttr = attrs['fill-opacity']
+  const hasFillOpacity = fillOpacityAttr !== undefined
+  const fillOpacity = hasFillOpacity ? parseFloat(String(fillOpacityAttr)) : 1
+
   // Build PPTist Gradient object from GradientDef
   // The PPTist Gradient type is { type: 'linear' | 'radial', colors: {pos, color}[], rotate: number }
+  // D-27: Compute rotate from gradientTransform OR from x1/y1/x2/y2 direction vector
+  let rotate = parseGradientTransform(gradientDef.gradientTransform)
+  if (rotate === 0 && gradientDef.gradientTransform === undefined && gradientDef.type === 'linear') {
+    // No gradientTransform, compute rotate from x1/y1/x2/y2 direction
+    const x1 = parseFloat(String(gradientDef.x1)) || 0
+    const y1 = parseFloat(String(gradientDef.y1)) || 0
+    const x2 = parseFloat(String(gradientDef.x2)) || 0
+    const y2 = parseFloat(String(gradientDef.y2)) || 0
+    // atan2 gives angle from positive x-axis, in radians; convert to degrees
+    rotate = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI
+  }
   const gradient = {
     type: gradientDef.type,
-    colors: gradientDef.colors.map(c => ({ pos: c.pos, color: c.color })),
-    rotate: parseGradientTransform(gradientDef.gradientTransform),
+    colors: gradientDef.colors.map(c => {
+      // D-29: Only apply fill-opacity if explicitly set on element; otherwise keep gradient's stop opacity
+      if (hasFillOpacity) {
+        // Multiply gradient stop alpha by element's fill-opacity
+        const colorWithOpacity = applyFillOpacityToColor(c.color, fillOpacity)
+        return { pos: c.pos * 100, color: colorWithOpacity }
+      } else {
+        // Keep original gradient color (with its stop opacity)
+        return { pos: c.pos * 100, color: c.color }
+      }
+    }),
+    rotate,
   }
 
   attrs.gradient = gradient
-  // Clear fill since gradient is now in attrs.gradient
+  // Clear fill and fill-opacity since gradient is now in attrs.gradient
   delete attrs.fill
+  delete attrs['fill-opacity']
+}
+
+/**
+ * Parse complex SVG filter chain (feGaussianBlur + feOffset + feFlood + feComposite + feMerge)
+ * and extract shadow parameters compatible with PPTist's PPTElementShadow.
+ *
+ * Filter chain pattern:
+ *   feGaussianBlur (stdDeviation) → feOffset (dx, dy) → feFlood (flood-color, flood-opacity) → feComposite (operator="in") → feMerge
+ */
+function parseComplexFilterChain(filterElement: any): { h: number; v: number; blur: number; color: string } | null {
+  if (!filterElement) return null
+
+  // Get all filter primitives in order
+  const primitives = [
+    'feGaussianBlur', 'feOffset', 'feFlood', 'feComposite', 'feMerge',
+    'feDropShadow', 'feBlend', 'feColorMatrix', 'feComponentTransfer', 'feFuncR', 'feFuncG', 'feFuncB', 'feFuncA',
+    'feMergeNode', 'feMergeNodeIn', 'feMergeNodeOut'
+  ]
+
+  const found: Record<string, any[]> = {}
+  for (const prim of primitives) {
+    if (filterElement[prim] !== undefined) {
+      found[prim] = Array.isArray(filterElement[prim]) ? filterElement[prim] : [filterElement[prim]]
+    }
+  }
+
+  // Case 1: Simple feDropShadow
+  if (found['feDropShadow'] && found['feDropShadow'].length > 0) {
+    const feDs = found['feDropShadow'][0]
+    return {
+      h: parseFloat(String(feDs['@_dx'] || feDs['@_Dx'] || '0')),
+      v: parseFloat(String(feDs['@_dy'] || feDs['@_Dy'] || '0')),
+      blur: parseFloat(String(feDs['@_stdDeviation'] || feDs['@_stdDeviation'] || '0')),
+      color: colorToRgba(String(feDs['@_flood-color'] || feDs['@_floodColor'] || '#000000'), parseFloat(String(feDs['@_flood-opacity'] || feDs['@_floodOpacity'] || '1'))),
+    }
+  }
+
+  // Case 2: Complex chain with feGaussianBlur + feOffset + feFlood
+  const feGaussianBlur = found['feGaussianBlur']?.[0]
+  const feOffset = found['feOffset']?.[0]
+  const feFlood = found['feFlood']?.[0]
+
+  if (feGaussianBlur && feOffset && feFlood) {
+    const stdDeviation = feGaussianBlur['@_stdDeviation'] || feGaussianBlur['@_stdDeviation'] || '0'
+    // Handle separate stdDeviation for x and y (take the first value)
+    const blur = parseFloat(String(stdDeviation).split(/\s+/)[0])
+
+    const h = parseFloat(String(feOffset['@_dx'] || feOffset['@_Dx'] || '0'))
+    const v = parseFloat(String(feOffset['@_dy'] || feOffset['@_Dy'] || '0'))
+
+    const floodColor = String(feFlood['@_flood-color'] || feFlood['@_floodColor'] || '#000000')
+    const floodOpacity = parseFloat(String(feFlood['@_flood-opacity'] || feFlood['@_floodOpacity'] || '1'))
+    const color = colorToRgba(floodColor, floodOpacity)
+
+    return { h, v, blur, color }
+  }
+
+  return null
 }
 
 /**
  * Resolve filter="url(#id)" references using the filter registry.
  * D-22: filter="url(#shadowId)" with feDropShadow → PPTElementShadow object.
+ * Also supports complex filter chains (feGaussianBlur + feOffset + feFlood).
  */
 function resolveFilterReference(attrs: SvgAttrs, registry: Map<string, FilterDef>): void {
-  const filter = attrs.filter
-  if (!filter || !filter.startsWith('url(#')) return
+  const filter = attrs.filter as string | undefined
+  if (!filter || typeof filter !== 'string' || !filter.startsWith('url(#')) return
 
   const match = filter.match(/url\(#([^)]+)\)/)
   if (!match) return
@@ -217,7 +326,16 @@ function resolveFilterReference(attrs: SvgAttrs, registry: Map<string, FilterDef
   const filterDef = registry.get(filterId)
   if (!filterDef) return
 
-  // Find feDropShadow child
+  // Try complex filter chain first (feGaussianBlur + feOffset + feFlood)
+  if (filterDef.rawFilter) {
+    const shadow = parseComplexFilterChain(filterDef.rawFilter)
+    if (shadow) {
+      attrs.shadow = shadow
+      return
+    }
+  }
+
+  // Fall back to simple feDropShadow
   const feDropShadow = filterDef.children.find(c => c.type === 'feDropShadow')
   if (!feDropShadow) return
 
@@ -227,7 +345,7 @@ function resolveFilterReference(attrs: SvgAttrs, registry: Map<string, FilterDef
     h: parseFloat(String(feDropShadow.attrs.dx || '0')),
     v: parseFloat(String(feDropShadow.attrs.dy || '0')),
     blur: parseFloat(String(feDropShadow.attrs.stdDeviation || '0')),
-    color: colorToHex(feDropShadow.attrs['flood-color'] || feDropShadow.attrs['shadow-color'] || '#000000'),
+    color: colorToHex(String(feDropShadow.attrs['flood-color'] || feDropShadow.attrs['shadow-color'] || '#000000')),
   }
 }
 

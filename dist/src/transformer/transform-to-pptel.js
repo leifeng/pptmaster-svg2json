@@ -2,11 +2,14 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parseDashArray = parseDashArray;
 exports.colorToHex = colorToHex;
+exports.colorToRgba = colorToRgba;
 exports.transformElement = transformElement;
 exports.transformToPPTElement = transformToPPTElement;
 const uuid_1 = require("uuid");
 const coordinate_mapper_1 = require("../mapper/coordinate-mapper");
+const apply_transform_1 = require("./apply-transform");
 const shape_to_path_1 = require("../shapes/shape-to-path");
+const text_measurer_1 = require("../text-measurer");
 /**
  * Parse stroke-dasharray into line style.
  * Per D-05 (CRITICAL PITFALL 5): normalize "5,3" / "5 3" / "5" variants.
@@ -212,6 +215,67 @@ function colorToHex(color) {
     return '#000000';
 }
 /**
+ * Convert a CSS color + opacity to rgba() format.
+ */
+function colorToRgba(color, opacity) {
+    if (!color)
+        return `rgba(0, 0, 0, ${opacity})`;
+    // Already hex
+    if (color.startsWith('#')) {
+        const hex = colorToHex(color);
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    }
+    // Named color lookup
+    if (namedColors[color.toLowerCase()]) {
+        const hex = namedColors[color.toLowerCase()];
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    }
+    // rgb(r, g, b)
+    const rgbMatch = color.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
+    if (rgbMatch) {
+        return `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${opacity})`;
+    }
+    return `rgba(0, 0, 0, ${opacity})`;
+}
+/**
+ * Parse stroke color and opacity.
+ * Returns { color, opacity } where color is a valid hex/named color (never transparent),
+ * and opacity is 0-1 range. When stroke is "transparent" or rgba with alpha=0,
+ * use a fallback color with opacity=0.
+ */
+function parseStrokeColor(stroke, strokeOpacity) {
+    if (!stroke || stroke === 'none' || stroke === 'transparent') {
+        return { color: '#000000', opacity: 0 };
+    }
+    // Normalize strokeOpacity to string for regex matching
+    const strokeOpacityStr = strokeOpacity !== undefined ? String(strokeOpacity) : undefined;
+    // Check for rgba() format
+    const rgbaMatch = stroke.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,?\s*([\d.]+)\s*\)/);
+    if (rgbaMatch) {
+        const r = rgbaMatch[1];
+        const g = rgbaMatch[2];
+        const b = rgbaMatch[3];
+        const alpha = parseFloat(rgbaMatch[4]);
+        // Combine stroke-opacity with alpha from rgba
+        const combinedOpacity = strokeOpacityStr !== undefined
+            ? parseFloat(strokeOpacityStr) * alpha
+            : alpha;
+        return {
+            color: `#${parseInt(r).toString(16).padStart(2, '0')}${parseInt(g).toString(16).padStart(2, '0')}${parseInt(b).toString(16).padStart(2, '0')}`,
+            opacity: combinedOpacity,
+        };
+    }
+    // For hex/named colors, use stroke-opacity if present
+    const opacity = strokeOpacityStr !== undefined ? parseFloat(strokeOpacityStr) : undefined;
+    return { color: colorToHex(stroke), ...(opacity !== undefined && { opacity }) };
+}
+/**
  * Parse points string into array of [x, y] tuples.
  */
 function parsePointsString(pointsStr) {
@@ -256,8 +320,9 @@ function extractTextContentFromElement(element) {
  * @param viewBox - SVG viewBox [minX, minY, width, height]
  * @param index - Element index in the output
  * @param targetCanvas - Target canvas size [width, height], defaults to [1000, 562.5]
+ * @param groupId - Current groupId context from parent g elements
  */
-function transformElement(element, viewBox, index, targetCanvas = [1000, 562.5]) {
+async function transformElement(element, viewBox, index, targetCanvas = [1000, 562.5], groupId) {
     const tag = element.type.toLowerCase();
     const coords = (0, coordinate_mapper_1.mapCoordinates)(element, viewBox);
     const id = (0, uuid_1.v4)();
@@ -269,176 +334,374 @@ function transformElement(element, viewBox, index, targetCanvas = [1000, 562.5])
     const top = coords.top * scaleY;
     const width = coords.width * scaleX;
     const height = coords.height * scaleY;
+    // Parse transform attribute for rotate/flip handling
+    const transform = (0, coordinate_mapper_1.parseTransform)(element.attrs.transform);
     // Skip non-renderable elements
     if (['defs', 'linearGradient', 'stop', 'filter', 'marker', 'clippath'].includes(tag)) {
         return null;
     }
     switch (tag) {
         case 'rect': {
-            const path = (0, shape_to_path_1.rectToPath)(Number(element.attrs.x) || 0, Number(element.attrs.y) || 0, Number(element.attrs.width) || 0, Number(element.attrs.height) || 0);
+            const transformed = (0, apply_transform_1.applyTransform)(left, top, width, height, transform);
+            const { rotate, flipH, flipV } = transformed;
+            const rx = Number(element.attrs.rx) || 0;
+            // ry: use explicit value if provided (including 0 for sharp corners), otherwise fall back to rx
+            const ry = element.attrs.ry !== undefined ? Number(element.attrs.ry) || 0 : rx;
+            const rectWidth = Number(element.attrs.width) || 0;
+            const rectHeight = Number(element.attrs.height) || 0;
+            // D-21: Use roundedRectToPath when rx or ry > 0, otherwise rectToPath
+            // D-25: rectWidth/Height and rx/ry must be scaled by scaleX/scaleY
+            const effectiveRy = element.attrs.ry !== undefined ? ry : rx;
+            const path = (rx > 0 || effectiveRy > 0)
+                ? (0, shape_to_path_1.roundedRectToPath)(width, height, rx * scaleX, effectiveRy * scaleY)
+                : (0, shape_to_path_1.rectToPath)(0, 0, width, height);
             const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'));
             const result = {
                 id,
                 type: 'shape',
-                left,
-                top,
-                width,
-                height,
-                rotate: 0,
-                viewBox: [width, height],
+                left: transformed.left,
+                top: transformed.top,
+                width: transformed.width,
+                height: transformed.height,
+                rotate,
+                viewBox: [transformed.width, transformed.height],
                 path,
                 fixedRatio: false,
                 fill: colorToHex(element.attrs.fill) || '#000000',
-                opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+                opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
             };
+            // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
+            if (element.attrs.gradient) {
+                result.gradient = element.attrs.gradient;
+                // @ts-expect-error - fill may not exist on result
+                delete result.fill;
+            }
+            else {
+                // D-18: fill-opacity < 1 → rgba() color
+                const fillOpacity = element.attrs['fill-opacity'];
+                if (fillOpacity && parseFloat(String(fillOpacity)) < 1) {
+                    result.fill = colorToRgba(String(element.attrs.fill), parseFloat(String(fillOpacity)));
+                }
+            }
+            if (flipH)
+                result.flipH = true;
+            if (flipV)
+                result.flipV = true;
             if (element.attrs.stroke) {
+                const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity']);
                 result.outline = {
                     style: parseDashArray(element.attrs['stroke-dasharray']),
                     width: strokeWidth || 1,
-                    color: colorToHex(element.attrs.stroke),
+                    color,
+                    ...(opacity !== undefined && { opacity }),
                 };
+            }
+            // D-22: SVG filter="url(#shadowId)" → shadow (resolved at parse time)
+            if (element.attrs.shadow) {
+                result.shadow = element.attrs.shadow;
+            }
+            // D-23: groupId propagation from parent g element
+            if (groupId) {
+                result.groupId = groupId;
             }
             return result;
         }
         case 'circle': {
-            const cx = Number(element.attrs.cx) || 0;
-            const cy = Number(element.attrs.cy) || 0;
-            const r = Number(element.attrs.r) || 0;
-            const path = (0, shape_to_path_1.circleToPath)(cx, cy, r);
+            const transformed = (0, apply_transform_1.applyTransform)(left, top, width, height, transform);
+            const { rotate, flipH, flipV } = transformed;
             const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'));
+            // FIX: Use scaled dimensions for path to match transformed.width/height
+            // circleToPath creates circle centered at (r, r) with radius r, path bounds = [0, 0, 2*r, 2*r]
+            const scaledR = transformed.width / 2; // = r * scaleX
+            const path = (0, shape_to_path_1.circleToPath)(scaledR, scaledR, scaledR);
             const result = {
                 id,
                 type: 'shape',
-                left,
-                top,
-                width,
-                height,
-                rotate: 0,
-                viewBox: [width, height],
+                left: transformed.left,
+                top: transformed.top,
+                width: transformed.width,
+                height: transformed.height,
+                rotate,
+                viewBox: [transformed.width, transformed.height],
                 path,
                 fixedRatio: false,
-                fill: colorToHex(element.attrs.fill) || '#000000',
-                opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+                fill: 'none', // Default to none, override below if fill exists
+                opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
             };
+            // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
+            if (element.attrs.gradient) {
+                result.gradient = element.attrs.gradient;
+            }
+            else if (element.attrs.fill && element.attrs.fill !== 'none') {
+                // FIX: fill="none" means no fill, keep fill as 'none'
+                const fillOpacity = element.attrs['fill-opacity'];
+                if (fillOpacity && parseFloat(String(fillOpacity)) < 1) {
+                    result.fill = colorToRgba(String(element.attrs.fill), parseFloat(String(fillOpacity)));
+                }
+                else {
+                    result.fill = colorToHex(element.attrs.fill);
+                }
+            }
+            if (flipH)
+                result.flipH = true;
+            if (flipV)
+                result.flipV = true;
             if (element.attrs.stroke) {
+                const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity']);
                 result.outline = {
                     style: parseDashArray(element.attrs['stroke-dasharray']),
                     width: strokeWidth || 1,
-                    color: colorToHex(element.attrs.stroke),
+                    color,
+                    ...(opacity !== undefined && { opacity }),
                 };
+            }
+            // D-22: SVG filter="url(#shadowId)" → shadow
+            if (element.attrs.shadow) {
+                result.shadow = element.attrs.shadow;
+            }
+            // D-23: groupId propagation from parent g element
+            if (groupId) {
+                result.groupId = groupId;
             }
             return result;
         }
         case 'ellipse': {
-            const cx = Number(element.attrs.cx) || 0;
-            const cy = Number(element.attrs.cy) || 0;
-            const rx = Number(element.attrs.rx) || 0;
-            const ry = Number(element.attrs.ry) || 0;
-            const path = (0, shape_to_path_1.ellipseToPath)(cx, cy, rx, ry);
+            const transformed = (0, apply_transform_1.applyTransform)(left, top, width, height, transform);
+            const { rotate, flipH, flipV } = transformed;
+            // D-26/D-27: Scale cx/cy and rx/ry by scaleX/scaleY
+            const scaledCx = (Number(element.attrs.cx) || 0) * scaleX;
+            const scaledCy = (Number(element.attrs.cy) || 0) * scaleY;
+            const scaledRx = Math.abs(Number(element.attrs.rx) || 0) * Math.abs(scaleX);
+            const scaledRy = Math.abs(Number(element.attrs.ry) || 0) * Math.abs(scaleY);
+            // D-26: Apply rotation to cx/cy if rotate center is defined
+            let finalCx = scaledCx;
+            let finalCy = scaledCy;
+            if (transform.rotateCX !== undefined && transform.rotateCY !== undefined) {
+                const rotated = (0, apply_transform_1.applyRotateWithCenter)(scaledCx, scaledCy, transform.rotateDeg, transform.rotateCX * scaleX, transform.rotateCY * scaleY);
+                finalCx = rotated.x;
+                finalCy = rotated.y;
+            }
+            const path = (0, shape_to_path_1.ellipseToPath)(finalCx, finalCy, scaledRx, scaledRy);
             const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'));
             const result = {
                 id,
                 type: 'shape',
-                left,
-                top,
-                width,
-                height,
-                rotate: 0,
-                viewBox: [width, height],
+                left: transformed.left,
+                top: transformed.top,
+                width: transformed.width,
+                height: transformed.height,
+                rotate,
+                viewBox: [transformed.width, transformed.height],
                 path,
                 fixedRatio: false,
                 fill: colorToHex(element.attrs.fill) || '#000000',
-                opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+                opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
             };
+            // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
+            if (element.attrs.gradient) {
+                result.gradient = element.attrs.gradient;
+                // @ts-expect-error - fill may not exist on result
+                delete result.fill;
+            }
+            else {
+                // D-18: fill-opacity < 1 → rgba() color
+                const fillOpacity = element.attrs['fill-opacity'];
+                if (fillOpacity && parseFloat(String(fillOpacity)) < 1) {
+                    result.fill = colorToRgba(String(element.attrs.fill), parseFloat(String(fillOpacity)));
+                }
+            }
+            if (flipH)
+                result.flipH = true;
+            if (flipV)
+                result.flipV = true;
             if (element.attrs.stroke) {
+                const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity']);
                 result.outline = {
                     style: parseDashArray(element.attrs['stroke-dasharray']),
                     width: strokeWidth || 1,
-                    color: colorToHex(element.attrs.stroke),
+                    color,
+                    ...(opacity !== undefined && { opacity }),
                 };
+            }
+            // D-22: SVG filter="url(#shadowId)" → shadow
+            if (element.attrs.shadow) {
+                result.shadow = element.attrs.shadow;
+            }
+            // D-23: groupId propagation from parent g element
+            if (groupId) {
+                result.groupId = groupId;
             }
             return result;
         }
         case 'path': {
+            const transformed = (0, apply_transform_1.applyTransform)(left, top, width, height, transform);
+            const { rotate, flipH, flipV } = transformed;
             // Per D-03: path elements keep original d attribute unchanged
             const d = typeof element.attrs.d === 'string' ? element.attrs.d : '';
             const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'));
             const result = {
                 id,
                 type: 'shape',
-                left,
-                top,
-                width,
-                height,
-                rotate: 0,
-                viewBox: [width, height],
+                left: transformed.left,
+                top: transformed.top,
+                width: transformed.width,
+                height: transformed.height,
+                rotate,
+                viewBox: [transformed.width, transformed.height],
                 path: d,
                 fixedRatio: false,
                 fill: colorToHex(element.attrs.fill) || '#000000',
-                opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+                opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
             };
+            // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
+            if (element.attrs.gradient) {
+                result.gradient = element.attrs.gradient;
+                // @ts-expect-error - fill may not exist on result
+                delete result.fill;
+            }
+            else {
+                // D-18: fill-opacity < 1 → rgba() color
+                const fillOpacity = element.attrs['fill-opacity'];
+                if (fillOpacity && parseFloat(String(fillOpacity)) < 1) {
+                    result.fill = colorToRgba(String(element.attrs.fill), parseFloat(String(fillOpacity)));
+                }
+            }
+            if (flipH)
+                result.flipH = true;
+            if (flipV)
+                result.flipV = true;
             if (element.attrs.stroke) {
+                const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity']);
                 result.outline = {
                     style: parseDashArray(element.attrs['stroke-dasharray']),
                     width: strokeWidth || 1,
-                    color: colorToHex(element.attrs.stroke),
+                    color,
+                    ...(opacity !== undefined && { opacity }),
                 };
+            }
+            // D-22: SVG filter="url(#shadowId)" → shadow
+            if (element.attrs.shadow) {
+                result.shadow = element.attrs.shadow;
+            }
+            // D-23: groupId propagation from parent g element
+            if (groupId) {
+                result.groupId = groupId;
             }
             return result;
         }
         case 'polygon': {
+            const transformed = (0, apply_transform_1.applyTransform)(left, top, width, height, transform);
+            const { rotate, flipH, flipV } = transformed;
             const pointsStr = typeof element.attrs.points === 'string' ? element.attrs.points : '';
-            const points = parsePointsString(pointsStr);
+            // D-24: Scale polygon points by scaleX/scaleY
+            const points = parsePointsString(pointsStr).map(([x, y]) => [x * scaleX, y * scaleY]);
             const path = (0, shape_to_path_1.polygonToPath)(points);
             const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'));
             const result = {
                 id,
                 type: 'shape',
-                left,
-                top,
-                width,
-                height,
-                rotate: 0,
-                viewBox: [width, height],
+                left: transformed.left,
+                top: transformed.top,
+                width: transformed.width,
+                height: transformed.height,
+                rotate,
+                viewBox: [transformed.width, transformed.height],
                 path,
                 fixedRatio: false,
                 fill: colorToHex(element.attrs.fill) || '#000000',
-                opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+                opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
             };
+            // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
+            if (element.attrs.gradient) {
+                result.gradient = element.attrs.gradient;
+                // @ts-expect-error - fill may not exist on result
+                delete result.fill;
+            }
+            else {
+                // D-18: fill-opacity < 1 → rgba() color
+                const fillOpacity = element.attrs['fill-opacity'];
+                if (fillOpacity && parseFloat(String(fillOpacity)) < 1) {
+                    result.fill = colorToRgba(String(element.attrs.fill), parseFloat(String(fillOpacity)));
+                }
+            }
+            if (flipH)
+                result.flipH = true;
+            if (flipV)
+                result.flipV = true;
             if (element.attrs.stroke) {
+                const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity']);
                 result.outline = {
                     style: parseDashArray(element.attrs['stroke-dasharray']),
                     width: strokeWidth || 1,
-                    color: colorToHex(element.attrs.stroke),
+                    color,
+                    ...(opacity !== undefined && { opacity }),
                 };
+            }
+            // D-22: SVG filter="url(#shadowId)" → shadow
+            if (element.attrs.shadow) {
+                result.shadow = element.attrs.shadow;
+            }
+            // D-23: groupId propagation from parent g element
+            if (groupId) {
+                result.groupId = groupId;
             }
             return result;
         }
         case 'polyline': {
+            const transformed = (0, apply_transform_1.applyTransform)(left, top, width, height, transform);
+            const { rotate, flipH, flipV } = transformed;
             const pointsStr = typeof element.attrs.points === 'string' ? element.attrs.points : '';
-            const points = parsePointsString(pointsStr);
+            // D-24: Scale polyline points by scaleX/scaleY
+            const points = parsePointsString(pointsStr).map(([x, y]) => [x * scaleX, y * scaleY]);
             const path = polylineToPath(points);
             const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'));
             const result = {
                 id,
                 type: 'shape',
-                left,
-                top,
-                width,
-                height,
-                rotate: 0,
-                viewBox: [width, height],
+                left: transformed.left,
+                top: transformed.top,
+                width: transformed.width,
+                height: transformed.height,
+                rotate,
+                viewBox: [transformed.width, transformed.height],
                 path,
                 fixedRatio: false,
                 fill: colorToHex(element.attrs.fill) || 'none',
-                opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+                opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
             };
+            // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
+            if (element.attrs.gradient) {
+                result.gradient = element.attrs.gradient;
+                // @ts-expect-error - fill may not exist on result
+                delete result.fill;
+            }
+            else {
+                // D-18: fill-opacity < 1 → rgba() color
+                const fillOpacity = element.attrs['fill-opacity'];
+                if (fillOpacity && parseFloat(String(fillOpacity)) < 1) {
+                    result.fill = colorToRgba(String(element.attrs.fill), parseFloat(String(fillOpacity)));
+                }
+            }
+            if (flipH)
+                result.flipH = true;
+            if (flipV)
+                result.flipV = true;
             if (element.attrs.stroke) {
+                const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity']);
                 result.outline = {
                     style: parseDashArray(element.attrs['stroke-dasharray']),
                     width: strokeWidth || 1,
-                    color: colorToHex(element.attrs.stroke),
+                    color,
+                    ...(opacity !== undefined && { opacity }),
                 };
+            }
+            // D-22: SVG filter="url(#shadowId)" → shadow
+            if (element.attrs.shadow) {
+                result.shadow = element.attrs.shadow;
+            }
+            // D-23: groupId propagation from parent g element
+            if (groupId) {
+                result.groupId = groupId;
             }
             return result;
         }
@@ -447,39 +710,148 @@ function transformElement(element, viewBox, index, targetCanvas = [1000, 562.5])
             const y1 = Number(element.attrs.y1) || 0;
             const x2 = Number(element.attrs.x2) || 0;
             const y2 = Number(element.attrs.y2) || 0;
+            // For lines WITHOUT transform: start/end are [0,0] to [width,0] relative to bounding box
+            // For lines WITH transform: need to compute relative positions using transform offsets
+            let startRelX, startRelY, endRelX, endRelY;
+            if ((transform.translateX || 0) === 0 && (transform.translateY || 0) === 0 && (transform.scaleX || 1) === 1 && (transform.scaleY || 1) === 1) {
+                // No transform - simple relative coordinates
+                startRelX = 0;
+                startRelY = 0;
+                endRelX = width;
+                endRelY = 0;
+            }
+            else {
+                // With transform - compute relative positions from transformed coordinates
+                const tx = transform.translateX || 0;
+                const ty = transform.translateY || 0;
+                const x1t = x1 + tx;
+                const y1t = y1 + ty;
+                const x2t = x2 + tx;
+                const y2t = y2 + ty;
+                startRelX = (x1t - coords.left) * scaleX;
+                startRelY = (y1t - coords.top) * scaleY;
+                endRelX = (x2t - coords.left) * scaleX;
+                endRelY = (y2t - coords.top) * scaleY;
+            }
             const result = {
                 id,
                 type: 'line',
                 left,
                 top,
                 width,
-                start: [x1 * scaleX, y1 * scaleY],
-                end: [x2 * scaleX, y2 * scaleY],
+                start: [startRelX, startRelY],
+                end: [endRelX, endRelY],
                 style: parseDashArray(element.attrs['stroke-dasharray']),
-                color: colorToHex(element.attrs.stroke) || '#000000',
+                color: '#000000', // Default, will be overwritten below
                 points: ['', ''],
             };
+            // D-24: stroke-width → PPTLineElement.width, default to 1 when absent or 0
+            const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'));
+            result.width = strokeWidth || 1;
+            // D-19: stroke color/opacity handling
+            const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity']);
+            result.color = color;
+            // D-23: groupId propagation from parent g element
+            if (groupId) {
+                result.groupId = groupId;
+            }
             return result;
         }
         case 'text': {
+            const transformed = (0, apply_transform_1.applyTransform)(left, top, width, height, transform);
+            const { rotate } = transformed;
             const content = extractTextContentFromElement(element);
-            // Parse font-family: take first font, decode HTML entities, remove quotes
-            const rawFontFamily = typeof element.attrs['font-family'] === 'string'
-                ? element.attrs['font-family'].split(',')[0].trim()
-                : 'Arial';
-            const fontFamily = decodeHtmlEntities(rawFontFamily).replace(/"/g, '');
-            const fontSize = Number(element.attrs['font-size']) || 16;
-            // Calculate text dimensions: height = fontSize + fontSize*0.14, width = charCount * fontSize
+            // Force Microsoft YaHei for all text (width calculation and output)
+            const fontFamily = element.attrs['font-family'] || 'Microsoft YaHei';
+            const fontSize = Number(String(element.attrs["font-size"] || "16")) || 16;
             const scaledFontSize = fontSize * scaleY;
-            const charCount = content.length;
-            const textWidth = charCount * scaledFontSize;
-            const textHeight = scaledFontSize + Math.round(scaledFontSize * 0.14);
-            // SVG text y is baseline, convert to top edge for JSON with scaling
-            // Formula: jsonTop = (svgY + fontSize * 0.75) * scale
-            const textLeft = coords.left * scaleX;
-            const textTop = (coords.top + fontSize * 0.75) * scaleY;
-            // Use rich text HTML format with font-size in span style
-            const richContent = `<p style=""><span style="font-size: ${scaledFontSize}px;">${content}</span></p>`;
+            const letterSpacing = parseFloat(String(element.attrs['letter-spacing'] || '0'));
+            const fillColor = element.attrs.fill || '#000000';
+            const fillOpacity = element.attrs['fill-opacity'];
+            const hasRgba = fillOpacity && parseFloat(String(fillOpacity)) < 1;
+            const fontWeight = element.attrs['font-weight'];
+            const isBold = fontWeight === 'bold' || fontWeight === '600' || fontWeight === '700';
+            const fontStyle = element.attrs['font-style'];
+            const isItalic = fontStyle === 'italic';
+            // Measure text using resvg-js with fallback to heuristic
+            let textWidth;
+            let textHeight;
+            let textTop;
+            try {
+                const textAnchorAttr = element.attrs['text-anchor'];
+                const xAttr = element.attrs['x'] ? Number(element.attrs['x']) : undefined;
+                const measurementInput = {
+                    content,
+                    fontFamily,
+                    fontSize,
+                    fontWeight: isBold ? 'bold' : 'normal',
+                    fontStyle: isItalic ? 'italic' : 'normal',
+                    letterSpacing,
+                    fill: fillColor,
+                    textAnchor: textAnchorAttr,
+                    x: xAttr,
+                };
+                const measured = await (0, text_measurer_1.measureTextElement)(measurementInput);
+                // Add 25px safety margin to prevent text wrapping due to measurement discrepancy
+                const TEXT_WIDTH_SAFETY_MARGIN = 25;
+                textWidth = measured.width * scaleX + TEXT_WIDTH_SAFETY_MARGIN;
+                textHeight = measured.height * scaleY;
+                // SVG text y is baseline; convert to top by subtracting ascent distance
+                // FIX: Use fixed 0.8 ascent ratio instead of measured.y (which varies by glyph shape)
+                // This ensures same y coordinate → same textTop regardless of content
+                const ASCENT_RATIO = 0.8;
+                textTop = transformed.top - fontSize * ASCENT_RATIO * scaleY;
+            }
+            catch {
+                // D-35: MEAS-06 fallback: heuristic estimate when resvg-js measurement fails
+                textWidth = fontSize * content.length * 0.6;
+                textHeight = scaledFontSize;
+                // Fallback: SVG y is baseline, convert to top using heuristic (ascent ≈ 0.8 * fontSize)
+                // Note: transformed.top is already scaled, so subtract scaled ascent directly
+                textTop = transformed.top - fontSize * 0.8 * scaleY;
+            }
+            // Log text measurement info
+            console.log(`[text] "${content.substring(0, 30)}${content.length > 30 ? '...' : ''}" | fontSize=${fontSize} | scaleX=${scaleX.toFixed(3)} scaleY=${scaleY.toFixed(3)} | svg_w=${(textWidth / scaleX).toFixed(1)} | out_w=${textWidth.toFixed(1)} | svg_h=${(textHeight / scaleY).toFixed(1)} | out_h=${textHeight.toFixed(1)}`);
+            // X轴: 考虑 text-anchor 调整 left
+            // SVG text x 对于 middle/end 是参考点，需要偏移
+            const textAnchorForLeft = element.attrs['text-anchor'];
+            let textLeft = transformed.left;
+            if (textAnchorForLeft === 'middle') {
+                textLeft = transformed.left - textWidth / 2;
+            }
+            else if (textAnchorForLeft === 'end') {
+                textLeft = transformed.left - textWidth;
+            }
+            // D-09: text-anchor → text-align on <p> style
+            const textAnchor = element.attrs['text-anchor'];
+            let textAlign = '';
+            if (textAnchor === 'start')
+                textAlign = 'left';
+            else if (textAnchor === 'end')
+                textAlign = 'right';
+            else if (textAnchor === 'middle')
+                textAlign = 'center';
+            const pStyle = textAlign ? `text-align: ${textAlign}` : '';
+            let spanStyle = `font-size: ${scaledFontSize}px`;
+            if (hasRgba) {
+                const rgbaColor = colorToRgba(fillColor, parseFloat(String(fillOpacity)));
+                spanStyle += `; color: ${rgbaColor}`;
+            }
+            // Build content HTML: <p style="text-align: ..."><strong><em><span style="...">content</span></em></strong></p>
+            // ProseMirror marks order: strong > em > fontsize > fontname > forecolor > backcolor > underline > strikethrough
+            const innerSpan = `<span style="${spanStyle}">${content}</span>`;
+            let weightedContent = innerSpan;
+            if (isItalic)
+                weightedContent = `<em>${weightedContent}</em>`;
+            if (isBold)
+                weightedContent = `<strong>${weightedContent}</strong>`;
+            const richContent = `<p${pStyle ? ` style="${pStyle}"` : ''}>${weightedContent}</p>`;
+            // D-07: writing-mode vertical-rl/vertical-lr → vertical: true
+            const writingMode = element.attrs['writing-mode'];
+            const vertical = writingMode === 'vertical-rl' || writingMode === 'vertical-lr';
+            // D-09: fixedHeight based on SVG height attribute presence
+            const fixedHeight = !!element.attrs.height;
+            // D-26: inset=[0,0,0,0] to avoid 10px default padding causing coordinate offset
             const result = {
                 id,
                 type: 'text',
@@ -488,29 +860,74 @@ function transformElement(element, viewBox, index, targetCanvas = [1000, 562.5])
                 width: textWidth,
                 height: textHeight,
                 defaultFontSize: scaledFontSize,
-                rotate: 0,
+                rotate,
                 content: richContent,
                 defaultFontName: fontFamily,
-                defaultColor: colorToHex(element.attrs.fill) || '#000000',
-                lineHeight: 1.5,
-                opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : 1,
+                defaultColor: colorToHex(fillColor) || '#000000',
+                lineHeight: 1,
+                opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
+                shadow: undefined,
+                vAlign: 'middle',
+                fixedHeight,
+                wordSpace: 0,
+                paragraphSpace: 5,
+                vertical,
+                inset: [0, 0, 0, 0],
             };
+            // D-19: stroke color/opacity handling for text outline
+            if (element.attrs.stroke) {
+                const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity']);
+                result.outline = { color, width: 1 };
+                if (opacity !== undefined)
+                    result.outline.opacity = opacity;
+            }
+            // D-23: groupId propagation from parent g element
+            if (groupId) {
+                result.groupId = groupId;
+            }
             return result;
         }
         case 'image': {
+            const transformed = (0, apply_transform_1.applyTransform)(left, top, width, height, transform);
+            const { rotate, flipH, flipV } = transformed;
             // Per PITFALL 1: href may be xlink:href or href
             const src = String(element.attrs['xlink:href'] || element.attrs.href || '');
             const result = {
                 id,
                 type: 'image',
-                left,
-                top,
-                width,
-                height,
-                rotate: 0,
+                left: transformed.left,
+                top: transformed.top,
+                width: transformed.width,
+                height: transformed.height,
+                rotate,
                 fixedRatio: true,
                 src,
             };
+            if (flipH)
+                result.flipH = true;
+            if (flipV)
+                result.flipV = true;
+            // D-25: image with stroke → outline
+            if (element.attrs.stroke) {
+                const strokeWidthAttr = element.attrs['stroke-width'];
+                const strokeWidth = strokeWidthAttr !== undefined ? parseFloat(String(strokeWidthAttr)) : 1;
+                if (strokeWidth > 0) {
+                    const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity']);
+                    result.outline = {
+                        width: strokeWidth,
+                        color,
+                        ...(opacity !== undefined && { opacity }),
+                    };
+                }
+            }
+            // D-22: shadow from filter def (IMGE-02)
+            if (element.attrs.shadow) {
+                result.shadow = element.attrs.shadow;
+            }
+            // D-23: groupId propagation from parent g element
+            if (groupId) {
+                result.groupId = groupId;
+            }
             return result;
         }
         case 'g':
@@ -528,23 +945,53 @@ function transformElement(element, viewBox, index, targetCanvas = [1000, 562.5])
  * @param ast - Parsed SVG result (root + viewBox + width/height)
  * @param targetCanvas - Target canvas size [width, height], defaults to [1000, 562.5]
  */
-function transformToPPTElement(ast, targetCanvas = [1000, 562.5]) {
+/**
+ * Compose two transform strings into a single transform string.
+ * Parent transform is applied first, then child transform.
+ */
+function composeTransforms(parentTransform, childTransform) {
+    if (!parentTransform && !childTransform)
+        return undefined;
+    if (!parentTransform)
+        return childTransform;
+    if (!childTransform)
+        return parentTransform;
+    // Both exist: apply parent then child
+    return `${parentTransform} ${childTransform}`;
+}
+async function transformToPPTElement(ast, targetCanvas = [1000, 562.5]) {
     const elements = [];
-    function walk(element, viewBox) {
+    async function walk(element, viewBox, currentGroupId, parentTransform) {
         const tag = element.type.toLowerCase();
-        // Skip non-renderable container elements
-        if (!['defs', 'linearGradient', 'stop', 'filter', 'marker', 'clippath'].includes(tag)) {
-            const pptel = transformElement(element, viewBox, elements.length, targetCanvas);
-            if (pptel !== null) {
-                elements.push(pptel);
+        // D-23: When tag='g' with id, update groupId context for children
+        // Children inherit parent g id as their groupId. Nested g: innermost id takes precedence.
+        // If g has no id, children get undefined (break the chain - no inheritance through unnamed g)
+        const isG = tag === 'g';
+        const effectiveGroupId = isG ? (element.attrs.id || undefined) : currentGroupId;
+        // Accumulate parent transform: child's transform is composed with parent's
+        const effectiveTransform = composeTransforms(parentTransform, element.attrs.transform);
+        // Process children (for groups - g elements themselves are not output)
+        for (const child of element.children) {
+            if (child.type.toLowerCase() === 'g') {
+                // Recursively process group children with inherited/overridden groupId and accumulated transform
+                await walk(child, viewBox, effectiveGroupId, effectiveTransform);
+            }
+            else {
+                // Skip non-renderable container elements
+                if (!['defs', 'linearGradient', 'stop', 'filter', 'marker', 'clippath'].includes(child.type.toLowerCase())) {
+                    // Apply accumulated parent transform to child element before processing
+                    if (effectiveTransform && !child.attrs.transform) {
+                        child.attrs.transform = effectiveTransform;
+                    }
+                    const pptel = await transformElement(child, viewBox, elements.length, targetCanvas, effectiveGroupId);
+                    if (pptel !== null) {
+                        elements.push(pptel);
+                    }
+                }
             }
         }
-        // Process children (for groups)
-        for (const child of element.children) {
-            walk(child, viewBox);
-        }
     }
-    walk(ast.root, ast.viewBox);
+    await walk(ast.root, ast.viewBox);
     return elements;
 }
 //# sourceMappingURL=transform-to-pptel.js.map

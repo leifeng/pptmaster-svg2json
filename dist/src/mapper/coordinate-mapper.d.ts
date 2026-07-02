@@ -1,5 +1,10 @@
 import { SvgElement, CoordinateMapping, TransformResult } from '../types/ast';
 /**
+ * Parse gradientTransform attribute to extract rotation angle.
+ * D-17: gradientTransform matrix rotation extracted via matrix decomposition.
+ */
+export declare function parseGradientTransform(transform: string | undefined): number;
+/**
  * Parse a viewBox string into [minX, minY, width, height].
  * Per D-09: viewBox parsed as [minX, minY, width, height] format.
  * Per D-08: SVG viewBox coordinates 1:1 map to PPTElement left/top/width/height (no scaling).

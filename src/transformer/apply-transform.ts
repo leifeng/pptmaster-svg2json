@@ -44,8 +44,8 @@ export function getRotateDeg(transform: TransformResult): number {
  */
 export function getFlipFromScale(transform: TransformResult): { flipH?: boolean; flipV?: boolean } {
   const result: { flipH?: boolean; flipV?: boolean } = {}
-  if (transform.scaleX < 0) result.flipH = true
-  if (transform.scaleY < 0) result.flipV = true
+  if ((transform.scaleX ?? 1) < 0) result.flipH = true
+  if ((transform.scaleY ?? 1) < 0) result.flipV = true
   return result
 }
 

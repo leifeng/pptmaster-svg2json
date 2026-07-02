@@ -16,6 +16,10 @@ export interface TextMeasurementInput {
   fontStyle?: string
   letterSpacing?: number
   fill?: string
+  /** SVG text-anchor attribute: 'start' | 'middle' | 'end' */
+  textAnchor?: string
+  /** SVG x attribute value */
+  x?: number
 }
 
 /**
@@ -32,6 +36,8 @@ export function buildMeasurementSvg(opts: {
   fontStyle?: string
   letterSpacing?: number
   fill?: string
+  textAnchor?: string
+  x?: number
 }): string {
   // XML-escape & < > " for SVG attribute safety (but not \n)
   const escapeXml = (str: string) =>
@@ -47,6 +53,8 @@ export function buildMeasurementSvg(opts: {
   const fontStyle = opts.fontStyle ?? 'normal'
   const letterSpacing = opts.letterSpacing ?? 0
   const fill = opts.fill ?? '#000000'
+  const textAnchor = opts.textAnchor ?? 'start'
+  const x = opts.x ?? 0
 
   let textContent: string
   if (lines.length === 1) {
@@ -59,22 +67,23 @@ export function buildMeasurementSvg(opts: {
       .map((line, i) => {
         const escapedLine = escapeXml(line)
         if (i === 0) {
-          return `<tspan x="0" dy="0">${escapedLine}</tspan>`
+          return `<tspan x="${x}" dy="0">${escapedLine}</tspan>`
         } else {
-          return `<tspan x="0" dy="1em">${escapedLine}</tspan>`
+          return `<tspan x="${x}" dy="1em">${escapedLine}</tspan>`
         }
       })
       .join('')
   }
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
-  <text x="0" y="${fontSize}"
+  <text x="${x}" y="${fontSize}"
         font-family="${opts.fontFamily}"
         font-size="${fontSize}"
         font-weight="${fontWeight}"
         font-style="${fontStyle}"
         letter-spacing="${letterSpacing}"
         fill="${fill}"
+        text-anchor="${textAnchor}"
         xml:space="preserve">${textContent}</text>
 </svg>`
 }
@@ -96,7 +105,7 @@ async function ensureInit(): Promise<void> {
  * Uses getBBox() which applies transforms and returns the visible bounding box.
  * @throws if bounding box is undefined or has zero dimensions
  */
-export async function measureTextBBox(svgString: string): Promise<{ width: number; height: number }> {
+export async function measureTextBBox(svgString: string): Promise<{ width: number; height: number; y: number }> {
   await ensureInit()
   const resvg = new Resvg(svgString)
   const bbox = resvg.getBBox()
@@ -109,7 +118,7 @@ export async function measureTextBBox(svgString: string): Promise<{ width: numbe
     throw new Error('Bounding box has zero dimensions')
   }
 
-  return { width: bbox.width, height: bbox.height }
+  return { width: bbox.width, height: bbox.height, y: bbox.y }
 }
 
 /**
@@ -118,7 +127,7 @@ export async function measureTextBBox(svgString: string): Promise<{ width: numbe
  */
 export async function measureTextElement(
   input: TextMeasurementInput
-): Promise<{ width: number; height: number }> {
+): Promise<{ width: number; height: number; y: number }> {
   const svgString = buildMeasurementSvg(input)
   return measureTextBBox(svgString)
 }
