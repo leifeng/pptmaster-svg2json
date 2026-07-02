@@ -1,132 +1,173 @@
-# Project Research Summary
+# Research Summary: Directory Batch CLI
 
-**Project:** svg-to-pptel v1.3 — resvg-js text measurement
-**Domain:** SVG to PowerPoint JSON conversion library (TypeScript)
-**Researched:** 2026-06-30
-**Confidence:** MEDIUM-HIGH
+**Project:** svg-to-pptel v1.3
+**Feature:** Directory Batch CLI (read SVG from directory, output JSON to same/different directory)
+**Researched:** 2026-07-02
+**Synthesized from:** STACK.md, FEATURES.md, ARCHITECTURE.md, PITFALLS.md
+
+---
 
 ## Executive Summary
 
-The v1.3 milestone replaces the heuristic character-width estimation (`calcTextWidthYaHei()`) with accurate rendered glyph metrics via `@resvg/resvg-js`. Research confirms `@resvg/resvg-js` is a zero-dependency NAPI native addon (no WASM) that provides `boundingBoxes()` returning an array of `{x, y, width, height}` boxes. The correct integration point is the `text` case in `transformElement()` within `transform-to-pptel.ts` — the parser stays untouched, the public `convert()` API remains unchanged (already async).
+The directory batch CLI feature is achievable with minimal changes to the existing codebase. The core `convert()` function in `src/index.ts` is already async and handles single-file conversion correctly; the CLI just needs a new batch mode that writes outputs to files instead of stdout. **No new dependencies are required** -- Node.js built-in `fs`, existing `cac` CLI framework, and `picocolors` are sufficient.
 
-Key technical findings: `boundingBoxes()` returns an **array** (not single box) — multi-line text produces multiple boxes that must be merged via min/max computation. Multi-line via `<tspan>` children must be flattened with `\n` separators and rendered as a single SVG. All font-affecting attributes must be passed to the measurement SVG. WASM initialization is lazy via dynamic `import()`.
+The current directory mode is fundamentally broken: it outputs JSON to stdout for every file, making batch processing unusable (multiple JSON outputs get mixed together). The fix is NOT adding more features -- it is fixing the output mechanism. A proper batch CLI needs to write files to disk with mirrored directory structure and proper error handling.
 
-Critical pitfalls: multiple boxes must be merged, empty text must fallback to heuristic (not zero), viewBox must be large enough to contain rendered text without clipping.
+The most critical pitfalls are: (1) output directory collisions when files have the same basename, (2) missing output directory creation causing write failures, (3) exit code always being 0 even when files fail, and (4) concurrent memory pressure on large batches. These are all addressable with straightforward mitigations documented below.
+
+---
 
 ## Key Findings
 
-### Recommended Stack
+### From STACK.md
 
-**Core library:** `@resvg/resvg-js` 2.6.2 — NAPI native addon, zero dependencies, auto-loads native binary in Node.js. No WASM init needed.
+| Technology | Recommendation | Rationale |
+|------------|----------------|-----------|
+| TypeScript | No change | Existing ^5.5.0 sufficient |
+| fast-xml-parser | No change | Already used for SVG parsing |
+| cac | Extend existing | Already supports directory input; needs `--output-dir` flag |
+| picocolors | No change | Already used for CLI colors |
+| Node.js fs | Use built-in | `writeFileSync` and `mkdirSync` sufficient; no `fs-extra` needed |
+| p-limit | Optional future | Only add if profiling shows slowness on 100+ files |
 
-**Installation:**
-```bash
-npm install @resvg/resvg-js
-```
+**Key finding:** No new dependencies for MVP. Only TypeScript changes to `src/cli.ts`.
 
-**Cross-platform note:** For CI consistency, consider bundling a `.ttf` font file. On Windows the system YaHei font is available; Linux CI may lack it.
+### From FEATURES.md
 
-### Expected Features
+**Table Stakes (Must Have):**
+- `--output-dir <path>` option (required when input is directory)
+- Proper file output (write to disk, not stdout)
+- Input -> output path mapping (mirrored directory structure)
+- Don't overwrite by default (safer)
+- Summary report: "Converted X/Y files" at end
 
-**Must have (table stakes):**
-- Single-line text width/height via `boundingBoxes()` array merge
-- Multi-line text via tspan flattening with `\n` separators
-- Font-family, font-size, font-weight, font-style, letter-spacing propagation
-- Empty text fallback to heuristic (not zero-width)
-- Large enough viewBox to prevent clipping
+**Differentiators (Should Have):**
+- `--parallel <n>` for concurrent processing
+- `--pattern <glob>` for file filtering
+- Progress bar / file count feedback
+- Dry run / `--dry-run` preview
+- `--overwrite` flag for explicit overwrite behavior
 
-**Differentiators:**
-- Real glyph metrics replace character-class width ratios — eliminates ~15-20% width estimation error
+**Anti-Features (Explicitly Avoid):**
+- Output to stdout in batch mode (broken UX)
+- Parallel by default (resource contention)
+- Overwrite by default (data loss risk)
 
-**Anti-features to avoid:**
-- Do NOT try to get per-character widths from `boundingBoxes()` — returns clusters, not individual glyphs
-- Do NOT render each tspan separately — must render merged content as single SVG
+### From ARCHITECTURE.md
 
-### Architecture Approach
+**Core architecture decisions:**
 
-**Integration point:** `transformElement()` text case in `transform-to-pptel.ts` — NOT the parser
+1. **Reuse `convert()` from `src/index.ts`** -- The async single-file converter handles SVG parsing, AST validation, transform to PPTElement, and background inference. Batch CLI only orchestrates file I/O around it.
 
-**New component:** `src/text-measurer.ts` with `measureTextBBox()` and `buildMeasurementSvg()`
+2. **Create new batch components:**
+   - `src/cli-batch.ts` -- Batch orchestration (NEW)
+   - `src/batch/process-file.ts` -- Per-file processing (NEW)
+   - `src/batch/manifest.ts` -- Manifest generation (NEW)
 
-**Build order:**
-1. `npm install @resvg/resvg-js`
-2. Create `src/text-measurer.ts`
-3. Modify `transformElement()` text case to call measurer
-4. Propagate async (transformToPPTElement, walk, convert)
+3. **Mirrored directory structure** -- Output directory mirrors input directory structure. `input/dir/foo.svg` -> `output/dir/foo.json`. This prevents filename collisions and makes outputs easy to find.
 
-**Key design decisions:**
-- WASM init: lazy singleton via dynamic `import()`
-- Per-element await in element loop (acceptable given user OK with performance cost)
-- viewBox: generous initial size + overflow detection
+4. **Manifest as sidecar file** -- `manifest.json` written to output directory root (opt-in via `--manifest` flag). Contains per-file success/failure status for CI/CD integration.
 
-### Critical Pitfalls
+5. **Per-file async with optional parallelism** -- Default sequential (safer, easier debugging). `transformElement()` is async due to resvg-js text measurement, but each `convert()` call initializes its own WASM context, so parallel processing is safe.
 
-1. **Multiple bounding boxes** — `boundingBoxes()` returns array; must merge via min/max (not take `[0]` only)
-2. **Empty text returns no bounding box** — fallback to heuristic, not `{width:0, height:0}`
-3. **viewBox overflow clips bounding box** — must detect and resize viewBox before re-rendering
-4. **Tspan children ignored** — must flatten all tspans with `\n` before rendering
-5. **Per-element await serializes** — 50 text elements = 50 sequential awaits (accepted tradeoff)
+### From PITFALLS.md
+
+**Critical pitfalls to avoid:**
+
+| ID | Pitfall | Mitigation |
+|----|---------|------------|
+| P-11 | Output file naming collisions (same basename in different subdirs) | Mirror source directory structure in output |
+| P-12 | `--output` with directory input semantics error | Allow `--output dir` when input is directory |
+| P-13 | Concurrent file system pressure (1000+ files) | Use bounded concurrency pool (p-limit with n=4-8) |
+| P-14 | Exit code always 0 even on partial failure | Exit 1 when errorCount > 0 |
+| P-15 | Missing output directory creation | `mkdirSync(dir, { recursive: true })` before writing |
+| P-18 | Recursive walk symlink loops | Use `lstatSync` or track visited inodes |
+
+**Moderate pitfalls:**
+
+| ID | Pitfall | Mitigation |
+|----|---------|------------|
+| P-16 | No progress feedback for large batches | Show "Processing [N/M]: filename" |
+| P-17 | Mixing stdout and stderr | Consistent output channel; stderr only for fatal |
+| P-19 | Large single file (50MB SVG) causes OOM | Add --max-file-size flag, skip files > 10MB |
+
+---
 
 ## Implications for Roadmap
 
-Based on research, v1.3 is a **single-phase implementation**:
+### Suggested Phase Structure
 
-### Phase 6: resvg-js Text Measurement
+**Phase 1: Batch CLI Foundation**
+- **Rationale:** The current directory mode is broken. Fix the output mechanism first before adding features.
+- **Deliverables:**
+  - Add `--output-dir <path>` option to CLI
+  - Write JSON files to output directory (not stdout)
+  - Mirror input directory structure in output
+  - Create output directories with `mkdirSync({ recursive: true })`
+  - Fix exit code: exit 1 when any file fails
+  - Basic summary: "Converted N/M files"
+- **Pitfalls to avoid:** P-11 (collision), P-14 (exit code), P-15 (dir creation)
+- **Research flag:** Standard patterns -- no deep research needed
 
-**Rationale:** Self-contained change — one new module + targeted modifications to existing transformer.
+**Phase 2: Parallel Processing**
+- **Rationale:** Sequential processing is fine for <50 files. After basic batch works, add concurrency for larger directories.
+- **Deliverables:**
+  - Add `--parallel <n>` flag with `p-limit` (default: sequential)
+  - Bounded concurrency pool (4-8 concurrent conversions)
+  - Per-file progress output: "Processing [3/50]: foo.svg..."
+- **Pitfalls to avoid:** P-13 (memory pressure), P-16 (no progress feedback)
+- **Research flag:** May need research on optimal concurrency limit for resvg-js WASM contexts
 
-**Delivers:**
-- `src/text-measurer.ts` module with `measureTextBBox()`
-- Modified `transformElement()` text case using real bounding box
-- Removed `calcTextWidthYaHei()` and `BASELINE_OFFSET_RATIO` after migration
+**Phase 3: Robustness and Polish**
+- **Rationale:** Make the tool production-ready for CI/CD and large batches.
+- **Deliverables:**
+  - `--manifest` flag to generate `manifest.json` sidecar
+  - `--continue-on-error` flag (default: true for batch)
+  - `--follow-symlinks` flag for symlink handling
+  - `--quiet` flag for CI mode
+  - `--max-file-size` flag to skip oversized SVGs
+  - Handle P-18 (symlink loops), P-19 (large file OOM)
+- **Pitfalls to avoid:** P-18, P-19
+- **Research flag:** Standard patterns -- no deep research needed
 
-**Implements:**
-- STACK: `@resvg/resvg-js` integration
-- FEATURES: boundingBoxes merge, tspan flattening, font attr propagation
-- PITFALLS: empty fallback, viewBox overflow guard, multi-box merge
+**Phase 4: Advanced Filtering (Optional)**
+- **Deliverables:**
+  - `--pattern <glob>` for file filtering
+  - `--dry-run` preview mode
+  - `--preserve-structure` flag
+- **Research flag:** Standard patterns
 
-**Addresses:**
-- Table stakes: single-line width/height, multi-line via tspan flatten
-- Differentiator: real glyph metrics replacing heuristic estimation
-
-### Phase Ordering Rationale
-
-Single phase — all work is localized to the text measurement boundary. No dependency chain issues.
-
-### Research Flags
-
-- **fontFiles for CI:** Whether to bundle YaHei `.ttf` for cross-platform CI consistency
-- **Memory cleanup:** Whether `resvg.free()` exists for explicit WASM heap cleanup after batch processing
-- **Mixed-script fragmentation:** When CJK and Latin chars mix, does `boundingBoxes()` produce separate boxes?
+---
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | npm API well-documented, NAPI variant correct for Node.js |
-| Features | HIGH | API behavior confirmed from npm docs and Rust source |
-| Architecture | HIGH | Integration point clearly identified from code analysis |
-| Pitfalls | MEDIUM-HIGH | 5 pitfalls documented; some from API analysis vs confirmed bugs |
+| Stack | HIGH | No new dependencies needed; existing tools sufficient |
+| Features | HIGH | Table stakes well-understood from CLI conventions |
+| Architecture | HIGH | Clear integration points; reuse strategy well-defined |
+| Pitfalls | HIGH | Batch CLI pitfalls well-documented; PPTist pitfalls not relevant for this feature |
 
-**Overall confidence:** MEDIUM-HIGH
+**Overall:** HIGH
 
-### Gaps to Address
+The feature is straightforward: layer directory walking and file output on top of existing `convert()`. No new dependencies, no schema changes, no complex integration. Confidence is high based on clear existing implementation and standard CLI patterns.
 
-- **ViewBox overflow detection:** Implementation needs to detect when rendered bbox exceeds viewBox and re-render with larger viewBox
-- **Font file bundling:** Decide whether to bundle `.ttf` for CI or rely on system fonts
-- **Memory management:** Whether to call any explicit cleanup between text measurements
+**Gaps to Address:**
+- None identified. All critical paths have clear guidance.
+
+---
 
 ## Sources
 
-### Primary (HIGH confidence)
-- npm `@resvg/resvg-js` package — API docs, type signatures
-- Rust/resvg source analysis — `boundingBoxes()` behavior
-- Existing `transform-to-pptel.ts` code analysis — integration point identification
-
-### Secondary (MEDIUM confidence)
-- Architecture analysis of pipeline — integration patterns inferred
-- Pitfall patterns from API analysis — some not confirmed bugs
+- `src/cli.ts` -- Existing CLI with `walkDir()` and directory handling
+- `src/index.ts` -- `convert()` async function (core API to reuse)
+- `src/transformer/transform-to-pptel.ts` -- `transformElement()` async (reason for async)
+- `src/text-measurer.ts` -- WASM initialization pattern
+- `package.json` -- Dependencies (`cac`, `fast-xml-parser`, `@resvg/resvg-js`)
+- CLI design conventions: `ffmpeg`, `imagemagick`, `sharp` CLI patterns
+- Node.js built-in `fs` documentation
 
 ---
-*Research completed: 2026-06-30*
-*Ready for roadmap: yes*
+
+*Research synthesis for: svg-to-pptel v1.3 directory batch CLI*
+*Synthesized: 2026-07-02*

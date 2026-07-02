@@ -1,300 +1,405 @@
-# Architecture Research: PPTist Schema Alignment (v1.2)
+# Architecture Research: Directory Batch CLI Integration
 
-**Project:** svg-to-pptel v1.2 PPTist格式对齐
-**Researched:** 2026-06-30
+**Project:** svg-to-pptel v1.x — Directory Batch CLI
+**Researched:** 2026-07-02
 **Confidence:** HIGH
 
 ## Executive Summary
 
-The v1.2 milestone aligns svg-to-pptel output with the complete PPTist PPTElement schema. Analysis of the existing codebase shows most extensions are already implemented: `rotate`/`flipH`/`flipV` flow through `applyTransform()`, text/image/shape/line element types already output their respective extension properties, and `stroke-width` already maps to line `width`.
+The existing CLI (`src/cli.ts`) already has basic directory walking and recursive flag support, but lacks proper batch output handling. Directory mode outputs results to stdout without saving to files, making it impractical for real batch workflows. The fix is NOT to rewrite the CLI but to add a new batch-specific command (`batch`) that saves outputs to a specified directory with manifest tracking.
 
-Gaps identified for v1.2 completion:
-1. **Image `filters`** — CSS filter strings (`blur`, `brightness`, etc.) from SVG `filter` element not converted to PPTist `ImageElementFilters` format
-2. **Image `clip`** — SVG `clipPath` not converted to PPTist `ImageElementClip` format
-3. **Shape `pattern`** — SVG `pattern` fill not supported (only `linearGradient`/`radialGradient` currently work)
-4. **Shape-internal `text`** — `<text>` inside `<shape>` not propagated to `PPTShapeElement.text`
+**Key insight:** The existing `convert()` async function from `src/index.ts` handles single-file conversion perfectly. Batch CLI layers directory walking, parallel processing, and file output on top of it. No changes needed to the core library.
 
-The existing pipeline is well-structured for adding these: the `attrs.gradient` and `attrs.shadow` resolution pattern (D-15, D-22) provides a precedent for resolving `filter="url(#id)"` to structured objects at parse time.
-
-## Current Pipeline (v1.1 State)
+## Current Architecture
 
 ```
-SVG String
-    ↓
-[svg-parser.ts] → SvgElement tree
-    ├── gradient resolved: attrs.gradient = Gradient object (D-15)
-    └── shadow resolved: attrs.shadow = PPTElementShadow object (D-22)
-    ↓
-[coordinate-mapper.ts]
-    ├── parseTransform() → TransformResult { translateX/Y, scaleX/Y, rotateDeg, rotateCX/CY }
-    └── mapCoordinates() → CoordinateMapping { left, top, width, height }
-    ↓
-[transform-to-pptel.ts]
-    └── transformElement() → PPTElement (rotate/flipH/flipV from applyTransform())
-        ├── rect/circle/ellipse/path/polline/polyline → PPTShapeElement
-        ├── text → PPTTextElement
-        ├── image → PPTImageElement
-        └── line → PPTLineElement
-    ↓
-JSON Output (PPTElement[])
+src/
+  cli.ts          # CAC CLI framework — entry point
+  index.ts        # convert() async function — REUSE THIS
+  parser/
+    svg-parser.ts # SVG -> SvgElement tree
+  transformer/
+    transform-to-pptel.ts  # SvgElement -> PPTElement[] (async transformElement)
+  text-measurer.ts # @resvg/resvg-js text measurement
+  mapper/
+    coordinate-mapper.ts # Transform parsing
+  shapes/
+    shape-to-path.ts # Path conversion utilities
 ```
 
-## Integration Analysis by Extension Category
+### Existing CLI Flow (Single File)
 
-### Category 1: Transform Extensions — `rotate`/`flipH`/`flipV`
-
-**Status:** ALREADY IMPLEMENTED
-
-**Integration point:** `src/transformer/apply-transform.ts` + each shape/image case in `transform-to-pptel.ts`
-
-**How it works:**
-- `applyTransform(left, top, width, height, transform)` returns `{ left, top, width, height, rotate, flipH?, flipV? }`
-- `getFlipFromScale()` derives flip from negative scale values (D-03/D-04)
-- `getRotateDeg()` extracts raw rotation degrees (D-02)
-- When `rotateCX/CY` is defined, rotation is baked into coordinates and `rotate` returns 0 (D-01)
-
-**What each element case does:**
-```typescript
-// Every shape case (rect, circle, ellipse, path, polygon, polyline):
-const transformed = applyTransform(left, top, width, height, transform)
-const { rotate, flipH, flipV } = transformed
-// ... build PPTShapeElement with rotate, flipH, flipV ...
-
-// Image case:
-const transformed = applyTransform(left, top, width, height, transform)
-const { rotate, flipH, flipV } = transformed
-// ... build PPTImageElement with rotate, flipH, flipV ...
-if (flipH) result.flipH = true
-if (flipV) result.flipV = true
+```
+CLI arg: input.svg
+    ↓
+readFileSync(input, 'utf-8')
+    ↓
+convert(svgContent) → Promise<ConvertResult>
+    ↓
+writeFileSync(output, result.output) OR console.log(result.output)
 ```
 
-**v1.2 action:** No changes needed — this is already complete.
+### Existing CLI Flow (Directory - CURRENTLY FLAWED)
+
+```
+CLI arg: inputDir
+    ↓
+walkDir(inputDir, recursive) → string[]
+    ↓
+for each file:
+    readFileSync → convert() → console.log(output)
+    ↓
+console.error("Converted N/M files")
+```
+
+**Problem:** Results go to stdout, not to files. No output directory, no manifest, no parallel processing.
 
 ---
 
-### Category 2: Text Extensions — `fill`/`outline`/`shadow`/`vAlign`/`fixedHeight`/`wordSpace`
+## Integration Points with Existing Code
 
-**Status:** MOSTLY IMPLEMENTED
+### Reuse: `convert()` from `src/index.ts`
 
-**Current implementation in `transform-to-pptel.ts` text case (lines 759-843):**
-
-| Property | Implementation | Status |
-|----------|---------------|--------|
-| `fill` | `result.fill = colorToHex(fillColor)` | ✓ Implemented |
-| `outline` | `result.outline = { color, width: 1 }` when `attrs.stroke` present | ✓ Implemented |
-| `shadow` | `result.shadow = attrs.shadow` (from filter resolution) | ✓ Implemented |
-| `vAlign` | `result.vAlign = 'middle'` hardcoded | ⚠️ Should be configurable or detected |
-| `fixedHeight` | `result.fixedHeight = !!element.attrs.height` | ✓ Implemented |
-| `wordSpace` | `result.wordSpace = 0` hardcoded | ⚠️ Should map from `letter-spacing` |
-| `lineHeight` | `result.lineHeight = 1.5` hardcoded | ⚠️ Should be configurable |
-| `paragraphSpace` | `result.paragraphSpace = 5` hardcoded | ⚠️ Should be configurable |
-| `vertical` | `result.vertical = writingMode === 'vertical-rl'\|\|'vertical-lr'` | ✓ Implemented |
-| `defaultFontSize` | `result.defaultFontSize = scaledFontSize` | ✓ Implemented |
-
-**Gaps in text extensions:**
-1. **`wordSpace`:** Should map from SVG `letter-spacing` attribute instead of hardcoded 0
-2. **`outline.width`:** Currently hardcoded to 1, should use `stroke-width`
-3. **`fill` with gradient:** Text does not support gradient fill per PPTist schema (only solid color)
-
-**v1.2 action:**
 ```typescript
-// wordSpace: letter-spacing already parsed, use it
-const letterSpacing = parseFloat(String(element.attrs['letter-spacing'] || '0'))
-// wordSpace is in px, letter-spacing in em typically — may need conversion
+// This is the async single-file converter — use as-is
+export async function convert(svgContent: string, options?: ConvertOptions): Promise<ConvertResult>
+```
 
-// outline.width: use stroke-width instead of hardcoded 1
-...(element.attrs.stroke && { outline: { color: colorToHex(element.attrs.stroke) || '#000000', width: parseFloat(element.attrs['stroke-width'] || '1') } }),
+**Why reuse:** Already handles:
+- SVG parsing via `parseSvg()`
+- AST validation (root svg element, valid dimensions)
+- Transform to PPTElement via `transformToPPTElement()` (async)
+- Background inference from first element
+- Full PPTist presentation wrapping
+
+### Extend: `src/cli.ts`
+
+**Current command structure:**
+```typescript
+cli.command('<input>', 'SVG file or directory to convert')
+  .option('-o, --output <path>', 'Output file path (default: stdout)')
+  .option('-r, --recursive', 'Process directories recursively')
+```
+
+**Needed additions:**
+- New subcommand: `svg2pptel batch <inputDir> <outputDir>` OR extended flags
+- `--output-dir <path>` for batch mode
+- `--manifest` flag to generate summary JSON
+- `--parallel <n>` for concurrent processing (optional, nice-to-have)
+- `--overwrite` flag to control existing output file behavior
+
+### Reuse: File walking logic from `walkDir()`
+
+```typescript
+// Already in cli.ts — reuse or extract to shared utility
+function walkDir(dir: string, recursive: boolean): string[]
+```
+
+**Current implementation is adequate:** Recursive directory traversal, `.svg` extension filtering, graceful error handling for unreadable entries.
+
+---
+
+## New Components Needed
+
+### 1. `src/cli-batch.ts` (NEW FILE)
+
+**Purpose:** Batch-specific CLI logic extracted from cli.ts to keep single-file and batch modes separate.
+
+**Responsibilities:**
+- Parse batch CLI arguments
+- Validate input/output directories
+- Orchestrate batch processing
+- Generate manifest
+
+**Interface:**
+```typescript
+interface BatchOptions {
+  inputDir: string
+  outputDir: string
+  recursive: boolean
+  overwrite: boolean
+  manifest: boolean
+  parallel?: number
+}
+
+interface BatchResult {
+  success: number
+  failed: number
+  errors: Array<{ file: string; error: string }>
+  manifestPath?: string
+}
+
+export async function runBatch(options: BatchOptions): Promise<BatchResult>
+```
+
+### 2. `src/batch/process-file.ts` (NEW FILE)
+
+**Purpose:** Single-file processing within batch context.
+
+**Responsibilities:**
+- Read SVG file
+- Call `convert()` 
+- Write output JSON to corresponding path in output directory
+- Handle errors per-file (don't fail entire batch)
+
+```typescript
+export async function processBatchFile(
+  inputPath: string,
+  outputPath: string,
+  options: ConvertOptions
+): Promise<{ success: boolean; error?: string }>
+```
+
+**Key behavior:** Uses existing `convert()` — no duplication of conversion logic.
+
+### 3. `src/batch/manifest.ts` (NEW FILE)
+
+**Purpose:** Generate batch processing summary.
+
+```typescript
+export interface ManifestEntry {
+  input: string      // relative path from input dir
+  output: string    // relative path to output JSON
+  status: 'success' | 'failed'
+  error?: string
+  elementCount?: number
+  processedAt: string  // ISO timestamp
+}
+
+export interface Manifest {
+  processedAt: string
+  total: number
+  success: number
+  failed: number
+  entries: ManifestEntry[]
+}
+
+export function writeManifest(manifest: Manifest, outputPath: string): void
 ```
 
 ---
 
-### Category 3: Image Extensions — `outline`/`shadow`/`filters`/`clip`/`flipH`/`flipV`/`radius`/`colorMask`
+## Data Flow Changes
 
-**Status:** PARTIALLY IMPLEMENTED
+### New Batch Processing Flow
 
-**Current implementation in `transform-to-pptel.ts` image case (lines 846-884):**
+```
+CLI args: svg2pptel inputDir -o outputDir --recursive --manifest
+    ↓
+[cli-batch.ts] runBatch()
+    ↓
+walkDir(inputDir, recursive) → svgFiles[]
+    ↓
+For each svgFile (parallel or sequential):
+    ↓
+    [process-batch-file.ts]
+    ├─ readFileSync(svgFile)
+    ├─ convert(content) → result
+    ├─ derive outputPath: inputDir/svgFile.svg → outputDir/svgFile.json
+    └─ if success: writeFileSync(outputPath, result.output)
+    ↓
+Collect results → Manifest
+    ↓
+writeFileSync(outputDir/manifest.json, manifest)
+    ↓
+console.log summary: "Converted N/M files"
+```
 
-| Property | Implementation | Status |
-|----------|---------------|--------|
-| `outline` | `result.outline = { width, color }` when `attrs.stroke` present | ✓ Implemented |
-| `shadow` | `result.shadow = attrs.shadow` (from filter resolution) | ✓ Implemented |
-| `flipH`/`flipV` | From `applyTransform()` | ✓ Implemented |
-| `filters` | NOT IMPLEMENTED | ✗ Gap |
-| `clip` | NOT IMPLEMENTED | ✗ Gap |
-| `radius` | NOT IMPLEMENTED | ✗ Gap (SVG doesn't have native radius on image) |
-| `colorMask` | NOT IMPLEMENTED | ✗ Gap |
+### Output Directory Structure
 
-**Gap: Image `filters`**
+```
+inputDir/
+  ├── foo.svg
+  ├── bar.svg
+  └── subdir/
+      └── baz.svg
 
-SVG `filter` element with `feColorMatrix`, `feGaussianBlur`, etc. should map to CSS filter strings. The existing `attrs.shadow` resolution (D-22) shows the pattern:
+outputDir/ (created if not exists)
+  ├── foo.json
+  ├── bar.json
+  ├── subdir/
+  │   └── baz.json
+  └── manifest.json (if --manifest)
+```
 
+**Design decision:** Mirror input directory structure in output directory. This makes it easy to find corresponding outputs and handle nested directories.
+
+---
+
+## Suggested Build Order
+
+### Phase 1: Batch CLI Foundation (Low Risk)
+
+1. **Extract `processBatchFile()` from `cli.ts`**
+   - Create `src/batch/process-file.ts`
+   - Reuse `convert()` from `src/index.ts`
+   - Handle per-file errors
+
+2. **Add `--output-dir` flag to existing CLI**
+   - When input is directory AND `--output-dir` is specified:
+     - Process files and write to output directory
+     - Keep stdout for summary only
+   - Existing single-file behavior unchanged
+
+3. **Add manifest generation**
+   - Create `src/batch/manifest.ts`
+   - Add `--manifest` flag
+   - Write `manifest.json` alongside outputs
+
+**Verification:** `svg2pptel inputDir -o outputDir --manifest --recursive`
+
+### Phase 2: Parallel Processing (Optional Enhancement)
+
+4. **Add `Promise.all()` for concurrent file processing**
+   - Add `--parallel <n>` flag
+   - Default: sequential (safer, easier debugging)
+   - At n=1: sequential; n>1: Promise.all with concurrency limit
+
+**Note:** `transformElement()` is async due to text measurement via `@resvg/resvg-js`. Parallel processing of multiple SVGs is safe since each has its own WASM context.
+
+### Phase 3: Polish
+
+5. **Progress reporting**
+   - Add `--verbose` flag for per-file output
+   - Default: quiet except summary
+   - Real-time progress: "Processing [3/50]: foo.svg"
+
+6. **Error handling improvements**
+   - `--continue-on-error` flag (default: true for batch)
+   - Individual file errors don't stop the batch
+
+---
+
+## Key Design Decisions
+
+### Decision 1: Mirrored Directory Structure
+
+**Choice:** Output directory mirrors input directory structure.
+
+**Rationale:**
+- Easy to find corresponding outputs: `input/dir/foo.svg` → `output/dir/foo.json`
+- Nested directories preserved
+- No filename collision issues
+
+**Alternative considered:** Flatten to single directory with subdirectory prefixes.
+- Rejected: loses organization, potential filename collisions.
+
+### Decision 2: Manifest as Sidecar File
+
+**Choice:** `manifest.json` written to output directory root (opt-in via `--manifest`).
+
+**Rationale:**
+- Batch results are self-documenting
+- Enables downstream tooling to process results
+- Machine-readable summary for CI/CD
+
+**Alternative considered:** Always generate manifest.
+- Rejected: adds file even for simple single-output batches.
+
+### Decision 3: Per-File Async with Optional Parallelism
+
+**Choice:** Default sequential, opt-in parallel with `--parallel <n>`.
+
+**Rationale:**
+- Sequential is easier to debug and predict
+- `--resvg/resvg-js` has WASM overhead per measurement — parallelism helps
+- User controls resource usage
+
+**Note:** Each `convert()` call initializes its own WASM context. Multiple concurrent conversions are safe.
+
+### Decision 4: Error Strategy — Fail Individual, Not Batch
+
+**Choice:** Individual file errors are recorded but don't stop the batch.
+
+**Rationale:**
+- One bad SVG shouldn't fail the entire batch
+- Partial success is valuable
+- Summary shows exactly which files failed and why
+
+**Implementation:**
 ```typescript
-// D-22: SVG filter="url(#shadowId)" → shadow (resolved at parse time)
-if (element.attrs.shadow) {
-  result.shadow = element.attrs.shadow
+try {
+  const result = await convert(content)
+  if (result.success) { /* write output */ }
+  else { /* record error */ }
+} catch (err) {
+  // record error, continue to next file
 }
 ```
-
-For image filters, we need to similarly resolve `filter="url(#filterId)"` to an `ImageElementFilters` object. The challenge is that SVG filters are complex (many filter primitives) while PPTist `ImageElementFilters` is a simple CSS-like object with keys like `blur`, `brightness`, `contrast`, etc.
-
-**Architecture decision needed:** Either:
-- **A)** Parse SVG filter primitives and emit simplified CSS filters (complex, may lose fidelity)
-- **B)** Skip filter conversion (document as out-of-scope)
-- **C)** Use a simplified mapping for common cases like `feGaussianBlur` → `filters.blur`
-
-**Gap: Image `clip`**
-
-SVG `clipPath` elements define clipping regions. The PPTist `ImageElementClip` has `range: [[x1,y1], [x2,y2]]` (percentages) and `shape: string` (clipping shape name).
-
-This requires:
-1. Detecting `clip-path="url(#id)"` on image elements
-2. Resolving the clipPath element's geometry
-3. Converting to PPTist clip format
-
-Complex; recommend deferring to v1.3+ unless specifically needed.
-
----
-
-### Category 4: Shape Extensions — `gradient`/`shadow`/`flipH`/`flipV`/`outline`/`pattern`
-
-**Status:** MOSTLY IMPLEMENTED
-
-**Current implementation:** Gradient and shadow already resolved at parse time (D-15, D-22). Each shape case in `transform-to-pptel.ts` outputs these properties.
-
-| Property | Implementation | Status |
-|----------|---------------|--------|
-| `gradient` | `result.gradient = attrs.gradient` when present | ✓ Implemented |
-| `shadow` | `result.shadow = attrs.shadow` | ✓ Implemented |
-| `flipH`/`flipV` | From `applyTransform()` | ✓ Implemented |
-| `outline` | `result.outline = { style, width, color, opacity? }` | ✓ Implemented |
-| `pattern` | NOT IMPLEMENTED | ✗ Gap |
-| `special` | Set for paths with non-M/L/H/V commands | ✓ Implemented |
-| `text` | NOT IMPLEMENTED | ✗ Gap |
-| `pathFormula` | NOT IMPLEMENTED | ✗ Gap |
-| `keypoints` | NOT IMPLEMENTED | ✗ Gap |
-
-**Gap: Shape `pattern`**
-
-SVG `<pattern>` elements define repeating tile fills. Supporting this requires:
-1. Detecting `fill="url(#patternId)"` on shape elements
-2. Parsing the pattern's `width`, `height`, `viewBox`, and content
-3. Converting to PPTist `pattern` string format (unknown format — needs research)
-
-**Gap: Shape-internal `text`**
-
-When `<text>` is a child of a `<shape>` in the SVG tree, it should be propagated to `PPTShapeElement.text` property. Currently, text elements are processed independently and not attached to their parent shape.
-
-**Architecture for text-as-child-of-shape:**
-```typescript
-// In transformElement() for shape cases:
-// Check if shape has text children
-const textChild = element.children.find(child => child.type.toLowerCase() === 'text')
-if (textChild) {
-  result.text = {
-    content: extractTextContentFromElement(textChild),
-    defaultFontName: 'Microsoft YaHei',
-    defaultColor: colorToHex(textChild.attrs.fill) || '#000000',
-    align: 'middle', // or detect from writing-mode
-  }
-}
-```
-
----
-
-### Category 5: Line Extensions — `width`
-
-**Status:** ALREADY IMPLEMENTED
-
-**Current implementation (line case, lines 732-757):**
-```typescript
-const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'))
-result.width = strokeWidth || 1
-```
-
-`stroke-width` correctly maps to `PPTLineElement.width` with fallback to 1.
-
----
-
-## Component Modifications Summary
-
-| Component | Changes Needed | Complexity |
-|-----------|---------------|------------|
-| `src/transformer/transform-to-pptel.ts` | Text: wordSpace from letterSpacing, outline.width from stroke-width; Image: filters/clip/resolution | Medium |
-| `src/parser/svg-parser.ts` | Resolve `clipPath` references and `pattern` references at parse time (like gradient/shadow) | Medium-High |
-| `src/types/ast.ts` | May need new types for clip/pattern resolution | Low |
-| `src/slides.ts` | No changes needed — schema types already define all properties | None |
-
-**No changes needed to:**
-- `src/mapper/coordinate-mapper.ts` — coordinate mapping already correct
-- `src/transformer/apply-transform.ts` — transform application already complete
-- `src/shapes/shape-to-path.ts` — path generation already correct
-
----
-
-## Data Flow After v1.2 Additions
-
-```
-SVG String
-    ↓
-[svg-parser.ts] → SvgElement tree
-    ├── gradient resolved: attrs.gradient = Gradient (D-15)
-    ├── shadow resolved: attrs.shadow = PPTElementShadow (D-22)
-    ├── clip resolved: attrs.clip = ImageElementClip (NEW — D-30)
-    └── pattern resolved: attrs.pattern = string (NEW — D-31)
-    ↓
-[coordinate-mapper.ts] → CoordinateMapping (unchanged)
-    ↓
-[transform-to-pptel.ts]
-    ├── Text case: wordSpace←letterSpacing, outline.width←stroke-width (D-32)
-    ├── Image case: filters←filter resolution, clip←clip resolution (NEW)
-    ├── Shape case: text←child text element (NEW), pattern←pattern resolution (NEW)
-    └── Line case: width already correct (D-24)
-    ↓
-JSON Output (PPTElement[])
-```
-
----
-
-## Build Order Recommendation
-
-**Phase 1: Quick Wins (Low Risk)**
-1. Fix text `wordSpace` to use `letter-spacing` attribute
-2. Fix text `outline.width` to use `stroke-width`
-3. Verify all other text/image/shape/line extensions are working
-
-**Phase 2: Image Extensions (Medium Risk)**
-1. Research PPTist `ImageElementFilters` format and CSS filter string mapping
-2. Implement SVG filter-to-filters conversion (at least `feGaussianBlur` → `blur`)
-3. Defer `clip` to v1.3 (complexity high, low urgency)
-
-**Phase 3: Shape Extensions (Medium Risk)**
-1. Implement text-as-child-of-shape propagation
-2. Research PPTist `pattern` string format
-3. Defer `pathFormula` and `keypoints` (editor-specific features)
 
 ---
 
 ## Anti-Patterns to Avoid
 
-1. **Do NOT add filter/clip/pattern resolution to `transformElement()`** — These should be resolved at parse time like `gradient` and `shadow` (D-15, D-22 pattern). Adding resolution logic to the transformer creates mixed responsibilities.
+1. **Do NOT duplicate conversion logic**
+   - The `convert()` function IS the conversion logic
+   - Batch processing only orchestrates file I/O around it
+   - Any bug fix in conversion should NOT need a batch code change
 
-2. **Do NOT implement full SVG filter primitive parsing** — SVG filters are extremely complex. Only map the simplest cases (`feGaussianBlur` → `blur`) and skip the rest.
+2. **Do NOT block stdout with per-file output**
+   - In batch mode, stdout is reserved for summary
+   - Use console.error for progress messages (or make it optional)
+   - Per-file results go to files
 
-3. **Do NOT change the coordinate pipeline** — `mapCoordinates()` and `applyTransform()` are working correctly. Extensions do not need coordinate changes.
+3. **Do NOT process non-SVG files**
+   - `walkDir()` already filters to `.svg` extension
+   - If output extension is wrong, reject at parse time, not conversion
 
-4. **Do NOT add new element types** — The v1.2 scope is extending existing element types, not adding new SVG element support.
+4. **Do NOT create empty output directories**
+   - If input has no SVG files, output directory shouldn't be created
+   - Exit with warning message instead
+
+---
+
+## Scalability Considerations
+
+| Scale | At 100 files | At 1,000 files | At 10,000 files |
+|-------|--------------|-----------------|-----------------|
+| Sequential | Fine | ~30-60s | Minutes — consider parallelism |
+| Parallel (4) | Fine | Faster | ~2-3x speedup |
+| Memory | ~50MB | ~100MB | ~500MB+ — watch for leaks |
+| manifest.json | Small | Manageable | ~1MB — acceptable |
+
+**Note:** `text-measurer.ts` has a lazy singleton for WASM init. Each `convert()` call is independent, so parallel processing doesn't share WASM state.
+
+---
+
+## File Structure After Changes
+
+```
+src/
+  cli.ts                    # ENTRY: CLI parsing, delegate to batch or single
+  cli-batch.ts              # NEW: Batch orchestration
+  index.ts                  # REUSE: convert() function
+  batch/
+    process-file.ts         # NEW: Per-file batch processing
+    manifest.ts             # NEW: Manifest generation
+  parser/
+    svg-parser.ts           # REUSE: unchanged
+  transformer/
+    transform-to-pptel.ts   # REUSE: unchanged
+  text-measurer.ts          # REUSE: unchanged
+  mapper/
+    coordinate-mapper.ts   # REUSE: unchanged
+  shapes/
+    shape-to-path.ts        # REUSE: unchanged
+```
+
+**Total new files:** 3 (`cli-batch.ts`, `batch/process-file.ts`, `batch/manifest.ts`)
+**Modified files:** 1 (`cli.ts` — add batch command delegation)
+**Unchanged files:** Everything else
 
 ---
 
 ## Sources
 
-- Code analysis: `src/transformer/transform-to-pptel.ts` — all element case implementations
-- Code analysis: `src/transformer/apply-transform.ts` — transform extension handling
-- Code analysis: `src/slides.ts` — PPTElement type definitions
-- Code analysis: `src/parser/svg-parser.ts` — gradient/shadow resolution pattern (D-15, D-22)
-- D-15, D-22, D-24, D-25, D-26, D-27, D-28 — existing implementation decisions from v1.1
+- `src/cli.ts` — existing CLI implementation with `walkDir()` and directory handling
+- `src/index.ts` — `convert()` async function (the core API to reuse)
+- `src/transformer/transform-to-pptel.ts` — `transformElement()` async (reason for async)
+- `src/text-measurer.ts` — WASM initialization pattern (singleton per call)
+- `package.json` — dependencies (`cac`, `fast-xml-parser`, `@resvg/resvg-js`)
 
 ---
 
-*Architecture research for: svg-to-pptel v1.2 PPTist格式对齐*
-*Researched: 2026-06-30*
+*Architecture research for: svg-to-pptel v1.x directory batch CLI*
+*Researched: 2026-07-02*

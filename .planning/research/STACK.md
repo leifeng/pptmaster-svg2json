@@ -1,194 +1,134 @@
-# Stack Research
+# Stack Research: Directory Batch CLI
 
-**Domain:** SVG to PPTElement JSON conversion (TypeScript library)
-**Focus:** v1.2 PPTist schema alignment — rotate/flipH/flipV, text fill/outline/shadow/vAlign/fixedHeight/wordSpace, image outline/shadow/filters/clip, shape gradient/shadow/flipH/flipV, line stroke width
-**Researched:** 2026-06-30
+**Project:** svg-to-pptel v1.3+ directory batch CLI
+**Focus:** Stack additions/changes for directory batch processing (read SVG from dir, output JSON to same dir)
+**Researched:** 2026-07-02
 **Confidence:** HIGH
 
 ## Executive Summary
 
-The v1.2 PPTist schema alignment requires **no new library dependencies**. All PPTElement types already exist in `slides.ts` with the required properties. The existing `fast-xml-parser` handles all SVG parsing including gradients, filters, and clipPaths.
+**No new dependencies required.** The existing Node.js `fs` module, `cac` CLI framework, and `picocolors` are sufficient. The directory batch CLI feature is achievable through TypeScript implementation using existing APIs. The only meaningful addition is an optional progress bar library if concurrent processing is desired.
 
-The work is purely **TypeScript implementation** — adding missing SVG attribute parsing and mapping logic within the existing codebase.
+## Existing Stack (Sufficient for Batch CLI)
 
-## Core Technologies (No Changes)
+| Technology | Version | Purpose | Status for Batch CLI |
+|------------|---------|---------|---------------------|
+| TypeScript | ^5.5.0 | Language | No change |
+| fast-xml-parser | ^5.9.3 | SVG parsing | No change |
+| cac | ^6.7.14 | CLI framework | Already supports directory input; needs `--batch` flag |
+| picocolors | ^1.1.1 | CLI colors | Already used; sufficient for batch output formatting |
+| uuid | ^14.0.1 | ID generation | No change |
+| Node.js fs | built-in | File I/O | Sufficient; no `fs-extra` needed |
 
-| Technology | Version | Purpose | Rationale |
-|------------|---------|---------|-----------|
-| TypeScript | ^5.5.0 | Language | Strict mode, compiles to CommonJS |
-| fast-xml-parser | ^5.9.3 | SVG parsing | Already handles gradients, filters, clipPaths via first-pass collection |
-| cac | ^6.7.14 | CLI framework | No CLI changes for v1.2 |
-| uuid | ^14.0.1 | ID generation | No changes |
-| picocolors | ^1.1.1 | CLI colors | No changes |
+## What's Already Implemented
 
-## What's Already Supported
+Reviewing `src/cli.ts`:
 
-Reviewing the existing codebase against v1.2 requirements:
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Directory detection | Done | `isDirectory()` using `statSync` |
+| Recursive walk | Done | `walkDir()` with `readdirSync` |
+| SVG filtering | Done | `extname(entry).toLowerCase() === '.svg'` |
+| File reading | Done | `readFileSync(filePath, 'utf-8')` |
+| Async convert call | Done | `await convert(content)` |
+| Error handling | Done | Partial failure handling with `successCount`/`errorCount` |
 
-### Transform Properties
-| Property | Status | Location |
-|----------|--------|----------|
-| `rotate` | Supported | `PPTShapeElement`/`PPTImageElement` base type; `applyTransform()` handles it |
-| `flipH` | Supported | `ImageOrShapeFlip` interface; `getFlipFromScale()` handles negative scale |
-| `flipV` | Supported | Same as flipH |
+## What's Missing for Same-Directory Output
 
-### Text Properties
-| Property | Status | Location |
-|----------|--------|----------|
-| `fill` | Supported | `colorToHex()` maps SVG fill |
-| `outline` | Supported | Line 831 in transform-to-pptel.ts: `element.attrs.stroke` maps to outline |
-| `shadow` | Partial | Parser sets `attrs.shadow`, but transformer ignores it for text (line 832: `shadow: undefined`) |
-| `vAlign` | Partial | Hardcoded `'middle'` (line 833); could map from `dominant-baseline` |
-| `fixedHeight` | Supported | Line 834: `fixedHeight` from SVG height attribute |
-| `wordSpace` | Partial | Hardcoded `0` (line 835); SVG has `word-spacing` attribute not yet mapped |
+The current CLI only **prints** JSON to stdout for directory mode (line 88-90). To write JSON files to the same directory:
 
-### Image Properties
-| Property | Status | Location |
-|----------|--------|----------|
-| `outline` | Supported | Line 865-873: stroke maps to outline |
-| `shadow` | Supported | Line 876-878: `attrs.shadow` from filter def |
-| `filters` | Missing | No parsing of CSS `filter="blur(5px)"` strings |
-| `clip` | Missing | clipPath defs skipped (line 360); `clip-path` attr not resolved |
+| Missing | Implementation | No Library Needed Because |
+|---------|----------------|--------------------------|
+| Output path calculation | `outputPath = svgPath.replace(/\.svg$/i, '.json')` | Simple string manipulation |
+| File write | `writeFileSync(outputPath, json, 'utf-8')` | Node.js built-in fs |
+| `--batch` flag | Add to cac command options | Existing cac pattern |
+| Overwrite confirmation | Prompt or `--force` flag | Simple prompt with `readline` or `cac` confirm |
 
-### Shape Properties
-| Property | Status | Location |
-|----------|--------|----------|
-| `gradient` | Supported | `resolveFillReference()` in parser maps `fill="url(#id)"` to gradient |
-| `shadow` | Supported | `resolveFilterReference()` in parser; line 420-422 in transformer |
-| `flipH` | Supported | Via `getFlipFromScale()` |
-| `flipV` | Supported | Via `getFlipFromScale()` |
+## Optional Enhancement: Concurrent Processing
 
-### Line Properties
-| Property | Status | Location |
-|----------|--------|----------|
-| `width` | Supported | Line 750-751: `stroke-width` maps to `result.width` |
+For large directories (100+ files), sequential processing may be slow.
 
-## Implementation Work (No New Dependencies)
+| Option | Library | When to Use | Why |
+|--------|---------|-------------|-----|
+| Native Promise.all | built-in | < 50 files | Simple, no library |
+| p-limit | ^5.0.0 | > 50 files, limit concurrency | Prevents memory pressure |
+| ora | ^8.0.0 | Any batch size | Progress spinner during processing |
 
-### 1. Image CSS Filter Parsing (Missing)
+**Recommendation:** Start without concurrency. Add `p-limit` only if profiling shows slowness.
 
-SVG elements can have `filter="blur(5px)"` as a direct CSS filter string, not just `filter="url(#id)"`.
+## Proposed CLI Changes
 
-**What to add:** `parseCssFilter()` function to parse CSS filter function syntax.
+### New Options (via cac)
 
 ```typescript
-// slides.ts already defines ImageElementFilters:
-export interface ImageElementFilters {
-  'blur'?: string; 'brightness'?: string; 'contrast'?: string;
-  'grayscale'?: string; 'saturate'?: string; 'hue-rotate'?: string;
-  'sepia'?: string; 'invert'?: string; 'opacity'?: string;
-}
+// Add to existing cac command
+.option('--batch', 'Write output JSON files to same directory as input SVGs')
+.option('--force', 'Overwrite existing JSON files without prompting')
 ```
 
-**Implementation:** Add `parseCssFilter()` in `coordinate-mapper.ts`. One regex-based function, no library.
+### Integration with Existing Code
 
-### 2. Image ClipPath Resolution (Missing)
+| File | Change |
+|------|--------|
+| `src/cli.ts` | Add batch output logic after line 86; use `writeFileSync` |
 
-`clipPath` elements are currently skipped (line 360 in `transformElement`).
+### Data Flow
 
-**What to add:** `collectClipPathDefs()` in `svg-parser.ts` (parallel to `collectFilterDefs`). Resolve `clip-path="url(#id)"` on images.
-
-```typescript
-// slides.ts already defines ImageElementClip:
-export interface ImageElementClip {
-  range: ImageClipDataRange;  // [[x1%, y1%], [x2%, y2%]]
-  shape: string;
-}
+```
+Input dir → walkDir() → [file1.svg, file2.svg, ...]
+                              ↓
+                    convert(svgContent)
+                              ↓
+                    JSON string output
+                              ↓
+                    writeFileSync(fileN.json)
 ```
 
-### 3. Text Shadow Wiring (Partial)
-
-Parser's `resolveFilterReference()` sets `attrs.shadow` but `transformElement` text case has `shadow: undefined` hardcoded (line 832).
-
-**Fix:** Check `element.attrs.shadow` for text elements.
-
-### 4. Text wordSpace from SVG
-
-SVG `word-spacing` attribute not yet mapped. Need:
-- Add `'word-spacing'?: string` to `SvgAttrs` in `ast.ts`
-- Map to `PPTTextElement.wordSpace` in `transformElement`
-
-### 5. Text vAlign Refinement (Optional)
-
-Currently hardcoded `'middle'`. SVG `dominant-baseline` attribute could map:
-- `auto` → `'top'`
-- `middle` → `'middle'`
-- `hanging` → `'bottom'`
-
-## No New Dependencies Required
-
-All v1.2 features are achievable with:
-
-| Feature | Approach | No Library Needed Because |
-|---------|----------|--------------------------|
-| CSS filter parsing | Native `parseFloat`, regex | Only need `filter="blur(5px)"` pattern |
-| clipPath resolution | Existing first-pass collection pattern | Same as gradient/filter defs |
-| Text shadow | Wire existing `attrs.shadow` | Parser already sets it |
-| Text wordSpace | Map SVG `word-spacing` attr | Direct 1:1 mapping |
-| Text vAlign | Map SVG `dominant-baseline` | Direct mapping possible |
-
-## Alternatives Considered
-
-| Library | Considered For | Why Not |
-|---------|---------------|---------|
-| `cssstyle`, `parse-css` | CSS filter parsing | Overkill — 1 regex suffices |
-| `svg-parser`, `svg-path-parser` | SVG manipulation | fast-xml-parser handles everything |
-| `color`, `tinycolor2` | Color manipulation | `colorToHex`/`colorToRgba` already inline |
-
-## What NOT to Use
+## What NOT to Add
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| `sharp` or `jimp` | Image processing | This is JSON converter; images as `src` URL |
-| `svg-path-parser` | Path manipulation | Keep path `d` strings unchanged |
-| `xml2js` | XML parsing | Less featureful than fast-xml-parser |
+| `fs-extra` | Overkill — only need `writeFileSync` | Node.js built-in fs |
+| `globby` or `fast-glob` | Current extname filtering is sufficient | `extname()` check |
+| `commander` or `yargs` | cac already in use | Extend existing cac setup |
+| `chalk` or `kleur` | picocolors already in use | Extend existing picocolors |
+| `dotenv` or `conf` | Single binary, no config file needed | CLI flags |
 
-## Integration Points
+## Minimal Change Set
 
-### `src/parser/svg-parser.ts`
-- Add `collectClipPathDefs()` (parallel to `collectFilterDefs`)
+For batch output to same directory:
 
-### `src/types/ast.ts`
-- Add `'word-spacing'?: string` to `SvgAttrs`
-- Add clipPath registry handling in `convertToSvgElement()`
+```typescript
+// No new dependencies
+// Only TypeScript changes to src/cli.ts
+```
 
-### `src/transformer/transform-to-pptel.ts`
-- Add `parseCssFilter()` for CSS filter strings
-- Wire `element.attrs.shadow` for text (line 832)
-- Add `wordSpace` mapping
-- Add `clip` resolution for images
-- Add `filters` resolution for images
+Changes:
+1. Add `--batch` option to cac command
+2. Add `--force` option for overwrite control
+3. In directory processing loop, replace `console.log(result.output)` with `writeFileSync`
 
-### `src/mapper/coordinate-mapper.ts`
-- Add `parseCssFilter()` export
+## Concurrent Processing (Optional Future)
 
-## Phase-Specific Notes
+Only if needed after testing:
 
-| Phase | Features | Dependencies |
-|-------|----------|--------------|
-| 1 | Transform rotate/flip | Already implemented |
-| 2 | Text fill/outline/shadow/vAlign/fixedHeight/wordSpace | Wire existing attrs.shadow, add wordSpacing map |
-| 3 | Image outline/shadow/filters/clip | Add CSS filter parsing, clipPath resolution |
-| 4 | Shape gradient/shadow/flipH/flipV, Line width | Already implemented |
+```json
+{
+  "dependencies": {
+    "p-limit": "^5.0.0"
+  }
+}
+```
 
-## Version Compatibility
-
-No new dependencies. All existing packages remain compatible.
-
-| Package | Compatible | Notes |
-|---------|------------|-------|
-| fast-xml-parser@5.9.3 | YES | Handles gradients/filters/clipPaths |
-| typescript@5.5.0 | YES | No change needed |
-| vitest@2.0.0 | YES | Add tests for new features |
+**When to add:** Profile a 100+ file directory and find sequential processing too slow.
 
 ## Sources
 
-- `src/slides.ts` — PPTElement types already define all required properties
-- `src/types/ast.ts` — SVG AST types; gradient/filter already collected
-- `src/parser/svg-parser.ts` — First-pass collection pattern (gradients/filters)
-- `src/transformer/transform-to-pptel.ts` — Transformer implementation
-- `src/mapper/coordinate-mapper.ts` — Transform parsing
+- `src/cli.ts` — Existing CLI implementation with directory walk
+- `src/index.ts` — `convert()` function already returns JSON string
+- Node.js built-in `fs` documentation
 
 ---
-*Stack research for: svg-to-pptel v1.2 PPTist schema alignment*
-*Researched: 2026-06-30*
+
+*Stack research for: svg-to-pptel v1.3 directory batch CLI*
+*Researched: 2026-07-02*

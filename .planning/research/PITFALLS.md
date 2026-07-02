@@ -266,3 +266,242 @@ The transformer has nearly identical code for `rect`, `circle`, `ellipse`, `path
 
 *Pitfalls research for: svg-to-pptel v1.2 PPTist format alignment*
 *Researched: 2026-06-30*
+---
+
+# Domain Pitfalls: Directory Batch CLI for SVG-to-JSON
+
+**Domain:** CLI batch processing for file conversion library
+**Researched:** 2026/07/02
+**Context:** svg-to-pptel v1.3 — TypeScript library, async convert(), existing CLI with basic directory walk
+
+---
+
+## Critical Pitfalls
+
+### Pitfall 11: Output File Naming Collisions
+**What goes wrong:** When converting dir/foo.svg and dir/bar.svg, both write to foo.json / bar.json in the same output directory. If two SVG files have the same basename (e.g., icon.svg in different subdirectories), one overwrites the other silently.
+
+**Why it happens:** The existing walkDir preserves subdirectory structure in the path, but does not use it for output organization.
+
+**Consequences:**
+- Data loss: one file conversion is lost
+- Silent failures: user may not notice until they check
+- Debugging nightmare: different inputs produce identical outputs
+
+**Prevention:** When outputting to a directory, either:
+- Mirror the source directory structure in the output (e.g., out/dir/foo.json)
+- Use unique output names (e.g., out/foo.svg.json)
+- Detect and warn about collisions before writing
+
+**Detection:** Log which files were written; compare input count vs output count.
+
+---
+
+### Pitfall 12: --output with Directory Input Semantics
+**What goes wrong:** The current CLI forbids --output with directory input entirely. This prevents useful patterns like --output ./outdir.
+
+**Why it happens:** The error message says single file holds one result — but this conflates output to stdout with output to a directory.
+
+**Consequences:**
+- Cannot batch-convert to a specific output directory
+- Forces users to pipe and redirect manually
+
+**Prevention:**
+- Allow --output dir when input is a directory
+- Interpret it as write all results to this directory
+- Error only if --output points to a file when input is a directory
+
+**Phase:** Phase 1 fix — the logic already exists, just needs to be corrected.
+
+---
+
+### Pitfall 13: Concurrent File System Pressure
+**What goes wrong:** Processing 1000+ SVG files concurrently overwhelms the file system or exhausts memory (resvg-js text measurement is async and expensive).
+
+**Why it happens:** Naive parallel implementation processes all files simultaneously. resvg-js initialization is heavy; concurrent text measurement compounds this.
+
+**Consequences:**
+- System-wide slowdown or OOM
+- Conversion quality degrades under memory pressure
+- Silent failures or corrupted outputs
+
+**Prevention:**
+- Use a bounded concurrency pool (e.g., p-limit with concurrency of 4-8)
+- Monitor memory usage; pause intake if near limits
+- Consider a progress bar that shows active workers
+
+**Phase:** Phase 2 or 3, depending on target use scale.
+
+---
+
+### Pitfall 14: Partial Failure Exit Code
+**What goes wrong:** The existing code process.exit(0) even when some files fail (line 103). This hides failures from scripts that depend on the CLI.
+
+**Why it happens:** Exit 0 even on partial failure per RESEARCH.md recommendation — but RESEARCH.md likely meant dont fail the whole batch for one bad file, not always exit 0.
+
+**Consequences:**
+- CI pipelines pass despite conversion errors
+- Scripts cannot distinguish partial from complete success
+- Users think all files succeeded
+
+**Prevention:**
+- Exit 0 only when errorCount === 0
+- Exit 1 when errorCount > 0
+- Consider --fail-fast flag to stop on first error
+- At minimum: add --partial-ok flag for scripts that want the old behavior
+
+**Phase:** Phase 1 — simple fix, high value.
+
+---
+
+### Pitfall 15: Missing Output Directory Creation
+**What goes wrong:** If --output outdir is specified and the directory does not exist, the write fails.
+
+**Why it happens:** writeFileSync does not auto-create parent directories.
+
+**Consequences:**
+- Batch fails because one subdirectory is missing
+- User must manually mkdir -p before running
+- Confusing error: ENOENT no such file or directory
+
+**Prevention:**
+- Before writing any file, ensure output directory exists: mkdir -p(outdir, recursive: true)
+- Do this once at the start of batch processing
+
+**Phase:** Phase 1.
+
+## Moderate Pitfalls
+
+### Pitfall 16: No Progress Feedback for Large Batches
+**What goes wrong:** User runs batch on 500 files, sees nothing for 2 minutes, then gets all output at once.
+
+**Why it happens:** Current implementation prints per-file results but no aggregate progress.
+
+**Consequences:**
+- User thinks CLI is hung
+- Cannot estimate time remaining
+- No way to cancel gracefully (Ctrl+C leaves partial output)
+
+**Prevention:**
+- Show progress: Processing [45/500]: filename.svg...
+- Use a non-interactive progress bar for CI (--quiet flag suppresses it)
+- Handle SIGINT to clean up and report partial results
+
+**Phase:** Phase 2.
+
+---
+
+### Pitfall 17: Mixing Stdout and Stderr Output
+**What goes wrong:** In directory mode, results go to console.log (stdout) while errors go to console.error (stderr). Users who redirect stdout to a file miss errors.
+
+**Why it happens:** Per-file results use console.log, summary uses console.error.
+
+**Consequences:**
+- Errors are lost in redirected output
+- Log files contain only the JSON results, not failures
+- Hard to correlate which file had which error
+
+**Prevention:**
+- Use consistent output channel (prefer stdout for results, only use stderr for fatal errors)
+- Or provide --log-file path to capture all diagnostic output
+- Add --json flag for machine-readable output (all results as JSON array)
+
+**Phase:** Phase 2.
+
+---
+
+### Pitfall 18: Recursive Walk Symlink Loops
+**What goes wrong:** If a directory contains symlinks to parent directories, walkDir with --recursive enters an infinite loop.
+
+**Why it happens:** statSync follows symlinks by default; no cycle detection.
+
+**Consequences:**
+- CLI hangs
+- Exhausts file descriptors or disk space
+- Possible crash with stack overflow on deep recursion
+
+**Prevention:**
+- Use lstatSync to detect symlinks, or
+- Track visited inode/dev pairs and skip already-seen directories
+- Provide --follow-symlinks flag (default false)
+
+**Phase:** Phase 1 (quick fix) or Phase 3 (robust symlink handling).
+
+---
+
+### Pitfall 19: Large Single File Crashes Memory
+**What goes wrong:** A 50MB SVG file (e.g., traced from high-res image) causes OOM during resvg-js rendering.
+
+**Why it happens:** resvg-js loads and rasterizes the entire SVG; no streaming or size limits.
+
+**Consequences:**
+- CLI crashes the Node process
+- Affects other files being processed concurrently
+- No partial output
+
+**Prevention:**
+- Set a max file size limit (e.g., 10MB) and skip files exceeding it with a warning
+- Add --max-file-size bytes flag
+- Report which files were skipped and why
+
+**Phase:** Phase 2 or 3.
+
+## Minor Pitfalls
+
+### Pitfall 20: File Extension Case Sensitivity
+**What goes wrong:** walkDir uses .toLowerCase() === .svg — this misses .SVG, .Svg on case-sensitive filesystems (Linux), but works on macOS/Windows by default.
+
+**Why it happens:** Inconsistent behavior across platforms.
+
+**Consequences:**
+- Works on developer machine, fails on Linux CI
+- Or vice versa depending on how the code evolves
+
+**Prevention:**
+- Normalize extension comparison: extname(entry).toLowerCase() === .svg
+- Already done in line 43 of cli.ts — this is correct. Just be aware not to fix it to case-sensitive.
+
+---
+
+### Pitfall 21: --recursive Default Behavior Confusion
+**What goes wrong:** Without --recursive, only .svg files in the top-level directory are converted. Subdirectories are silently skipped.
+
+**Why it happens:** Default is non-recursive.
+
+**Consequences:**
+- User expects --recursive to be the default for directory processing
+- Or expects an error/warning when subdirs exist but are skipped
+- Confusion about why some files are missing from output
+
+**Prevention:**
+- Add a warning when subdirectories exist but --recursive is not set
+- Or make --recursive the default and add --no-recursive to opt out
+- Document the behavior clearly in --help
+
+**Phase:** Phase 1 or 2.
+
+## Phase-Specific Warnings
+
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| Phase 1: Basic batch output | Pitfall 15 (output dir creation) | Use mkdir -p before writing |
+| Phase 1: Basic batch output | Pitfall 14 (exit code on partial failure) | Exit 1 when errors > 0 |
+| Phase 1: Basic batch output | Pitfall 11 (collision on same-basename files) | Mirror dir structure in output |
+| Phase 2: Performance | Pitfall 13 (concurrent memory pressure) | Bounded concurrency pool |
+| Phase 2: Progress UX | Pitfall 16 (user thinks CLI is hung) | Per-file progress output |
+| Phase 2: Large batches | Pitfall 18 (symlink infinite loops) | Use lstat or track visited inodes |
+| Phase 3: Robustness | Pitfall 19 (large SVG OOM) | Max file size limit |
+| Phase 3: CI/Automation | Pitfall 17 (mixed stdout/stderr) | Consistent channel, --json flag |
+
+---
+
+## Sources
+
+- Existing src/cli.ts implementation (walkDir, processFile, error handling)
+- Node.js fs documentation (mkdir behavior, symlink handling)
+- General CLI design wisdom from CLI guidelines (clig.dev, POSIX conventions)
+- svg-to-pptel project context (async convert(), resvg-js text measurement)
+
+---
+
+*Pitfalls research for directory batch CLI feature added: 2026/07/02*
