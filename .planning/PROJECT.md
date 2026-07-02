@@ -70,17 +70,15 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: v1.3 — Complete
+## Current Milestone: v1.4 — Directory Batch CLI
 
-**Completed:** 2026-07-01
+**Goal:** CLI that reads SVG files from a directory and converts them to JSON in the same directory
 
-**Achievements:**
-- @resvg/resvg-js integrated for accurate text bounding box
-- text-measurer.ts module created
-- Async propagation through transform pipeline
-- Deprecated calcTextWidthYaHei removed
-- lineHeight default changed from 1.5 to 1
-- transparent stroke handled via outline.opacity
+**Target features:**
+- Directory-based batch conversion CLI
+- Read all .svg files from input directory
+- Output JSON files to the same directory with same filename
+- Error handling for invalid/missing files
 
 ## Previous Milestones
 
