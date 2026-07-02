@@ -77,6 +77,18 @@
 - [ ] **MEAS-10**: Remove `calcTextWidthYaHei()` and `BASELINE_OFFSET_RATIO` after migration
 - [ ] **MEAS-11**: Existing tests pass after migration (no regression)
 
+## v1.4 Requirements (Directory Batch CLI)
+
+### Batch CLI
+
+- [ ] **BATCH-01**: User can provide a directory path as input
+- [ ] **BATCH-02**: CLI reads all .svg files from the input directory
+- [ ] **BATCH-03**: Each SVG is converted to JSON and saved to the same directory with .json extension
+- [ ] **BATCH-04**: Existing JSON files are overwritten with the new conversion result
+- [ ] **BATCH-05**: CLI outputs summary at the end: "Converted N files, M failed"
+- [ ] **BATCH-06**: Failed conversions are skipped without stopping the batch
+- [ ] **BATCH-07**: Invalid SVG files are logged with error message and skipped
+
 ## v2 Requirements (deferred)
 
 - Full path command support (C/Q/A/S/T/Z) in bounding box calculation — currently only M/L/H/V parsed
@@ -96,6 +108,8 @@
 | SVGO optimization | Not needed for parsing, adds bundle size |
 | Build system upgrades (tsup) | Deferred |
 | Dependency upgrades | Deferred to after transform fixes stabilize |
+| --output-dir option | User confirmed JSON goes to same directory as SVG |
+| Skip existing files | Overwrite is faster and simpler for batch operations |
 
 ## Traceability
 
@@ -142,15 +156,23 @@
 | MEAS-09 | Phase 6 | Pending |
 | MEAS-10 | Phase 6 | Pending |
 | MEAS-11 | Phase 6 | Pending |
+| BATCH-01 | Phase 7 | Pending |
+| BATCH-02 | Phase 7 | Pending |
+| BATCH-03 | Phase 7 | Pending |
+| BATCH-04 | Phase 7 | Pending |
+| BATCH-05 | Phase 7 | Pending |
+| BATCH-06 | Phase 7 | Pending |
+| BATCH-07 | Phase 7 | Pending |
 
 **Coverage:**
 
+- v1.4 requirements: 7 total
 - v1.3 requirements: 11 total
 - v1.2 requirements: 26 total
 - v1.1 requirements: 3 total
-- Mapped to phases: 40
+- Mapped to phases: 47
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-27*
-*Last updated: 2026-07-01 after v1.3 resvg-js text measurement requirements*
+*Last updated: 2026-07-02 after v1.4 directory batch CLI requirements*
