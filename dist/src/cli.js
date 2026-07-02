@@ -84,8 +84,8 @@ async function main() {
         for (const file of svgFiles) {
             const result = await processFile(file);
             if (result.success && result.output) {
-                console.log(picocolors_1.default.cyan(`[${file}]`) + ':');
-                console.log(result.output);
+                const jsonPath = file + '.json';
+                (0, fs_1.writeFileSync)(jsonPath, result.output, 'utf-8');
                 successCount++;
             }
             else {
@@ -94,7 +94,7 @@ async function main() {
                 errors.push(file);
             }
         }
-        console.error(picocolors_1.default.cyan(`\nConverted ${successCount}/${svgFiles.length} files`));
+        console.error(picocolors_1.default.cyan(`Converted ${successCount} files, ${errorCount} failed`));
         if (errorCount > 0) {
             console.error(picocolors_1.default.red(`Failed: ${errors.join(', ')}`));
         }

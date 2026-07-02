@@ -85,8 +85,8 @@ async function main() {
     for (const file of svgFiles) {
       const result = await processFile(file)
       if (result.success && result.output) {
-        console.log(pc.cyan(`[${file}]`) + ':')
-        console.log(result.output)
+        const jsonPath = file + '.json'
+        writeFileSync(jsonPath, result.output, 'utf-8')
         successCount++
       } else {
         console.error(pc.red(`Error [${file}]: ${result.error}`))
@@ -95,7 +95,7 @@ async function main() {
       }
     }
 
-    console.error(pc.cyan(`\nConverted ${successCount}/${svgFiles.length} files`))
+    console.error(pc.cyan(`Converted ${successCount} files, ${errorCount} failed`))
     if (errorCount > 0) {
       console.error(pc.red(`Failed: ${errors.join(', ')}`))
     }
