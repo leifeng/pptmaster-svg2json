@@ -41,5 +41,10 @@
 **Risks:**
 - None identified — core conversion logic already exists
 
+**Plans:** 1 plan
+
+Plans:
+- [ ] 07-01-PLAN.md — Implement directory batch conversion (write JSON files + update summary format)
+
 ---
-*Roadmap updated: 2026-07-02 after v1.4 roadmap creation*
+*Roadmap updated: 2026-07-02 after phase 07 plan creation*
