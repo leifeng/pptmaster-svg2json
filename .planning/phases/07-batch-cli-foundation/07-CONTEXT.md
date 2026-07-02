@@ -22,6 +22,10 @@
 ### 进度反馈
 - **D-40:** 简洁模式 — 转换过程静默，仅在最后输出统计：`Converted N files, M failed`，失败时列出错误文件
 
+### Python 集成
+- **D-45:** Exit code 保持部分失败也 `exit(0)` — Python 通过解析 stderr 的 `Converted N/M` 格式判断结果
+- **D-46:** 保持纯文本输出 — 不需要 JSON summary，Python 可解析现有 stderr 格式
+
 ### CLI 行为（已实现，确认）
 - **D-41:** 目录输入时禁止使用 `--output` — 已有实现，保持不变
 - **D-42:** 递归模式 `-r` 已支持 — 保持不变
@@ -58,6 +62,7 @@
 ### Established Patterns
 - `convert()` 返回 `{ success: boolean, output?: string, error?: string }` 结构
 - 错误处理不中断批次：部分失败时 exit(0)，全部失败时 exit(0)
+- Python 集成：stderr 输出纯文本，Python 解析 `Converted N/M` 格式
 
 ### Integration Points
 - `src/cli.ts` main() 的目录处理分支 — 需要修改：当前只打印结果，需要改为写入 `.json` 文件
