@@ -647,7 +647,7 @@ export function parseSvg(xmlString: string, svgFilePath?: string): SvgParseResul
     ignoreAttributes: false,
     attributeNamePrefix: '@_',
     parseAttributeValue: true,
-    parseTagValue: true,
+    parseTagValue: false,
     trimValues: true,
     isArray: (name) =>
       [
