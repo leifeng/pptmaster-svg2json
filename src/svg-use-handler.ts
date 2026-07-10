@@ -130,76 +130,47 @@ export function autoEmbedIcons(
 
     // Read icon SVG
     const svgContent = fs.readFileSync(iconPath, 'utf-8')
-    const iconLibrary = iconRef.split('/')[0]
-    const style = STYLE_CONFIG[iconLibrary] || { mode: 'fill' }
 
-    // Extract icon viewBox
+    // Extract viewBox
     const vbMatch = svgContent.match(/viewBox="([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"/)
-    const iconViewBox = vbMatch ? {
+    let iconViewBox = vbMatch ? {
       x: parseFloat(vbMatch[1]),
       y: parseFloat(vbMatch[2]),
       width: parseFloat(vbMatch[3]),
       height: parseFloat(vbMatch[4])
     } : { x: 0, y: 0, width: 24, height: 24 }
 
-    // Calculate scale: icon viewBox scaled to specified width/height
-    const scaleX = width / iconViewBox.width
-    const scaleY = height / iconViewBox.height
-
-    // Extract all path d attributes
-    const pathRegex = /<path[^>]*d="([^"]*)"[^>]*\/?>/g
-    const paths: { d: string; adjustedD: string }[] = []
-    let pathMatch
-
-    while ((pathMatch = pathRegex.exec(svgContent)) !== null) {
-      const d = pathMatch[1]
-      // Path coordinates are relative to icon viewBox (0,0)
-      // If viewBox doesn't start at 0,0, adjust
-      const adjustedD = adjustPathToViewBox(d, iconViewBox)
-      paths.push({ d, adjustedD })
+    // Adjust viewBox to start at 0,0 for proper rendering
+    let adjustedSvgContent = svgContent
+    if (iconViewBox.x !== 0 || iconViewBox.y !== 0) {
+      adjustedSvgContent = svgContent.replace(
+        /viewBox="([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"/,
+        `viewBox="0 0 ${iconViewBox.width} ${iconViewBox.height}"`
+      )
     }
 
-    if (paths.length === 0) {
-      console.warn(`警告: ${iconPath} 中未找到 path 元素`)
+    try {
+      // Render SVG to PNG using resvg-js
+      const resvg = new Resvg(adjustedSvgContent, {
+        fitTo: { mode: 'width', value: width }
+      })
+      const pngData = resvg.render()
+      const pngBuffer = pngData.asPng()
+      const base64 = pngBuffer.toString('base64')
+      const dataUrl = `data:image/png;base64,${base64}`
+
+      // Generate transform if position differs from 0,0
+      let transform = ''
+      if (x !== '0' || y !== '0') {
+        transform = ` transform="translate(${x}, ${y})"`
+      }
+
+      // Return image element replacing the use element
+      return `<image href="${dataUrl}" width="${width}" height="${height}"${transform}/>`
+    } catch (err) {
+      console.warn(`警告: 无法渲染图标 - ${iconPath}: ${err}`)
       return match
     }
-
-    // Generate replacement content based on style
-    const adjustedStrokeWidth = parseFloat(strokeWidth) / Math.min(scaleX, scaleY)
-    const iconW = iconViewBox.width
-    const iconH = iconViewBox.height
-    let pathElements: string
-    if (style.mode === 'stroke') {
-      pathElements = paths.map(p =>
-        `<path d="${p.adjustedD}" data-icon-width="${iconW}" data-icon-height="${iconH}" fill="none" stroke="${fill}" stroke-width="${adjustedStrokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>`
-      ).join('\n  ')
-    } else if (style.mode === 'duotone') {
-      pathElements = paths.map(p =>
-        `<path d="${p.adjustedD}" data-icon-width="${iconW}" data-icon-height="${iconH}" fill="${fill}" fill-opacity="0.2"/>\n  <path d="${p.adjustedD}" data-icon-width="${iconW}" data-icon-height="${iconH}" fill="${fill}"/>`
-      ).join('\n  ')
-    } else {
-      pathElements = paths.map(p =>
-        `<path d="${p.adjustedD}" data-icon-width="${iconW}" data-icon-height="${iconH}" fill="${fill}"/>`
-      ).join('\n  ')
-    }
-
-    // Generate transform with scale
-    let transform = `translate(${x}, ${y})`
-    if (Math.abs(scaleX - 1) > 0.001 || Math.abs(scaleY - 1) > 0.001) {
-      transform += ` scale(${scaleX}, ${scaleY})`
-    }
-
-    const scaledWidth = width
-    const scaledHeight = height
-
-    // Update stroke-width if scaling
-    let finalPathElements = pathElements
-    if (Math.abs(scaleX - 1) > 0.001 || Math.abs(scaleY - 1) > 0.001) {
-      finalPathElements = pathElements.replace(/stroke-width="[^"]*"/g, `stroke-width="${adjustedStrokeWidth}"`)
-    }
-
-    // Return group element with scaled dimensions
-    return `<g width="${scaledWidth}" height="${scaledHeight}" transform="${transform}">\n  ${finalPathElements}\n</g>`
   })
 
   // Process external SVG href references
