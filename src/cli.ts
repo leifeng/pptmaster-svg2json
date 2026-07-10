@@ -108,12 +108,9 @@ async function main() {
       console.error(pc.red(`Error: ${result.error}`))
       process.exit(1)
     }
-    if (options.output) {
-      writeFileSync(options.output, result.output!, 'utf-8')
-      console.error(pc.green(`Written to ${options.output}`))
-    } else {
-      console.log(result.output)
-    }
+    const outputPath = options.output || (input + '.json')
+    writeFileSync(outputPath, result.output!, 'utf-8')
+    console.error(pc.green(`Written to ${outputPath}`))
     process.exit(0)
   }
 }
