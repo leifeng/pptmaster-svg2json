@@ -149,6 +149,14 @@ export function autoEmbedIcons(
       )
     }
 
+    // Apply fill color substitution (icons use currentColor which Resvg doesn't resolve)
+    if (fill && fill !== '#000000') {
+      adjustedSvgContent = adjustedSvgContent
+        .replace(/stroke="currentColor"/g, `stroke="${fill}"`)
+        .replace(/fill="currentColor"/g, `fill="${fill}"`)
+        .replace(/stroke-width="([^"]*)"/g, (match, sw) => `stroke-width="${(parseFloat(sw) / (width / iconViewBox.width)).toFixed(2)}"`)
+    }
+
     try {
       // Render SVG to PNG using resvg-js
       const resvg = new Resvg(adjustedSvgContent, {
