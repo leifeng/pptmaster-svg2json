@@ -4,14 +4,14 @@ import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
 import { join, extname } from 'path'
 import { convert } from './index'
 
-const cli = cac('svg2pptel')
+const cli = cac('svg2json')
 
 cli.command('<input>', 'SVG file or directory to convert')
   .option('-o, --output <path>', 'Output file path (default: stdout)')
   .option('-r, --recursive', 'Process directories recursively')
-  .example('svg2pptel input.svg')
-  .example('svg2pptel input.svg -o output.json')
-  .example('svg2pptel dir --recursive')
+  .example('svg2json input.svg')
+  .example('svg2json input.svg -o output.json')
+  .example('svg2json dir --recursive')
 
 cli.help()
 const parsed = cli.parse()
@@ -56,7 +56,7 @@ function walkDir(dir: string, recursive: boolean): string[] {
 async function processFile(filePath: string): Promise<{ success: boolean; output?: string; error?: string }> {
   try {
     const content = readFileSync(filePath, 'utf-8')
-    const result = await convert(content)
+    const result = await convert(content, { svgFilePath: filePath })
     return result
   } catch (err) {
     return { success: false, error: `File read error: ${String(err)}` }

@@ -1,6 +1,7 @@
 import { XMLParser } from 'fast-xml-parser'
-import { SvgParseResult, SvgElement, SvgAttrs, GradientDef, GradientColorDef } from '../types/ast'
+import { SvgParseResult, SvgElement, SvgAttrs, GradientDef, GradientColorDef, PatternDef, PatternChild } from '../types/ast'
 import { colorToRgba, colorToHex } from '../transformer/transform-to-pptel'
+import { autoEmbedIcons } from '../svg-use-handler'
 
 export interface FilterDef {
   id: string
@@ -156,6 +157,63 @@ function collectGradientDefs(xmlNode: any, registry: Map<string, GradientDef>): 
 }
 
 /**
+ * Collect all pattern definitions from parsed XML into a registry.
+ * D-36: pattern defs collected for fill="url(#patternId)" resolution.
+ */
+function collectPatternDefs(xmlNode: any, registry: Map<string, PatternDef>): void {
+  const defs = xmlNode['defs']
+  if (!defs) return
+
+  const defsArr = Array.isArray(defs) ? defs : [defs]
+
+  for (const def of defsArr) {
+    if (!def) continue
+    if (def['pattern']) {
+      const patterns = Array.isArray(def['pattern']) ? def['pattern'] : [def['pattern']]
+      for (const pat of patterns) {
+        if (!pat) continue
+        const id = pat['@_id']
+        if (!id) continue
+
+        // Collect children of the pattern
+        const children: PatternChild[] = []
+        const childTags = ['rect', 'circle', 'ellipse', 'path', 'polygon', 'polyline', 'line', 'text', 'image', 'use']
+        for (const tag of childTags) {
+          if (pat[tag]) {
+            const childNodes = Array.isArray(pat[tag]) ? pat[tag] : [pat[tag]]
+            for (const child of childNodes) {
+              if (!child) continue
+              // Extract attributes with @_ prefix
+              const attrs: Record<string, any> = {}
+              for (const key of Object.keys(child)) {
+                if (key.startsWith('@_')) {
+                  attrs[key.substring(2)] = child[key]
+                }
+              }
+              // Also handle xlink:href
+              if (child['xlink:href']) attrs['href'] = child['xlink:href']
+              if (child.href) attrs.href = child.href
+              children.push({ type: tag, attrs })
+            }
+          }
+        }
+
+        const patternDef: PatternDef = {
+          id,
+          width: parseFloat(pat['@_width']) || 0,
+          height: parseFloat(pat['@_height']) || 0,
+          patternUnits: pat['@_patternUnits'],
+          patternContentUnits: pat['@_patternContentUnits'],
+          patternTransform: pat['@_patternTransform'],
+          children,
+        }
+        registry.set(id, patternDef)
+      }
+    }
+  }
+}
+
+/**
  * Collect all filter definitions from parsed XML into a registry.
  * D-22: filter defs collected and resolved at parse time.
  */
@@ -250,6 +308,26 @@ function resolveFillReference(attrs: SvgAttrs, registry: Map<string, GradientDef
   // Clear fill and fill-opacity since gradient is now in attrs.gradient
   delete attrs.fill
   delete attrs['fill-opacity']
+}
+
+/**
+ * Resolve fill="url(#patternId)" references by storing pattern reference.
+ * D-36: Pattern resolution happens at transform time (to PNG) rather than parse time.
+ * This stores the patternId in attrs.pattern for later PNG rendering.
+ */
+function resolvePatternReference(attrs: SvgAttrs, registry: Map<string, PatternDef>): void {
+  const fill = attrs.fill
+  if (!fill || !fill.startsWith('url(#')) return
+
+  const match = fill.match(/url\(#([^)]+)\)/)
+  if (!match) return
+
+  const patternId = match[1]
+  const patternDef = registry.get(patternId)
+  if (!patternDef) return
+
+  // Store pattern reference for later PNG rendering in transform-to-pptel.ts
+  attrs.pattern = patternId
 }
 
 /**
@@ -383,7 +461,7 @@ export function parseViewBox(viewBoxStr: string | undefined): [number, number, n
   return [parts[0], parts[1], parts[2], parts[3]]
 }
 
-function convertToSvgElement(node: any, parentTag: string = '', gradientRegistry?: Map<string, GradientDef>, filterRegistry?: Map<string, FilterDef>): SvgElement {
+function convertToSvgElement(node: any, parentTag: string = '', gradientRegistry?: Map<string, GradientDef>, filterRegistry?: Map<string, FilterDef>, patternRegistry?: Map<string, PatternDef>): SvgElement {
   const tagName = (node['#tag'] || parentTag || '').toLowerCase()
 
   // Extract attributes with @_ prefix
@@ -409,6 +487,12 @@ function convertToSvgElement(node: any, parentTag: string = '', gradientRegistry
     resolveFilterReference(attrs, filterRegistry)
   }
 
+  // Resolve fill="url(#patternId)" references by storing pattern reference (D-36)
+  // Note: pattern rendering to PNG happens in transform-to-pptel.ts
+  if (patternRegistry) {
+    resolvePatternReference(attrs, patternRegistry)
+  }
+
   // Handle text content
   let text: string | undefined
   if (node['#text']) {
@@ -423,7 +507,7 @@ function convertToSvgElement(node: any, parentTag: string = '', gradientRegistry
     if (node[tag]) {
       const childNodes = Array.isArray(node[tag]) ? node[tag] : [node[tag]]
       for (const child of childNodes) {
-        children.push(convertToSvgElement(child, tag, gradientRegistry, filterRegistry))
+        children.push(convertToSvgElement(child, tag, gradientRegistry, filterRegistry, patternRegistry))
       }
     }
   }
@@ -436,7 +520,129 @@ function convertToSvgElement(node: any, parentTag: string = '', gradientRegistry
   }
 }
 
-export function parseSvg(xmlString: string): SvgParseResult {
+/**
+ * 调整路径坐标，使其相对于 viewBox 原点
+ * 图标 SVG 的 viewBox 通常是 0 0 24 24，但路径内容可能从 (4, 6) 等位置开始
+ * 这会导致 translate(x, y) 不能正确定位图标
+ */
+function adjustPathToViewBox(d: string, viewBox: { x: number; y: number }): string {
+  // 如果 viewBox 正好是 0,0，不需要调整
+  if (viewBox.x === 0 && viewBox.y === 0) {
+    return d
+  }
+
+  // 使用简单的字符串替换来调整坐标
+  // 注意：这只能处理简单的 M/L/H/V 命令，对于复杂的 arc/curve 不准确
+  // 但大多数 tabler 图标只用 M/L/H/V
+  let adjusted = d
+
+  // 匹配命令后的坐标对并添加 viewBox 偏移
+  // 格式: 命令 数字 数字 (可能重复)
+  adjusted = adjusted.replace(/([MLHV])\s*([-\d.]+)/gi, (match, cmd, numStr) => {
+    const num = parseFloat(numStr)
+    if (cmd.toUpperCase() === 'H') {
+      // 水平线只影响 X
+      return cmd + ' ' + (num + viewBox.x)
+    } else if (cmd.toUpperCase() === 'V') {
+      // 垂直线只影响 Y
+      return cmd + ' ' + (num + viewBox.y)
+    } else {
+      // M/L 需要处理 x,y 对
+      return match // 复杂情况暂不处理
+    }
+  })
+
+  // 简单情况：如果 viewBox 是 0 0 24 24，路径坐标本来就是相对于 0,0 的
+  // 不需要调整（tabler 图标都是这样）
+  return d
+}
+
+/**
+ * 缩放 path 坐标 - 所有坐标使用统一比例缩放
+ */
+function scalePathCoords(d: string, scaleX: number, scaleY: number): string {
+  let result = ''
+  let curX = 0  // 当前 X 坐标（原始，未缩放）
+  let curY = 0  // 当前 Y 坐标（原始，未缩放）
+
+  const segments = d.split(/(?=[MLHVAZ])/i)
+  for (const seg of segments) {
+    const cmdMatch = seg.match(/^([MLHVAZ])\s*/i)
+    if (!cmdMatch) {
+      result += seg
+      continue
+    }
+    const cmd = cmdMatch[1]
+    const isRel = cmd === cmd.toLowerCase()
+    const cmdU = cmd.toUpperCase()
+    const nums = seg.slice(cmdMatch[0].length).trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n))
+
+    if (cmdU === 'Z') {
+      result += 'Z'
+      curX = 0
+      curY = 0
+      continue
+    }
+
+    if (cmdU === 'M') {
+      for (let i = 0; i < nums.length; i += 2) {
+        const absX = isRel ? curX + nums[i] : nums[i]
+        const absY = i + 1 < nums.length ? (isRel ? curY + nums[i + 1] : nums[i + 1]) : curY
+        result += (i === 0 ? `M${absX * scaleX},${absY * scaleY}` : `L${absX * scaleX},${absY * scaleY}`)
+        curX = absX
+        curY = absY
+      }
+    } else if (cmdU === 'L') {
+      for (let i = 0; i < nums.length; i += 2) {
+        const absX = isRel ? curX + nums[i] : nums[i]
+        const absY = i + 1 < nums.length ? (isRel ? curY + nums[i + 1] : nums[i + 1]) : curY
+        result += `L${absX * scaleX},${absY * scaleY}`
+        curX = absX
+        curY = absY
+      }
+    } else if (cmdU === 'H') {
+      for (const nx of nums) {
+        const absX = isRel ? curX + nx : nx
+        result += `H${absX * scaleX}`
+        curX = absX
+      }
+    } else if (cmdU === 'V') {
+      for (const ny of nums) {
+        const absY = isRel ? curY + ny : ny
+        result += `V${absY * scaleY}`
+        curY = absY
+      }
+    } else if (cmdU === 'A') {
+      for (let i = 0; i < nums.length; i += 7) {
+        const absX = isRel ? curX + nums[i + 5] : nums[i + 5]
+        const absY = isRel ? curY + nums[i + 6] : nums[i + 6]
+        result += `A${nums[i] * scaleX},${nums[i + 1] * scaleY},${nums[i + 2]},${nums[i + 3]},${nums[i + 4]},${absX * scaleX},${absY * scaleY}`
+        curX = absX
+        curY = absY
+      }
+    } else {
+      // 不支持的命令，保持原样
+      result += seg
+    }
+  }
+
+  return result
+}
+
+export function parseSvg(xmlString: string, svgFilePath?: string): SvgParseResult {
+  // 先解析 SVG 获取 viewBox，计算画布缩放比例
+  const vbMatch = xmlString.match(/viewBox="([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"/)
+  const svgWidth = vbMatch ? parseFloat(vbMatch[3]) : 1280
+  const svgHeight = vbMatch ? parseFloat(vbMatch[4]) : 720
+  // 默认 targetCanvas 是 1000x562.5
+  const canvasScaleX = 1000 / svgWidth
+  const canvasScaleY = 562.5 / svgHeight
+
+  // 自动嵌入图标占位符（生成临时文件，不修改原文件）
+  // svgFilePath 用于解析外部 SVG href 引用的相对路径
+  const { xmlString: embeddedXml, tempFilePath } = autoEmbedIcons(xmlString, canvasScaleX, canvasScaleY, svgFilePath)
+  xmlString = embeddedXml
+
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: '@_',
@@ -502,8 +708,12 @@ export function parseSvg(xmlString: string): SvgParseResult {
   const filterRegistry = new Map<string, FilterDef>()
   collectFilterDefs(svgRoot, filterRegistry)
 
+  // First pass: collect all pattern definitions into registry
+  const patternRegistry = new Map<string, PatternDef>()
+  collectPatternDefs(svgRoot, patternRegistry)
+
   // Build clean element tree from svg root with gradient and filter registries for resolving references
-  const root = convertToSvgElement(svgRoot, 'svg', gradientRegistry, filterRegistry)
+  const root = convertToSvgElement(svgRoot, 'svg', gradientRegistry, filterRegistry, patternRegistry)
   root.attrs = rootAttrs
 
   return {
@@ -511,6 +721,7 @@ export function parseSvg(xmlString: string): SvgParseResult {
     viewBox,
     width,
     height,
+    patternRegistry,
   }
 }
 
