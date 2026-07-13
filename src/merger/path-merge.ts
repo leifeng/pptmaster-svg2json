@@ -25,18 +25,21 @@ export type BoundingBox = { left: number; top: number; width: number; height: nu
 
 /**
  * Extract common style attributes shared by all elements.
+ * Falls back to groupAttrs when element doesn't have its own style value.
  * Returns null if no common styles exist.
  */
-export function extractCommonStyle(elements: SvgElement[]): SharedStyle | null {
+export function extractCommonStyle(elements: SvgElement[], groupAttrs: Record<string, string> = {}): SharedStyle | null {
   const styleKeys = ['fill', 'stroke', 'stroke-width', 'opacity', 'fill-rule'] as const
   const first = elements[0]?.attrs
   if (!first) return null
 
   const common: Partial<SharedStyle> = {}
   for (const key of styleKeys) {
-    const value = first[key]
-    if (value !== undefined && elements.every(el => el.attrs[key] === value)) {
-      common[key] = value as string
+    // Get effective value: element's own attr, or group-level fallback
+    const getEffective = (el: SvgElement) => el.attrs[key] ?? groupAttrs[key]
+    const firstValue = getEffective(elements[0])
+    if (firstValue !== undefined && elements.every(el => getEffective(el) === firstValue)) {
+      common[key] = firstValue as string
     }
   }
   return Object.keys(common).length > 0 ? common as SharedStyle : null
@@ -71,7 +74,7 @@ function getEffectiveFill(path: SvgElement, groupAttrs: Record<string, string>):
  */
 export function shouldMerge(paths: SvgElement[], groupAttrs: Record<string, string>): MergeDecision {
   // Step 1: Check shared style (D-30)
-  const commonStyle = extractCommonStyle(paths)
+  const commonStyle = extractCommonStyle(paths, groupAttrs)
   if (!commonStyle && !paths.every(p => getEffectiveFill(p, groupAttrs) === 'none')) {
     return 'no-merge'
   }
@@ -191,11 +194,23 @@ export function createMergedShapeElement(
     height = bbox.height || viewBox[1]
   }
 
-  // Parse group transform
+  // Parse group transform for scale and rotation
   let rotate = 0
+  let scaleX = 1
+  let scaleY = 1
   if (groupTransform) {
     const parsed = parseTransform(groupTransform)
     rotate = parsed.rotateDeg ?? 0
+    scaleX = parsed.scaleX ?? 1
+    scaleY = parsed.scaleY ?? 1
+  }
+
+  // Apply scale from group transform to bounding box
+  if (bbox) {
+    left = bbox.left * scaleX
+    top = bbox.top * scaleY
+    width = (bbox.width || viewBox[0]) * scaleX
+    height = (bbox.height || viewBox[1]) * scaleY
   }
 
   // Build outline from stroke if present

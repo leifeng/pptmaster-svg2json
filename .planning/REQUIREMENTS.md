@@ -89,6 +89,37 @@
 - [ ] **BATCH-06**: Failed conversions are skipped without stopping the batch
 - [ ] **BATCH-07**: Invalid SVG files are logged with error message and skipped
 
+## v1.7 Requirements (Path 合并优化)
+
+### Path Merge (PATH-MERGE)
+
+- [ ] **PATH-MERGE-01**: 决策树判断逻辑 — 当 `<g>` 子元素全为 `<path>` 时，按决策树判断是否合并
+  - 检测所有 path 是否共享相同样式属性（fill, stroke, opacity, fill-rule 等）
+  - 检测每个 path 是否有独立的语义/交互/可访问性需求（id, aria-*, 事件绑定）
+  - 检测 fill="none" 或无重叠填充区域
+  - 检测 fill-rule="evenodd"
+  - 根据决策树返回合并/不合并/谨慎合并的建议
+
+- [ ] **PATH-MERGE-02**: 公共样式属性提取 — 从多个 path 中提取共同样式属性
+  - 遍历 `<g>` 内所有 path 的样式属性（fill, stroke, stroke-width, opacity, fill-rule 等）
+  - 提取所有 path 共有的属性值作为合并后的公共样式
+  - 不一致的属性值不合并
+
+- [ ] **PATH-MERGE-03**: 重叠填充区域检测 — 包围盒计算与重叠判断
+  - 计算每个 path 的包围盒（bounding box）
+  - 检测包围盒是否有重叠区域
+  - fill="none" 的 path 默认无重叠
+
+- [ ] **PATH-MERGE-04**: fill-rule="evenodd" 特殊处理
+  - 检测是否包含 fill-rule="evenodd"
+  - 合并后可能改变镂空效果，标记为谨慎合并
+
+- [ ] **PATH-MERGE-05**: 合并输出 — 将多个 path 的 d 属性拼接为单一 path
+  - 多个 path 的 d 属性用空格连接
+  - 继承 `<g>` 的 transform（如有）
+  - 合并后的 path 使用公共样式属性
+  - 输出元素数量减少
+
 ## v2 Requirements (deferred)
 
 - Full path command support (C/Q/A/S/T/Z) in bounding box calculation — currently only M/L/H/V parsed
@@ -163,9 +194,15 @@
 | BATCH-05 | Phase 7 | Pending |
 | BATCH-06 | Phase 7 | Pending |
 | BATCH-07 | Phase 7 | Pending |
+| PATH-MERGE-01 | — | Pending |
+| PATH-MERGE-02 | — | Pending |
+| PATH-MERGE-03 | — | Pending |
+| PATH-MERGE-04 | — | Pending |
+| PATH-MERGE-05 | — | Pending |
 
 **Coverage:**
 
+- v1.7 requirements: 5 total (PATH-MERGE-01 ~ PATH-MERGE-05)
 - v1.4 requirements: 7 total
 - v1.3 requirements: 11 total
 - v1.2 requirements: 26 total
@@ -175,4 +212,4 @@
 
 ---
 *Requirements defined: 2026-06-27*
-*Last updated: 2026-07-02 after v1.4 directory batch CLI requirements*
+*Last updated: 2026-07-13 after v1.7 path merge requirements*

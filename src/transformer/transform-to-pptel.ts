@@ -1391,7 +1391,7 @@ export async function transformToPPTElement(
         const decision = shouldMerge(gChildren as SvgElement[], effectiveGroupAttrs)
 
         if (decision === 'merge' || decision === 'cautious-merge') {
-          const commonStyle = extractCommonStyle(gChildren as SvgElement[])
+          const commonStyle = extractCommonStyle(gChildren as SvgElement[], effectiveGroupAttrs)
           if (commonStyle) {
             const mergedElement = createMergedShapeElement(
               gChildren as SvgElement[],
