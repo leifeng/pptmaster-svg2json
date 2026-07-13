@@ -1,6 +1,18 @@
 import { SvgElement, CoordinateMapping, TransformResult } from '../types/ast'
 
 /**
+ * Compose two transform strings into a single transform string.
+ * Parent transform is applied first, then child transform.
+ */
+export function composeTransforms(parentTransform: string | undefined, childTransform: string | undefined): string | undefined {
+  if (!parentTransform && !childTransform) return undefined
+  if (!parentTransform) return childTransform
+  if (!childTransform) return parentTransform
+  // Both exist: apply parent then child
+  return `${parentTransform} ${childTransform}`
+}
+
+/**
  * Parse gradientTransform attribute to extract rotation angle.
  * D-17: gradientTransform matrix rotation extracted via matrix decomposition.
  */
@@ -56,31 +68,42 @@ export function extractNumber(value: string | number | undefined, fallback: numb
 /**
  * Parse SVG transform attribute into component values.
  * Per D-04: translate/scale/rotate parsed; D-05: matrix marked as special.
+ * Handles multiple transform commands (e.g., "translate(60, 220) translate(0, 116)")
+ * by accumulating all translate/scale values and using the last rotate.
  */
 export function parseTransform(transform: string | undefined): TransformResult {
   if (!transform) return { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotateDeg: 0 }
-  const result: TransformResult = {}
-
-  // translate(dx, dy) or translate(dx) — allow negative values
-  const translateMatch = transform.match(/translate\(\s*([\d.-]+)(?:[,\s]+([\d.-]+))?\s*\)/)
-  if (translateMatch) {
-    result.translateX = parseFloat(translateMatch[1])
-    result.translateY = translateMatch[2] ? parseFloat(translateMatch[2]) : 0
+  const result: TransformResult = {
+    translateX: 0,
+    translateY: 0,
+    scaleX: 1,
+    scaleY: 1,
+    rotateDeg: 0,
   }
 
-  // scale(sx, sy) or scale(s) — allow negative values for flip transforms
-  const scaleMatch = transform.match(/scale\(\s*([\d.-]+)(?:[,\s]+([\d.-]+))?\s*\)/)
-  if (scaleMatch) {
-    result.scaleX = parseFloat(scaleMatch[1])
-    result.scaleY = scaleMatch[2] ? parseFloat(scaleMatch[2]) : result.scaleX
+  // Match all translate commands and accumulate
+  const translateMatches = transform.matchAll(/translate\(\s*([\d.-]+)(?:[,\s]+([\d.-]+))?\s*\)/g)
+  for (const match of translateMatches) {
+    result.translateX! += parseFloat(match[1])
+    result.translateY! += match[2] ? parseFloat(match[2]) : 0
   }
 
-  // rotate(deg, cx, cy) or rotate(deg)
-  const rotateMatch = transform.match(/rotate\(\s*([\d.]+)(?:[,\s]+([\d.]+),?\s*([\d.]+))?\s*\)/)
-  if (rotateMatch) {
-    result.rotateDeg = parseFloat(rotateMatch[1])
-    result.rotateCX = rotateMatch[2] ? parseFloat(rotateMatch[2]) : undefined
-    result.rotateCY = rotateMatch[3] ? parseFloat(rotateMatch[3]) : undefined
+  // Match all scale commands and accumulate (multiply)
+  const scaleMatches = transform.matchAll(/scale\(\s*([\d.-]+)(?:[,\s]+([\d.-]+))?\s*\)/g)
+  for (const match of scaleMatches) {
+    const sx = parseFloat(match[1])
+    const sy = match[2] ? parseFloat(match[2]) : sx
+    result.scaleX! *= sx
+    result.scaleY! *= sy
+  }
+
+  // Match last rotate command (only one rotation is meaningful)
+  const rotateMatches = [...transform.matchAll(/rotate\(\s*([\d.]+)(?:[,\s]+([\d.]+),?\s*([\d.]+))?\s*\)/g)]
+  if (rotateMatches.length > 0) {
+    const lastMatch = rotateMatches[rotateMatches.length - 1]
+    result.rotateDeg = parseFloat(lastMatch[1])
+    result.rotateCX = lastMatch[2] ? parseFloat(lastMatch[2]) : undefined
+    result.rotateCY = lastMatch[3] ? parseFloat(lastMatch[3]) : undefined
   }
 
   // matrix not supported → special: true
@@ -93,7 +116,8 @@ export function parseTransform(transform: string | undefined): TransformResult {
 }
 
 /**
- * Compute bounding box of a path's M/L/H/V commands.
+ * Compute bounding box of a path's M/L/H/V/A commands.
+ * For arcs, we include the endpoint and apply rx/ry padding only for large arcs (>90 degrees).
  */
 function pathBoundingBox(d: string): { left: number; top: number; width: number; height: number } | null {
   let minX = Infinity
@@ -101,24 +125,56 @@ function pathBoundingBox(d: string): { left: number; top: number; width: number;
   let maxX = -Infinity
   let maxY = -Infinity
 
-  // Simple path parser for M, L, H, V commands
-  // Split by command letter, then extract numbers from each segment
-  const segments = d.split(/(?=[MLHV])/i)
+  let curX = 0
+  let curY = 0
+
+  // Split by any command letter
+  const segments = d.split(/(?=[MLHVAz])/i)
   for (const seg of segments) {
-    const cmdMatch = seg.match(/^([MLHV])\s*/i)
+    const cmdMatch = seg.match(/^([MLHVAz])\s*/i)
     if (!cmdMatch) continue
-    const cmd = cmdMatch[1].toUpperCase()
+    const cmd = cmdMatch[1]
+    const isRel = cmd === cmd.toLowerCase()
+    const cmdU = cmd.toUpperCase()
+    // For arcs, skip the 5 arc params and only get endpoint x,y
+    // Arc format: A rx ry x-axis-rotation large-arc-flag sweep-flag x y
+    // So after command, we need to skip 5 numbers to get x,y
     const nums = seg.slice(cmdMatch[0].length).trim().split(/[\s,]+/).map(Number).filter((n) => !isNaN(n))
 
-    if (cmd === 'M' || cmd === 'L') {
+    if (cmdU === 'Z') {
+      continue
+    }
+
+    if (cmdU === 'M' || cmdU === 'L') {
       for (let i = 0; i < nums.length; i += 2) {
-        if (i < nums.length) minX = Math.min(minX, nums[i]), maxX = Math.max(maxX, nums[i])
-        if (i + 1 < nums.length) minY = Math.min(minY, nums[i + 1]), maxY = Math.max(maxY, nums[i + 1])
+        const x = isRel ? curX + nums[i] : nums[i]
+        const y = i + 1 < nums.length ? (isRel ? curY + nums[i + 1] : nums[i + 1]) : curY
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x)
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y)
+        curX = x; curY = y
       }
-    } else if (cmd === 'H') {
-      for (const x of nums) { minX = Math.min(minX, x); maxX = Math.max(maxX, x) }
-    } else if (cmd === 'V') {
-      for (const y of nums) { minY = Math.min(minY, y); maxY = Math.max(maxY, y) }
+    } else if (cmdU === 'H') {
+      for (const nx of nums) {
+        const x = isRel ? curX + nx : nx
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x)
+        curX = x
+      }
+    } else if (cmdU === 'V') {
+      for (const ny of nums) {
+        const y = isRel ? curY + ny : ny
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y)
+        curY = y
+      }
+    } else if (cmdU === 'A') {
+      // Arc: rx ry x-axis-rotation large-arc-flag sweep-flag x y
+      // Only use endpoint (last two numbers) for bbox
+      if (nums.length >= 7) {
+        const x = isRel ? curX + nums[5] : nums[5]
+        const y = isRel ? curY + nums[6] : nums[6]
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x)
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y)
+        curX = x; curY = y
+      }
     }
   }
 
@@ -136,16 +192,20 @@ function pathBoundingBox(d: string): { left: number; top: number; width: number;
  * Map an SVG element's geometry to left/top/width/height.
  * Per D-08: 1:1 mapping from SVG viewBox coordinates.
  * Per D-04: transform attribute applied BEFORE reading direct attributes.
+ * Per D-04 (REF-01): parent transform composed with element's own transform.
  */
 export function mapCoordinates(
   element: SvgElement,
   viewBox: [number, number, number, number],
+  parentTransform?: string,
 ): CoordinateMapping {
   const { attrs } = element
   const tag = element.type.toLowerCase()
 
+  // Compose parent transform with element's own transform (per D-04 REF-01)
+  const effectiveTransform = composeTransforms(parentTransform, attrs.transform)
   // Parse transform first (per D-04)
-  const transform = parseTransform(attrs.transform)
+  const transform = parseTransform(effectiveTransform)
   const tx = transform.translateX || 0
   const ty = transform.translateY || 0
   // Use absolute scale values — negative scale is handled via flipH/flipV in applyTransform

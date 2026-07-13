@@ -1,14 +1,97 @@
 import { v4 as uuidv4 } from 'uuid'
-import { SvgParseResult, SvgElement } from '../types/ast'
+import { SvgParseResult, SvgElement, TransformResult } from '../types/ast'
 import { mapCoordinates, parseTransform } from '../mapper/coordinate-mapper'
 import { applyTransform, applyRotateWithCenter } from './apply-transform'
 import { rectToPath, roundedRectToPath, circleToPath, ellipseToPath, lineToPath, polygonToPath } from '../shapes/shape-to-path'
 import { measureTextElement, TextMeasurementInput } from '../text-measurer'
+import { toAbsolutePath, scalePathCoords } from '../utils/path-utils'
 
 
 import type { PPTElement, PPTTextElement, PPTShapeElement, PPTLineElement, PPTImageElement, LineStyleType } from '../slides'
 
 export type { PPTElement }
+
+/**
+ * 转换 icon 元素（有 data-icon-width/height 属性的 path）
+ * icon 的位置和尺寸已经在 autoEmbedIcons 中处理过
+ */
+function transformIconElement(
+  element: SvgElement,
+  coords: { left: number; top: number; width: number; height: number },
+  iconW: number,
+  iconH: number,
+  scaleX: number,
+  scaleY: number,
+  transform: TransformResult,
+  id: string,
+): PPTShapeElement | null {
+  const d = typeof element.attrs.d === 'string' ? element.attrs.d : ''
+  const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'))
+  const fillValue = element.attrs.fill
+  const isFillNone = fillValue === 'none' || fillValue === 'transparent'
+  const { rotate, flipH, flipV } = applyTransform(coords.left, coords.top, coords.width, coords.height, transform)
+
+  // Icon 的 width/height/viewBox 都用缩放后的值
+  const resultWidth = iconW * Math.abs(scaleX)
+  const resultHeight = iconH * Math.abs(scaleY)
+  const viewBoxW = iconW * Math.abs(scaleX)
+  const viewBoxH = iconH * Math.abs(scaleY)
+
+  // Path 坐标转绝对坐标，并缩放到 canvas 空间
+  const pathD = scalePathCoords(toAbsolutePath(d), scaleX, scaleY)
+
+  // 应用 canvas scale 得到 canvas 空间坐标
+  const finalLeft = coords.left * scaleX
+  const finalTop = coords.top * scaleY
+
+  const result: PPTShapeElement = {
+    id,
+    type: 'shape',
+    left: finalLeft,
+    top: finalTop,
+    width: resultWidth,
+    height: resultHeight,
+    rotate,
+    viewBox: [viewBoxW, viewBoxH],
+    path: pathD,
+    fixedRatio: false,
+    fill: isFillNone ? 'none' : (colorToHex(fillValue) || '#000000'),
+    opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
+  }
+
+  if (element.attrs.gradient) {
+    result.gradient = element.attrs.gradient
+    // @ts-expect-error - fill may not exist on result
+    delete result.fill
+  } else if (!isFillNone) {
+    const fillOpacity = element.attrs['fill-opacity']
+    if (fillOpacity && parseFloat(String(fillOpacity)) < 1) {
+      result.fill = colorToRgba(String(element.attrs.fill), parseFloat(String(fillOpacity)))
+    }
+  }
+  if (flipH) result.flipH = true
+  if (flipV) result.flipV = true
+  if (element.attrs.stroke) {
+    const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity'])
+    result.outline = {
+      style: parseDashArray(element.attrs['stroke-dasharray']),
+      width: strokeWidth || 1,
+      color,
+      ...(opacity !== undefined && { opacity }),
+    }
+    // D-37: For stroke-only paths with height=0 or width=0, set minimum dimension
+    if (result.height === 0 && strokeWidth > 0) {
+      result.height = strokeWidth * scaleY
+    }
+    if (result.width === 0 && strokeWidth > 0) {
+      result.width = strokeWidth * scaleX
+    }
+  }
+  if (element.attrs.shadow) {
+    result.shadow = element.attrs.shadow
+  }
+  return result
+}
 
 /**
  * Parse stroke-dasharray into line style.
@@ -300,18 +383,189 @@ function polylineToPath(points: [number, number][]): string {
 
 /**
  * Extract text content from a text or tspan element.
+ * Adds newline between tspan children to preserve multi-line structure.
  */
 function extractTextContentFromElement(element: SvgElement): string {
   let content = element.text || ''
 
-  // Process tspan children
-  for (const child of element.children) {
-    if (child.type === 'tspan') {
-      content += extractTextContentFromElement(child)
+  // Process tspan children - add newline between lines
+  const tspanChildren = element.children.filter(child => child.type === 'tspan')
+  for (let i = 0; i < tspanChildren.length; i++) {
+    content += extractTextContentFromElement(tspanChildren[i])
+    // Add newline after each tspan except the last one
+    if (i < tspanChildren.length - 1) {
+      content += '\n'
     }
   }
 
   return content
+}
+
+/**
+ * Build HTML content from a text element, processing tspan children with baseline-shift support.
+ * Wraps content in <sup> or <sub> tags based on baseline-shift attribute.
+ * Returns both the HTML content string and plain text for measurement.
+ */
+function buildTextContentFromElement(element: SvgElement, parentFontSize: number = 16, scaleY: number = 1): { html: string; text: string } {
+  let htmlContent = ''
+  let textContent = element.text || ''
+
+  // D-??: Process ALL children in document order, not just tspans.
+  // Children can be either 'text' (inline text segments) or 'tspan' (styled segments)
+  // The parser now interleaves text and tspan children to preserve order.
+  for (let i = 0; i < element.children.length; i++) {
+    const child = element.children[i]
+
+    if (child.type === 'tspan') {
+      // Tspan with potential baseline-shift styling and its own font-size
+      const baselineShift = child.attrs['baseline-shift']
+      const childFontSize = Number(child.attrs['font-size']) || parentFontSize
+      const scaledChildFontSize = childFontSize * scaleY
+      const { html: childHtml, text: childText } = buildTextContentFromElement(child, childFontSize, scaleY)
+
+      let wrappedHtml = childHtml
+      const hasFontSizeDiff = childFontSize !== parentFontSize
+
+      // When baseline-shift exists: use span with vertical-align CSS instead of sub/sup tag
+      // This preserves font-size styling which pptist doesn't support on sub/sup tags
+      if (baselineShift === 'super' || baselineShift === 'sub') {
+        const vaValue = baselineShift === 'super' ? 'super' : 'sub'
+        if (hasFontSizeDiff) {
+          wrappedHtml = `<span style="vertical-align: ${vaValue}; font-size: ${scaledChildFontSize}px">${childHtml}</span>`
+        } else {
+          wrappedHtml = `<span style="vertical-align: ${vaValue}">${childHtml}</span>`
+        }
+      } else if (hasFontSizeDiff) {
+        // No baseline-shift but different font-size: use span wrapper with scaled size
+        wrappedHtml = `<span style="font-size: ${scaledChildFontSize}px">${childHtml}</span>`
+      }
+
+      htmlContent += wrappedHtml
+      textContent += childText
+    } else if (child.type === 'text') {
+      // Inline text segment (from mixed text/tspan content)
+      // All text segments need explicit font-size wrapper (text's font-size is the main font size)
+      const { html: childHtml, text: childText } = buildTextContentFromElement(child, parentFontSize, scaleY)
+      const scaledParentFontSize = parentFontSize * scaleY
+      htmlContent += `<span style="font-size: ${scaledParentFontSize}px">${childHtml}</span>`
+      textContent += childText
+    }
+  }
+
+  // If element has direct text but no children were processed, return raw text
+  // The wrapping with font-size will be done by the PARENT element (text or tspan with baseline-shift)
+  // This avoids double-wrapping when parent will add vertical-align or other styling
+  if (!htmlContent && element.text) {
+    htmlContent = element.text
+  }
+
+  return { html: htmlContent, text: textContent }
+}
+
+/**
+ * Check if element has tspan children with x attribute (indicating multiline text).
+ * Rule: 有 x = 换行（多行文本），无 x = 同行连续排列（公式/上下标）
+ */
+function hasLineBreakTspans(element: SvgElement): boolean {
+  for (const child of element.children) {
+    if (child.type === 'tspan') {
+      if (child.attrs['x'] !== undefined) {
+        return true
+      }
+      if (hasLineBreakTspans(child)) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+interface TspanExtractResult {
+  left: number
+  top: number
+  fontSize: number
+  content: string
+  htmlContent: string
+}
+
+/**
+ * Extract tspan elements with calculated positions for multiline text.
+ * Position calculation based on parent text x/y plus each tspan's x and dy.
+ */
+function extractTspansWithPosition(
+  element: SvgElement,
+  baseLeft: number,
+  baseTop: number,
+  baseFontSize: number,
+  scaleX: number = 1,
+  scaleY: number = 1,
+  parentSvgX?: number,
+): TspanExtractResult[] {
+  const results: TspanExtractResult[] = []
+  const fontSize = parseFloat(String(element.attrs['font-size'] || baseFontSize))
+  // The parent's x in SVG coordinates (before transform)
+  const parentX = parentSvgX ?? 0
+
+  // Process tspan children
+  const tspanChildren = element.children.filter(child => child.type === 'tspan')
+
+  if (tspanChildren.length === 0) {
+    // No tspans, use direct text content
+    const text = element.text || ''
+    if (text) {
+      results.push({
+        left: baseLeft,
+        top: baseTop,
+        fontSize,
+        content: text,
+        htmlContent: `<span style="font-size: ${fontSize}px">${text}</span>`,
+      })
+    }
+    return results
+  }
+
+  let currentTop = baseTop
+  let currentLeft = baseLeft
+
+  for (const tspan of tspanChildren) {
+    const hasX = tspan.attrs['x'] !== undefined
+    // tspanX calculation:
+    // - parentX is the parent text element's x in SVG coordinates
+    // - baseLeft is the parent text's transformed left position (after translate + scale)
+    // - The offset = baseLeft - parentX (in SVG space, before scale)
+    // - For tspan, effective x = tspanX + offset (then scaled)
+    // Formula: effectiveX = (tspanX - parentX) * scaleX + baseLeft
+    const tspanX = hasX
+      ? (parseFloat(String(tspan.attrs['x'])) - parentX) * scaleX + baseLeft
+      : currentLeft
+    const tspanDy = tspan.attrs['dy'] !== undefined ? parseFloat(String(tspan.attrs['dy'])) : 0
+    // Inherit font-size from parent if not specified on tspan
+    const tspanFontSize = tspan.attrs['font-size'] !== undefined
+      ? parseFloat(String(tspan.attrs['font-size']))
+      : fontSize
+    const scaledFontSize = tspanFontSize * scaleY
+
+    // Build HTML content for this tspan (preserve baseline-shift styling)
+    const { html: tspanHtml, text: tspanText } = buildTextContentFromElement(tspan, tspanFontSize, scaleY)
+
+    // Update position based on dy (relative to previous line in SVG coordinate space)
+    // Note: In SVG, dy is the displacement from the previous line's baseline position
+    // dy="0" means same baseline as previous line
+    // dy="22" means 22 SVG units lower than previous line
+    currentTop += tspanDy * scaleY
+
+    results.push({
+      left: tspanX,
+      top: currentTop,
+      fontSize: tspanFontSize,
+      content: tspanText,
+      htmlContent: tspanHtml,
+    })
+
+    currentLeft = tspanX
+  }
+
+  return results
 }
 
 /**
@@ -328,9 +582,11 @@ export async function transformElement(
   index: number,
   targetCanvas: [number, number] = [1000, 562.5],
   groupId?: string,
-): Promise<PPTElement | null> {
+  effectiveTransform?: string,
+): Promise<PPTElement | PPTElement[] | null> {
   const tag = element.type.toLowerCase()
-  const coords = mapCoordinates(element, viewBox)
+  // REF-01: Pass effectiveTransform (parent + element transform composed) to mapCoordinates
+  const coords = mapCoordinates(element, viewBox, effectiveTransform)
   const id = uuidv4()
 
   // Calculate scale ratio from SVG viewBox to target canvas
@@ -344,7 +600,8 @@ export async function transformElement(
   const height = coords.height * scaleY
 
   // Parse transform attribute for rotate/flip handling
-  const transform = parseTransform(element.attrs.transform)
+  // REF-01: Use effectiveTransform (already composed with parent transform)
+  const transform = parseTransform(effectiveTransform || element.attrs.transform)
 
   // Skip non-renderable elements
   if (['defs', 'linearGradient', 'stop', 'filter', 'marker', 'clippath'].includes(tag)) {
@@ -545,23 +802,46 @@ export async function transformElement(
     }
 
     case 'path': {
+      // Check if this is an icon element (has data-icon-width/height)
+      const iconW = element.attrs['data-icon-width'] != null ? parseFloat(String(element.attrs['data-icon-width'])) : undefined
+      const iconH = element.attrs['data-icon-height'] != null ? parseFloat(String(element.attrs['data-icon-height'])) : undefined
+
+      if (iconW !== undefined && iconH !== undefined) {
+        // Icon path: use dedicated method
+        const iconResult = transformIconElement(element, coords, iconW, iconH, scaleX, scaleY, transform, id)
+        if (iconResult) {
+          // Debug: log icon shape info
+          console.log(`[icon-shape] id=${id} path="${iconResult.path.substring(0, 40)}${iconResult.path.length > 40 ? '...' : ''}" left=${iconResult.left.toFixed(2)} top=${iconResult.top.toFixed(2)} size=${iconResult.width.toFixed(2)}x${iconResult.height.toFixed(2)}`)
+          return iconResult
+        }
+      }
+
+      // Normal path handling below
       const transformed = applyTransform(left, top, width, height, transform)
       const { rotate, flipH, flipV } = transformed
-      // Per D-03: path elements keep original d attribute unchanged
       const d = typeof element.attrs.d === 'string' ? element.attrs.d : ''
       const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'))
+      const fillValue = element.attrs.fill
+      const isFillNone = fillValue === 'none' || fillValue === 'transparent'
+
+      const resultWidth = transformed.width
+      const resultHeight = transformed.height
+      const viewBoxW = transformed.width / Math.abs(scaleX)
+      const viewBoxH = transformed.height / Math.abs(scaleY)
+      const pathD = toAbsolutePath(d)
+
       const result: PPTShapeElement = {
         id,
         type: 'shape',
         left: transformed.left,
         top: transformed.top,
-        width: transformed.width,
-        height: transformed.height,
+        width: resultWidth,
+        height: resultHeight,
         rotate,
-        viewBox: [transformed.width, transformed.height],
-        path: d,
+        viewBox: [viewBoxW, viewBoxH],
+        path: pathD,
         fixedRatio: false,
-        fill: colorToHex(element.attrs.fill) || '#000000',
+        fill: isFillNone ? 'none' : (colorToHex(fillValue) || '#000000'),
         opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
       }
       // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
@@ -569,8 +849,8 @@ export async function transformElement(
         result.gradient = element.attrs.gradient
         // @ts-expect-error - fill may not exist on result
         delete result.fill
-      } else {
-        // D-18: fill-opacity < 1 → rgba() color
+      } else if (!isFillNone) {
+        // D-18: fill-opacity < 1 → rgba() color (only if fill is not "none")
         const fillOpacity = element.attrs['fill-opacity']
         if (fillOpacity && parseFloat(String(fillOpacity)) < 1) {
           result.fill = colorToRgba(String(element.attrs.fill), parseFloat(String(fillOpacity)))
@@ -585,6 +865,14 @@ export async function transformElement(
           width: strokeWidth || 1,
           color,
           ...(opacity !== undefined && { opacity }),
+        }
+        // D-37: For stroke-only paths with height=0 (horizontal lines) or width=0 (vertical lines),
+        // set minimum dimension to stroke-width so the stroke is visible
+        if (result.height === 0 && strokeWidth > 0) {
+          result.height = strokeWidth * scaleY
+        }
+        if (result.width === 0 && strokeWidth > 0) {
+          result.width = strokeWidth * scaleX
         }
       }
       // D-22: SVG filter="url(#shadowId)" → shadow
@@ -765,7 +1053,6 @@ export async function transformElement(
     case 'text': {
       const transformed = applyTransform(left, top, width, height, transform)
       const { rotate } = transformed
-      const content = extractTextContentFromElement(element)
       // Force Microsoft YaHei for all text (width calculation and output)
       const fontFamily = element.attrs['font-family'] || 'Microsoft YaHei'
       const fontSize = Number(String(element.attrs["font-size"] || "16")) || 16
@@ -778,6 +1065,9 @@ export async function transformElement(
       const isBold = fontWeight === 'bold' || fontWeight === '600' || fontWeight === '700'
       const fontStyle = element.attrs['font-style']
       const isItalic = fontStyle === 'italic'
+
+      // D-??: Build content HTML with baseline-shift support (sup/sub tags)
+      const { html: contentHtml, text: content } = buildTextContentFromElement(element, fontSize, scaleY)
 
       // Measure text using resvg-js with fallback to heuristic
       let textWidth: number
@@ -817,8 +1107,6 @@ export async function transformElement(
         textTop = transformed.top - fontSize * 0.8 * scaleY
       }
 
-      // Log text measurement info
-      console.log(`[text] "${content.substring(0, 30)}${content.length > 30 ? '...' : ''}" | fontSize=${fontSize} | scaleX=${scaleX.toFixed(3)} scaleY=${scaleY.toFixed(3)} | svg_w=${(textWidth / scaleX).toFixed(1)} | out_w=${textWidth.toFixed(1)} | svg_h=${(textHeight / scaleY).toFixed(1)} | out_h=${textHeight.toFixed(1)}`)
 
       // X轴: 考虑 text-anchor 调整 left
       // SVG text x 对于 middle/end 是参考点，需要偏移
@@ -838,15 +1126,18 @@ export async function transformElement(
       else if (textAnchor === 'middle') textAlign = 'center'
       const pStyle = textAlign ? `text-align: ${textAlign}` : ''
 
+      // Use scaledFontSize for outer content span (matches the visual scale from viewBox→canvas)
       let spanStyle = `font-size: ${scaledFontSize}px`
       if (hasRgba) {
         const rgbaColor = colorToRgba(fillColor, parseFloat(String(fillOpacity)))
         spanStyle += `; color: ${rgbaColor}`
       }
 
-      // Build content HTML: <p style="text-align: ..."><strong><em><span style="...">content</span></em></strong></p>
+      // If contentHtml doesn't contain HTML tags (raw text), wrap it in a span with font-size
+      // This handles simple text elements without tspan children
+      const hasHtmlTags = contentHtml.includes('<')
+      const innerSpan = hasHtmlTags ? contentHtml : `<span style="${spanStyle}">${contentHtml}</span>`
       // ProseMirror marks order: strong > em > fontsize > fontname > forecolor > backcolor > underline > strikethrough
-      const innerSpan = `<span style="${spanStyle}">${content}</span>`
       let weightedContent = innerSpan
       if (isItalic) weightedContent = `<em>${weightedContent}</em>`
       if (isBold) weightedContent = `<strong>${weightedContent}</strong>`
@@ -860,39 +1151,88 @@ export async function transformElement(
       const fixedHeight = !!element.attrs.height
 
       // D-26: inset=[0,0,0,0] to avoid 10px default padding causing coordinate offset
-      const result: PPTTextElement = {
-        id,
-        type: 'text',
-        left: textLeft,
-        top: textTop,
-        width: textWidth,
-        height: textHeight,
-        defaultFontSize: scaledFontSize,
+      const baseResult = {
         rotate,
-        content: richContent,
         defaultFontName: fontFamily,
         defaultColor: colorToHex(fillColor) || '#000000',
         lineHeight: 1,
-        opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
-        shadow: undefined,
-        vAlign: 'middle',
+        opacity: element.attrs.opacity ? parseFloat(String(element.attrs.opacity)) : undefined,
+        shadow: undefined as undefined,
+        vAlign: 'middle' as const,
         fixedHeight,
         wordSpace: 0,
         paragraphSpace: 5,
         vertical,
-        inset: [0, 0, 0, 0],
+        inset: [0, 0, 0, 0] as [number, number, number, number],
       }
-      // D-19: stroke color/opacity handling for text outline
-      if (element.attrs.stroke) {
-        const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity'])
-        result.outline = { color, width: 1 }
-        if (opacity !== undefined) result.outline.opacity = opacity
+
+      // Check if this is multiline text (has tspan with x attribute)
+      // Rule: 有 x = 换行（多行文本），无 x = 同行连续排列
+      const isMultiline = hasLineBreakTspans(element)
+
+      if (isMultiline) {
+        // Multiline text: extract each tspan as separate text element
+        // Pass parent text's SVG x coordinate so tspan positions can be calculated correctly
+        const parentSvgX = parseFloat(String(element.attrs['x'] || '0'))
+        const tspanElements = extractTspansWithPosition(
+          element,
+          textLeft,
+          textTop,
+          fontSize,
+          scaleX,
+          scaleY,
+          parentSvgX,
+        )
+
+        const results: PPTTextElement[] = tspanElements.map((tspan, idx) => {
+          // Apply text-level strong/em styles to each line's content
+          let lineContent = tspan.htmlContent
+          if (isItalic) lineContent = `<em>${lineContent}</em>`
+          if (isBold) lineContent = `<strong>${lineContent}</strong>`
+          const tspanRichContent = `<p${pStyle ? ` style="${pStyle}"` : ''}>${lineContent}</p>`
+          const result: PPTTextElement = {
+            id: idx === 0 ? id : `${id}-line-${idx}`,
+            type: 'text',
+            left: tspan.left,
+            top: tspan.top,
+            width: textWidth,
+            height: tspan.fontSize * 1.2,
+            defaultFontSize: tspan.fontSize * scaleY,
+            content: tspanRichContent,
+            ...baseResult,
+          }
+          if (groupId) {
+            result.groupId = groupId
+          }
+          return result
+        })
+
+        return results
+      } else {
+        // Single line or inline content: single text element
+        const result: PPTTextElement = {
+          id,
+          type: 'text',
+          left: textLeft,
+          top: textTop,
+          width: textWidth,
+          height: textHeight,
+          defaultFontSize: scaledFontSize,
+          content: richContent,
+          ...baseResult,
+        }
+        // D-19: stroke color/opacity handling for text outline
+        if (element.attrs.stroke) {
+          const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity'])
+          result.outline = { color, width: 1 }
+          if (opacity !== undefined) result.outline.opacity = opacity
+        }
+        // D-23: groupId propagation from parent g element
+        if (groupId) {
+          result.groupId = groupId
+        }
+        return result
       }
-      // D-23: groupId propagation from parent g element
-      if (groupId) {
-        result.groupId = groupId
-      }
-      return result
     }
 
     case 'image': {
@@ -997,13 +1337,14 @@ export async function transformToPPTElement(
       } else {
         // Skip non-renderable container elements
         if (!['defs', 'linearGradient', 'stop', 'filter', 'marker', 'clippath'].includes(child.type.toLowerCase())) {
-          // Apply accumulated parent transform to child element before processing
-          if (effectiveTransform && !child.attrs.transform) {
-            child.attrs.transform = effectiveTransform
-          }
-          const pptel = await transformElement(child, viewBox, elements.length, targetCanvas, effectiveGroupId)
+          // REF-01: Pass effectiveTransform to mapCoordinates instead of mutating child.attrs.transform
+          const pptel = await transformElement(child, viewBox, elements.length, targetCanvas, effectiveGroupId, effectiveTransform)
           if (pptel !== null) {
-            elements.push(pptel)
+            if (Array.isArray(pptel)) {
+              elements.push(...pptel)
+            } else {
+              elements.push(pptel)
+            }
           }
         }
       }
