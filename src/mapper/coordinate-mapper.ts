@@ -116,10 +116,10 @@ export function parseTransform(transform: string | undefined): TransformResult {
 }
 
 /**
- * Compute bounding box of a path's M/L/H/V/A commands.
- * For arcs, we include the endpoint and apply rx/ry padding only for large arcs (>90 degrees).
+ * Compute bounding box of a path's M/L/H/V/A/C/Q/S/T commands.
+ * For arcs, we include the endpoint. For curves (C/Q/S/T), use control point enclosure.
  */
-function pathBoundingBox(d: string): { left: number; top: number; width: number; height: number } | null {
+export function pathBoundingBox(d: string): { left: number; top: number; width: number; height: number } | null {
   let minX = Infinity
   let minY = Infinity
   let maxX = -Infinity
@@ -127,18 +127,18 @@ function pathBoundingBox(d: string): { left: number; top: number; width: number;
 
   let curX = 0
   let curY = 0
+  let prevCtrlX = 0
+  let prevCtrlY = 0
+  let prevCmdU = ''
 
   // Split by any command letter
-  const segments = d.split(/(?=[MLHVAz])/i)
+  const segments = d.split(/(?=[MLHVACQSz])/i)
   for (const seg of segments) {
-    const cmdMatch = seg.match(/^([MLHVAz])\s*/i)
+    const cmdMatch = seg.match(/^([MLHVACQSz])\s*/i)
     if (!cmdMatch) continue
     const cmd = cmdMatch[1]
     const isRel = cmd === cmd.toLowerCase()
     const cmdU = cmd.toUpperCase()
-    // For arcs, skip the 5 arc params and only get endpoint x,y
-    // Arc format: A rx ry x-axis-rotation large-arc-flag sweep-flag x y
-    // So after command, we need to skip 5 numbers to get x,y
     const nums = seg.slice(cmdMatch[0].length).trim().split(/[\s,]+/).map(Number).filter((n) => !isNaN(n))
 
     if (cmdU === 'Z') {
@@ -152,18 +152,21 @@ function pathBoundingBox(d: string): { left: number; top: number; width: number;
         minX = Math.min(minX, x); maxX = Math.max(maxX, x)
         minY = Math.min(minY, y); maxY = Math.max(maxY, y)
         curX = x; curY = y
+        prevCtrlX = curX; prevCtrlY = curY
       }
     } else if (cmdU === 'H') {
       for (const nx of nums) {
         const x = isRel ? curX + nx : nx
         minX = Math.min(minX, x); maxX = Math.max(maxX, x)
         curX = x
+        prevCtrlX = curX; prevCtrlY = curY
       }
     } else if (cmdU === 'V') {
       for (const ny of nums) {
         const y = isRel ? curY + ny : ny
         minY = Math.min(minY, y); maxY = Math.max(maxY, y)
         curY = y
+        prevCtrlX = curX; prevCtrlY = curY
       }
     } else if (cmdU === 'A') {
       // Arc: rx ry x-axis-rotation large-arc-flag sweep-flag x y
@@ -174,7 +177,77 @@ function pathBoundingBox(d: string): { left: number; top: number; width: number;
         minX = Math.min(minX, x); maxX = Math.max(maxX, x)
         minY = Math.min(minY, y); maxY = Math.max(maxY, y)
         curX = x; curY = y
+        prevCtrlX = curX; prevCtrlY = curY
       }
+    } else if (cmdU === 'C') {
+      // Cubic bezier: x1,y1 x2,y2 x,y (6 params after command)
+      for (let i = 0; i < nums.length; i += 6) {
+        const x1 = isRel ? curX + nums[i] : nums[i]
+        const y1 = isRel ? curY + nums[i + 1] : nums[i + 1]
+        const x2 = isRel ? curX + nums[i + 2] : nums[i + 2]
+        const y2 = isRel ? curY + nums[i + 3] : nums[i + 3]
+        const x = isRel ? curX + nums[i + 4] : nums[i + 4]
+        const y = isRel ? curY + nums[i + 5] : nums[i + 5]
+        // Control point enclosure: curve is within convex hull of 4 control points
+        minX = Math.min(minX, x1, x2, x); maxX = Math.max(maxX, x1, x2, x)
+        minY = Math.min(minY, y1, y2, y); maxY = Math.max(maxY, y1, y2, y)
+        curX = x; curY = y
+        prevCtrlX = x2; prevCtrlY = y2
+      }
+      prevCmdU = 'C'
+    } else if (cmdU === 'Q') {
+      // Quadratic bezier: x1,y1 x,y (4 params after command)
+      for (let i = 0; i < nums.length; i += 4) {
+        const x1 = isRel ? curX + nums[i] : nums[i]
+        const y1 = isRel ? curY + nums[i + 1] : nums[i + 1]
+        const x = isRel ? curX + nums[i + 2] : nums[i + 2]
+        const y = isRel ? curY + nums[i + 3] : nums[i + 3]
+        // Control point enclosure: curve is within triangle of 3 points
+        minX = Math.min(minX, x1, x); maxX = Math.max(maxX, x1, x)
+        minY = Math.min(minY, y1, y); maxY = Math.max(maxY, y1, y)
+        curX = x; curY = y
+        prevCtrlX = x1; prevCtrlY = y1
+      }
+      prevCmdU = 'Q'
+    } else if (cmdU === 'S') {
+      // Smooth cubic bezier: x2,y2 x,y (4 params, first control point reflected)
+      for (let i = 0; i < nums.length; i += 4) {
+        // First control point: reflect prevCtrl about cur
+        const x1 = (prevCmdU === 'C' || prevCmdU === 'S')
+          ? 2 * curX - prevCtrlX
+          : curX
+        const y1 = (prevCmdU === 'C' || prevCmdU === 'S')
+          ? 2 * curY - prevCtrlY
+          : curY
+        const x2 = isRel ? curX + nums[i] : nums[i]
+        const y2 = isRel ? curY + nums[i + 1] : nums[i + 1]
+        const x = isRel ? curX + nums[i + 2] : nums[i + 2]
+        const y = isRel ? curY + nums[i + 3] : nums[i + 3]
+        // Control point enclosure with reflected first control point
+        minX = Math.min(minX, x1, x2, x); maxX = Math.max(maxX, x1, x2, x)
+        minY = Math.min(minY, y1, y2, y); maxY = Math.max(maxY, y1, y2, y)
+        curX = x; curY = y
+        prevCtrlX = x2; prevCtrlY = y2
+      }
+      prevCmdU = 'S'
+    } else if (cmdU === 'T') {
+      // Smooth quadratic bezier: x,y (2 params, control point reflected)
+      const x1 = (prevCmdU === 'Q' || prevCmdU === 'T')
+        ? 2 * curX - prevCtrlX
+        : curX
+      const y1 = (prevCmdU === 'Q' || prevCmdU === 'T')
+        ? 2 * curY - prevCtrlY
+        : curY
+      for (let i = 0; i < nums.length; i += 2) {
+        const x = isRel ? curX + nums[i] : nums[i]
+        const y = isRel ? curY + nums[i + 1] : nums[i + 1]
+        // Control point enclosure with reflected control point
+        minX = Math.min(minX, x1, x); maxX = Math.max(maxX, x1, x)
+        minY = Math.min(minY, y1, y); maxY = Math.max(maxY, y1, y)
+        curX = x; curY = y
+        prevCtrlX = curX; prevCtrlY = curY
+      }
+      prevCmdU = 'T'
     }
   }
 

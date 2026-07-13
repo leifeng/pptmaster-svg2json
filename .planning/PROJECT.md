@@ -22,11 +22,20 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 - ✓ **resvg-js text measurement** — accurate bounding box via @resvg/resvg-js
 - ✓ **lineHeight default 1** — text line height set to 1 instead of 1.5
 - ✓ **transparent stroke handling** — stroke opacity extracted to outline.opacity field
+- ✓ **rotate(deg, cx, cy) with center point** — correct rotation around specified center
+- ✓ **text baseline offset** — configurable BASELINE_OFFSET_RATIO (0.8)
+- ✓ **nested `<g>` transform accumulation** — parent transform composed with child
+- ✓ **S/s T/t bezier reflection** — correct smooth quadratic/cubic bezier control point calculation
+- ✓ **clipPath preprocessing** — coordinate expansion before transform pipeline
+- ✓ **baseline-shift pixel scaling** — absolute pixel values scaled by scaleY
 
 ### Active
 
-- [ ] **Correct rotate transform with rotation center** — `rotate(deg, cx, cy)` in SVG transform attribute
-- [ ] **Verified canvas scaling** — confirm all elements land at correct positions on 1000×562.5 canvas
+- [ ] **PATH-MERGE-01** — 决策树判断逻辑：当 `<g>` 子元素全为 `<path>` 时，按决策树判断是否合并
+- [ ] **PATH-MERGE-02** — 提取 `<g>` 内所有 path 的公共样式属性
+- [ ] **PATH-MERGE-03** — 检测 path 之间的重叠填充区域
+- [ ] **PATH-MERGE-04** — 处理 `fill-rule="evenodd"` 特殊镂空效果
+- [ ] **PATH-MERGE-05** — 合并后的 path 输出正确坐标和样式
 
 ### Out of Scope
 
@@ -34,14 +43,17 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 - SVG filter effects (blur, drop-shadow) — PPTElement doesn't support these
 - Gradient fills beyond solid color — not in current PPTElement schema
 - Font fallback or text layout engine — single-font text only
+- SVGO optimization — not needed for parsing, adds bundle size
+- Build system upgrades (tsup) — deferred
+- Dependency upgrades — deferred to after transform fixes stabilize
 
 ## Context
 
-**Existing library** — svg-to-pptel v1.3, published as npm package.
-
-**Text baseline issue** — SVG `<text y="30">` means the text's baseline sits at y=30. Current implementation uses fixed 0.8 ratio for baseline-to-top conversion.
+**Existing library** — svg-to-pptel v1.6, published as npm package.
 
 **Target canvas** — 1000×562.5 (16:9 aspect ratio).
+
+**Tech stack:** TypeScript strict mode, CommonJS, fast-xml-parser, cac, picocolors, uuid, @resvg/resvg-js
 
 ## Constraints
 
@@ -57,6 +69,9 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 | Canvas 1000×562.5 | 16:9 standard slide proportion | ✓ Confirmed |
 | 0.8 multiplier for text baseline | Fixed ratio for baseline→top | ✓ Confirmed |
 | resvg-js for text measurement | NAPI native addon, accurate glyph bounding box | ✓ Complete |
+| Parent transform composition | Pass parent transform to mapCoordinates without AST mutation | ✓ Complete |
+| clipPath via AST preprocessing | Expand clipPath definitions before transform pipeline | ✓ Complete |
+| Pixel baseline-shift scaling | Scale pixel values by scaleY (e.g., -5px → -3.90625) | ✓ Complete |
 
 ## Evolution
 
@@ -70,17 +85,43 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: v1.4 — Directory Batch CLI
+## Current Milestone: v1.7 — Path 合并优化
 
-**Goal:** CLI that reads SVG files from a directory and converts them to JSON in the same directory
+**Goal:** 当 `<g>` 标签的子元素全部为 `<path>` 时，按照决策树判断是否合并为单一 path 以减少输出元素数量。
 
 **Target features:**
-- Directory-based batch conversion CLI
-- Read all .svg files from input directory
-- Output JSON files to the same directory with same filename
-- Error handling for invalid/missing files
+- 实现决策树判断逻辑（共享样式属性 → 语义/交互/可访问性 → fill="none"/无重叠 → fill-rule 检查）
+- 提取 `<g>` 内所有 path 的公共样式属性
+- 检测 path 之间的重叠填充区域
+- 处理 `fill-rule="evenodd"` 特殊镂空效果
+- 合并后的 path 输出正确坐标和样式
+
+---
 
 ## Previous Milestones
+
+### v1.6 — SVG Converter Refactor (2026-07-13)
+
+- Nested `<g>` transform accumulation fixed
+- S/s T/t bezier reflection corrected
+- clipPath preprocessing integrated
+- baseline-shift pixel values scaled by scaleY
+- path-utils.ts extracted as unified module
+
+### v1.5 — Use Tag Refactor (2026-07-10)
+
+- autoEmbedIcons extracted to src/svg-use-handler.ts
+- External SVG files via `<use href="file.svg">` rendered to PNG and embedded
+
+### v1.4 — Directory Batch CLI (2026-07-02)
+
+- CLI reads SVG files from directory, converts each to JSON in same directory
+- Summary output: "Converted N files, M failed"
+
+### v1.3 — resvg-js Text Measurement (2026-07-01)
+
+- @resvg/resvg-js integrated for accurate text bounding box
+- text-measurer.ts module with measureTextBBox()
 
 ### v1.2 — PPTist格式对齐 (2026-06-30)
 
@@ -88,9 +129,9 @@ Research confirmed all target PPTist schema properties already implemented or de
 
 ### v1.1 — transform-fixes (2026-06-27~29)
 
-- Correct rotate transform with rotation center
+- Correct rotate transform with rotation center (`rotate(deg, cx, cy)`)
 - Correct text y coordinate (baseline → top)
 
 ---
 
-*Last updated: 2026-07-01 after v1.3 milestone*
+*Last updated: 2026-07-13 after v1.7 milestone started*
