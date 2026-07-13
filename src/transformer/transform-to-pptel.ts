@@ -436,8 +436,9 @@ function buildTextContentFromElement(element: SvgElement, parentFontSize: number
         } else {
           wrappedHtml = `<span style="vertical-align: ${vaValue}">${childHtml}</span>`
         }
-      } else if (hasFontSizeDiff) {
-        // No baseline-shift but different font-size: use span wrapper with scaled size
+      } else {
+        // Always wrap tspan content in font-size span (even when same as parent)
+        // This ensures text rendering always has explicit font-size information
         wrappedHtml = `<span style="font-size: ${scaledChildFontSize}px">${childHtml}</span>`
       }
 
@@ -453,11 +454,11 @@ function buildTextContentFromElement(element: SvgElement, parentFontSize: number
     }
   }
 
-  // If element has direct text but no children were processed, return raw text
-  // The wrapping with font-size will be done by the PARENT element (text or tspan with baseline-shift)
-  // This avoids double-wrapping when parent will add vertical-align or other styling
+  // If element has direct text content, wrap it with font-size span
+  // This ensures all text segments have explicit font-size (even when no children)
   if (!htmlContent && element.text) {
-    htmlContent = element.text
+    const scaledParentFontSize = parentFontSize * scaleY
+    htmlContent = `<span style="font-size: ${scaledParentFontSize}px">${element.text}</span>`
   }
 
   return { html: htmlContent, text: textContent }
