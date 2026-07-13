@@ -194,21 +194,28 @@ export function createMergedShapeElement(
     height = bbox.height || viewBox[1]
   }
 
-  // Parse group transform for scale and rotation
+  // Parse group transform for scale, rotation and translation
   let rotate = 0
   let scaleX = 1
   let scaleY = 1
+  let translateX = 0
+  let translateY = 0
   if (groupTransform) {
     const parsed = parseTransform(groupTransform)
     rotate = parsed.rotateDeg ?? 0
     scaleX = parsed.scaleX ?? 1
     scaleY = parsed.scaleY ?? 1
+    translateX = parsed.translateX ?? 0
+    translateY = parsed.translateY ?? 0
   }
 
-  // Apply scale from group transform to bounding box
+  // Apply scale and translation from group transform to bounding box
+  // SVG transform composition: scale(s) translate(t) means "first translate, then scale"
+  // So the formula is: left = (bbox.left + translateX) * scaleX
+  // Width and height only scale, they don't get translate added (translate affects position, not size)
   if (bbox) {
-    left = bbox.left * scaleX
-    top = bbox.top * scaleY
+    left = (bbox.left + translateX) * scaleX
+    top = (bbox.top + translateY) * scaleY
     width = (bbox.width || viewBox[0]) * scaleX
     height = (bbox.height || viewBox[1]) * scaleY
   }
