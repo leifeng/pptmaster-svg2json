@@ -238,8 +238,8 @@ export function mapCoordinates(
     }
 
     case 'ellipse': {
-      const cx = extractNumber(attrs.cx, 0) + tx
-      const cy = extractNumber(attrs.cy, 0) + ty
+      const cx = extractNumber(attrs.cx, 0) * Math.abs(sx) + tx
+      const cy = extractNumber(attrs.cy, 0) * Math.abs(sy) + ty
       const rx = extractNumber(attrs.rx, 0) * Math.abs(sx)
       const ry = extractNumber(attrs.ry, 0) * Math.abs(sy)
       left = cx - rx

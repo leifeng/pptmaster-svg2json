@@ -822,7 +822,6 @@ export async function transformElement(
         // Icon path: use dedicated method
         const iconResult = transformIconElement(element, coords, iconW, iconH, scaleX, scaleY, transform, id)
         if (iconResult) {
-          // Debug: log icon shape info
           console.log(`[icon-shape] id=${id} path="${iconResult.path.substring(0, 40)}${iconResult.path.length > 40 ? '...' : ''}" left=${iconResult.left.toFixed(2)} top=${iconResult.top.toFixed(2)} size=${iconResult.width.toFixed(2)}x${iconResult.height.toFixed(2)}`)
           return iconResult
         }
