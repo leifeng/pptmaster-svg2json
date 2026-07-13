@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { SvgParseResult, SvgElement, TransformResult } from '../types/ast'
 import { mapCoordinates, parseTransform } from '../mapper/coordinate-mapper'
 import { applyTransform, applyRotateWithCenter } from './apply-transform'
+import { preprocessClipPaths } from './clip-path-preprocessor'
 import { rectToPath, roundedRectToPath, circleToPath, ellipseToPath, lineToPath, polygonToPath } from '../shapes/shape-to-path'
 import { measureTextElement, TextMeasurementInput } from '../text-measurer'
 import { toAbsolutePath, scalePathCoords } from '../utils/path-utils'
@@ -1310,6 +1311,9 @@ export async function transformToPPTElement(
   ast: SvgParseResult,
   targetCanvas: [number, number] = [1000, 562.5],
 ): Promise<PPTElement[]> {
+  // REF-03: Preprocess clipPath definitions before transform
+  preprocessClipPaths(ast)
+
   const elements: PPTElement[] = []
 
   async function walk(
