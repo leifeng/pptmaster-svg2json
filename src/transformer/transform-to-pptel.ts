@@ -6,6 +6,7 @@ import { preprocessClipPaths } from './clip-path-preprocessor'
 import { rectToPath, roundedRectToPath, circleToPath, ellipseToPath, lineToPath, polygonToPath } from '../shapes/shape-to-path'
 import { measureTextElement, TextMeasurementInput } from '../text-measurer'
 import { toAbsolutePath, scalePathCoords } from '../utils/path-utils'
+import { shouldMerge, extractCommonStyle, createMergedShapeElement } from '../merger/path-merge'
 
 
 import type { PPTElement, PPTTextElement, PPTShapeElement, PPTLineElement, PPTImageElement, LineStyleType } from '../slides'
@@ -1332,6 +1333,7 @@ export async function transformToPPTElement(
     viewBox: [number, number, number, number],
     currentGroupId?: string,
     parentTransform?: string,
+    inheritedAttrs?: { fill?: string; stroke?: string; 'stroke-width'?: string; 'fill-opacity'?: string; 'stroke-opacity'?: string },
   ) {
     const tag = element.type.toLowerCase()
 
@@ -1344,16 +1346,100 @@ export async function transformToPPTElement(
     // Accumulate parent transform: child's transform is composed with parent's
     const effectiveTransform = composeTransforms(parentTransform, element.attrs.transform)
 
+    // D-38: Accumulate inherited visual attributes from parent g elements
+    // Inheritable attributes: fill, stroke, stroke-width, fill-opacity, stroke-opacity
+    const effectiveInheritedAttrs: typeof inheritedAttrs = inheritedAttrs ? { ...inheritedAttrs } : {}
+    if (isG) {
+      // g element's fill/stroke attributes are inherited by its children
+      if (element.attrs.fill !== undefined) effectiveInheritedAttrs.fill = element.attrs.fill
+      if (element.attrs.stroke !== undefined) effectiveInheritedAttrs.stroke = element.attrs.stroke
+      if (element.attrs['stroke-width'] !== undefined) effectiveInheritedAttrs['stroke-width'] = element.attrs['stroke-width']
+      if (element.attrs['fill-opacity'] !== undefined) effectiveInheritedAttrs['fill-opacity'] = String(element.attrs['fill-opacity'])
+      if (element.attrs['stroke-opacity'] !== undefined) effectiveInheritedAttrs['stroke-opacity'] = String(element.attrs['stroke-opacity'])
+    }
+
+    // D-29: Check if this is a group with all-path children for potential merge
+    if (isG) {
+      const gChildren = element.children
+      // Check if all children are path elements and more than one
+      const allPathChildren = gChildren.length > 1 && gChildren.every(child => child.type.toLowerCase() === 'path')
+
+      if (allPathChildren) {
+        // Build effective group attrs combining element.attrs with inherited attrs
+        const effectiveGroupAttrs: Record<string, string> = {}
+        // Start with element's own attrs (string values only)
+        for (const [key, value] of Object.entries(element.attrs)) {
+          if (typeof value === 'string') effectiveGroupAttrs[key] = value
+        }
+        // Fill in inherited attrs where element doesn't have them
+        if (effectiveInheritedAttrs.fill !== undefined && effectiveGroupAttrs.fill === undefined) {
+          effectiveGroupAttrs.fill = effectiveInheritedAttrs.fill
+        }
+        if (effectiveInheritedAttrs.stroke !== undefined && effectiveGroupAttrs.stroke === undefined) {
+          effectiveGroupAttrs.stroke = effectiveInheritedAttrs.stroke
+        }
+        if (effectiveInheritedAttrs['stroke-width'] !== undefined && effectiveGroupAttrs['stroke-width'] === undefined) {
+          effectiveGroupAttrs['stroke-width'] = effectiveInheritedAttrs['stroke-width']
+        }
+        if (effectiveInheritedAttrs['fill-opacity'] !== undefined && effectiveGroupAttrs['fill-opacity'] === undefined) {
+          effectiveGroupAttrs['fill-opacity'] = effectiveInheritedAttrs['fill-opacity']
+        }
+        if (effectiveInheritedAttrs['stroke-opacity'] !== undefined && effectiveGroupAttrs['stroke-opacity'] === undefined) {
+          effectiveGroupAttrs['stroke-opacity'] = effectiveInheritedAttrs['stroke-opacity']
+        }
+
+        const decision = shouldMerge(gChildren as SvgElement[], effectiveGroupAttrs)
+
+        if (decision === 'merge' || decision === 'cautious-merge') {
+          const commonStyle = extractCommonStyle(gChildren as SvgElement[])
+          if (commonStyle) {
+            const mergedElement = createMergedShapeElement(
+              gChildren as SvgElement[],
+              commonStyle,
+              effectiveTransform,
+              [viewBox[2], viewBox[3]],
+              elements.length,
+            )
+            elements.push(mergedElement)
+            // Skip individual child processing since we've merged them
+            return
+          }
+        }
+        // Fall through to normal processing if merge not decided
+      }
+    }
+
     // Process children (for groups - g elements themselves are not output)
     for (const child of element.children) {
       if (child.type.toLowerCase() === 'g') {
         // Recursively process group children with inherited/overridden groupId and accumulated transform
-        await walk(child, viewBox, effectiveGroupId, effectiveTransform)
+        await walk(child, viewBox, effectiveGroupId, effectiveTransform, effectiveInheritedAttrs)
       } else {
         // Skip non-renderable container elements
         if (!['defs', 'linearGradient', 'stop', 'filter', 'marker', 'clippath'].includes(child.type.toLowerCase())) {
+          // D-38: Merge inherited attrs into child element attrs before transform
+          // Child's own attrs take precedence over inherited attrs
+          const mergedAttrs = { ...child.attrs }
+          if (child.attrs.fill === undefined && effectiveInheritedAttrs.fill !== undefined) {
+            mergedAttrs.fill = effectiveInheritedAttrs.fill
+          }
+          if (child.attrs.stroke === undefined && effectiveInheritedAttrs.stroke !== undefined) {
+            mergedAttrs.stroke = effectiveInheritedAttrs.stroke
+          }
+          if (child.attrs['stroke-width'] === undefined && effectiveInheritedAttrs['stroke-width'] !== undefined) {
+            mergedAttrs['stroke-width'] = effectiveInheritedAttrs['stroke-width']
+          }
+          if (child.attrs['fill-opacity'] === undefined && effectiveInheritedAttrs['fill-opacity'] !== undefined) {
+            mergedAttrs['fill-opacity'] = effectiveInheritedAttrs['fill-opacity']
+          }
+          if (child.attrs['stroke-opacity'] === undefined && effectiveInheritedAttrs['stroke-opacity'] !== undefined) {
+            mergedAttrs['stroke-opacity'] = effectiveInheritedAttrs['stroke-opacity']
+          }
+
           // REF-01: Pass effectiveTransform to mapCoordinates instead of mutating child.attrs.transform
-          const pptel = await transformElement(child, viewBox, elements.length, targetCanvas, effectiveGroupId, effectiveTransform)
+          // D-38: Use mergedAttrs instead of child.attrs for fill/stroke inheritance
+          const mergedElement: SvgElement = { ...child, attrs: mergedAttrs }
+          const pptel = await transformElement(mergedElement, viewBox, elements.length, targetCanvas, effectiveGroupId, effectiveTransform)
           if (pptel !== null) {
             if (Array.isArray(pptel)) {
               elements.push(...pptel)
