@@ -96,6 +96,11 @@ export function shouldMerge(paths: SvgElement[], groupAttrs: Record<string, stri
     return 'merge'
   }
 
+  // Step 4: Check evenodd fill-rule first (PATH-MERGE-04)
+  // evenodd paths get 'cautious-merge' not 'no-merge' per PATH-MERGE-04
+  // This check is done before overlap computation to catch non-overlapping evenodd paths
+  const hasEvenodd = paths.some(p => p.attrs['fill-rule'] === 'evenodd')
+
   // Compute bounding boxes for paths with fill != "none"
   const boxesWithFill: { box: BoundingBox; index: number }[] = []
   for (let i = 0; i < paths.length; i++) {
@@ -110,7 +115,15 @@ export function shouldMerge(paths: SvgElement[], groupAttrs: Record<string, stri
   }
 
   if (boxesWithFill.length < 2) {
+    // Single path with fill != "none" -> cautious-merge per plan edge case
+    if (paths.length === 1) {
+      return 'cautious-merge'
+    }
     // Not enough boxes to check overlap
+    // If we have evenodd paths among them, return cautious-merge
+    if (hasEvenodd) {
+      return 'cautious-merge'
+    }
     return 'merge'
   }
 
@@ -127,17 +140,14 @@ export function shouldMerge(paths: SvgElement[], groupAttrs: Record<string, stri
   }
 
   if (!hasOverlap) {
+    // No overlap - if evenodd paths exist, still return cautious-merge
+    if (hasEvenodd) {
+      return 'cautious-merge'
+    }
     return 'merge'
   }
 
-  // Step 4: Check evenodd fill-rule (PATH-MERGE-04)
-  // evenodd paths get 'cautious-merge' not 'no-merge' per PATH-MERGE-04
-  const hasEvenodd = paths.some(p => p.attrs['fill-rule'] === 'evenodd')
-  if (hasEvenodd) {
-    return 'cautious-merge'
-  }
-
-  // Overlapping fills with common style -> cautious merge
+  // Overlapping fills -> cautious merge (evenodd already handled above if present)
   return 'cautious-merge'
 }
 
@@ -150,7 +160,8 @@ export function mergePaths(paths: SvgElement[], _commonStyle: SharedStyle, _grou
     const d = typeof p.attrs.d === 'string' ? p.attrs.d : ''
     return toAbsolutePath(d)
   })
-  return absolutePaths.join(' ')
+  const merged = absolutePaths.filter(p => p.length > 0).join(' ')
+  return merged
 }
 
 /**
