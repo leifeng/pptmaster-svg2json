@@ -555,6 +555,17 @@ function extractTspansWithPosition(
     // dy="22" means 22 SVG units lower than previous line
     currentTop += tspanDy * scaleY
 
+    // REF-04: Handle pixel baseline-shift values
+    // baseline-shift="-5px" with scaleY=0.78125 → top offset = -5 * 0.78125 = -3.90625
+    // Negative pixel value raises the text (smaller top = higher on canvas)
+    const baselineShift = tspan.attrs['baseline-shift']
+    if (baselineShift && /^-?\d+(\.\d+)?px$/.test(baselineShift)) {
+      const pixelValue = parseFloat(baselineShift)
+      const scaledOffset = pixelValue * scaleY
+      // Subtract because negative offset means raise (smaller top = higher)
+      currentTop -= scaledOffset
+    }
+
     results.push({
       left: tspanX,
       top: currentTop,
