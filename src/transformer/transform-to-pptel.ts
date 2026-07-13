@@ -559,8 +559,8 @@ function extractTspansWithPosition(
     // baseline-shift="-5px" with scaleY=0.78125 → top offset = -5 * 0.78125 = -3.90625
     // Negative pixel value raises the text (smaller top = higher on canvas)
     const baselineShift = tspan.attrs['baseline-shift']
-    if (baselineShift && /^-?\d+(\.\d+)?px$/.test(baselineShift)) {
-      const pixelValue = parseFloat(baselineShift)
+    if (baselineShift && /^-?\d+(\.\d+)?px$/.test(String(baselineShift))) {
+      const pixelValue = parseFloat(String(baselineShift))
       const scaledOffset = pixelValue * scaleY
       // Subtract because negative offset means raise (smaller top = higher)
       currentTop -= scaledOffset
