@@ -215,8 +215,27 @@ describe('path-merge', () => {
       const path1 = createMockPath('M0 0 L10 0')
       const path2 = createMockPath('M20 0 L30 0')
       const commonStyle = { fill: '#ff0000' }
-      const result = createMergedShapeElement([path1, path2], commonStyle, 'rotate(45 50 50)', [100, 100], 0)
+      const result = createMergedShapeElement([path1, path2], commonStyle, 'rotate(45 50 50)', [100, 100], [1000, 562.5], 0)
       expect(result.rotate).toBe(45)
+    })
+
+    it('handles nested g transform with translate and scale', () => {
+      // Simulates: translate(60, 220) translate(0, 116) translate(0, 0) scale(1.1666...)
+      // This is the actual SVG structure from 03_architecture.svg
+      const path1 = createMockPath('M16 16v2a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2h2v-2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-2')
+      const path2 = createMockPath('M10 8l-2 0l0 2')
+      const commonStyle = { fill: '#1A3A6B' }
+      const groupTransform = 'translate(60, 220) translate(0, 116) translate(0.0, 0.0) scale(1.1666666666666667, 1.1666666666666667)'
+      // viewBox [1280, 720], targetCanvas [1000, 562.5] -> scale = 0.7813
+      const result = createMergedShapeElement([path1, path2], commonStyle, groupTransform, [1280, 720], [1000, 562.5], 0)
+      // Path 0 bbox: (4, 4, 16, 16) after toAbsolutePath
+      // Path 1 bbox: (8, 8, 2, 2) after toAbsolutePath
+      // Union bbox of merged: (4, 4, 16, 16)
+      // With full transform: translateX=60, translateY=336, scaleX=1.1666, scaleY=1.1666
+      // SVG coords: left = (4 + 60) * 1.1666 = 74.67, top = (4 + 336) * 1.1666 = 396.67
+      // After canvas scaling: left = 74.67 * 0.7813 = 58.33, top = 396.67 * 0.7813 = 309.90
+      expect(result.left).toBeCloseTo(58.33, 1)
+      expect(result.top).toBeCloseTo(309.90, 1)
     })
   })
 })

@@ -175,6 +175,7 @@ export function createMergedShapeElement(
   commonStyle: SharedStyle,
   groupTransform: string | undefined,
   viewBox: [number, number],
+  targetCanvas: [number, number],
   index: number,
 ): PPTShapeElement {
   // Merge path d attributes
@@ -219,6 +220,14 @@ export function createMergedShapeElement(
     width = (bbox.width || viewBox[0]) * scaleX
     height = (bbox.height || viewBox[1]) * scaleY
   }
+
+  // Apply canvas scaling (same as transformElement does)
+  const canvasScaleX = targetCanvas[0] / viewBox[0]
+  const canvasScaleY = targetCanvas[1] / viewBox[1]
+  left = left * canvasScaleX
+  top = top * canvasScaleY
+  width = width * canvasScaleX
+  height = height * canvasScaleY
 
   // Build outline from stroke if present
   let outline: PPTShapeElement['outline'] = undefined

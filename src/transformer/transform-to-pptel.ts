@@ -1398,6 +1398,7 @@ export async function transformToPPTElement(
               commonStyle,
               effectiveTransform,
               [viewBox[2], viewBox[3]],
+              targetCanvas,
               elements.length,
             )
             elements.push(mergedElement)
