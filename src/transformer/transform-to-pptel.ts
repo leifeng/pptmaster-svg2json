@@ -430,13 +430,15 @@ interface ElementNode {
 function buildRichTextAST(element: SvgElement, parentFontSize: number): RichTextNode[] {
   const nodes: RichTextNode[] = []
 
-  // 1. 处理直接文本内容
+  // 情况1：叶子节点（只有文本，没有 children）
+  // 例如：<text>Hello</text> → element.text = "Hello", children = []
   if (element.text && element.children.length === 0) {
-    // 叶子节点：只有文本，直接返回 TextNode
     return [{ type: 'text', content: element.text }]
   }
 
-  // 2. 遍历子元素（tspan 和 inline text 混合）
+  // 情况2：有 children（包含 tspan 或 inline text）
+  // children[0] 通常是 inline text，代表的正是 element.text
+  // 所以不要重复添加 element.text
   for (const child of element.children) {
     if (child.type === 'tspan') {
       // 继承逻辑：子元素没有 font-size 就用父级的
