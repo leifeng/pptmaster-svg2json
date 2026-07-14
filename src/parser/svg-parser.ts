@@ -1,7 +1,9 @@
 import { XMLParser } from 'fast-xml-parser'
+import { parseHTML } from 'linkedom'
 import { SvgParseResult, SvgElement, SvgAttrs, GradientDef, GradientColorDef, PatternDef, PatternChild } from '../types/ast'
 import { colorToRgba, colorToHex } from '../transformer/transform-to-pptel'
 import { autoEmbedIcons } from '../svg-use-handler'
+import { scalePathCoords } from '../utils/path-utils'
 
 export interface FilterDef {
   id: string
@@ -461,6 +463,400 @@ export function parseViewBox(viewBoxStr: string | undefined): [number, number, n
   return [parts[0], parts[1], parts[2], parts[3]]
 }
 
+/**
+ * Split a text node's #text content by its tspan children positions.
+ * Returns an array of segments representing the interleaved text and tspan content.
+ *
+ * SVG example: "softmax( QK" + tspan("T") + " / √d" + tspan("k") + " ) V"
+ * #text would be "softmax( QK/ √d) V" (concatenated), and we need to figure out
+ * where each tspan fits by matching patterns in the text.
+ */
+interface TextSegment {
+  text?: string
+  isTspan: boolean
+  element?: SvgElement
+}
+
+function splitTextByTspans(text: string, tspanChildren: SvgElement[]): TextSegment[] {
+  if (!tspanChildren.length) return [{ text, isTspan: false }]
+
+  const segments: TextSegment[] = []
+  let remainingText = text
+
+  // Build a combined string of all tspan texts to find them in #text
+  const tspanTexts = tspanChildren.map(t => t.text || '')
+
+  // Try to reconstruct by finding each tspan text in the remaining text
+  // The issue is fast-xml-parser concatenates text before/after tspans differently
+  // e.g., for "softmax( QK" + tspan("T") + " / √d" + tspan("k") + " ) V"
+  // #text = "softmax( QK/ √d) V" (all non-tspan text concatenated)
+  // We need to find where each tspan fits
+
+  // Strategy: Find the first tspan text in #text, then recursively process
+  for (let i = 0; i < tspanChildren.length; i++) {
+    const tspan = tspanChildren[i]
+    const tspanText = tspan.text || ''
+
+    if (!tspanText) {
+      segments.push({ isTspan: true, element: tspan })
+      continue
+    }
+
+    // Find where this tspan's text appears in remainingText
+    const idx = remainingText.indexOf(tspanText)
+    if (idx === -1) {
+      // Not found in remaining, check if it was at the very beginning
+      if (i === 0 && text.startsWith(tspanText)) {
+        // Tspan text is at the start
+        segments.push({ isTspan: true, element: tspan })
+        remainingText = text.substring(tspanText.length)
+      } else {
+        // Can't locate, just add the tspan
+        segments.push({ isTspan: true, element: tspan })
+      }
+      continue
+    }
+
+    // Add text before this tspan (this is the gap between previous tspan and this one)
+    if (idx > 0) {
+      segments.push({ text: remainingText.substring(0, idx), isTspan: false })
+    }
+
+    // Add the tspan
+    segments.push({ isTspan: true, element: tspan })
+
+    // Update remaining text to process the rest
+    remainingText = remainingText.substring(idx + tspanText.length)
+  }
+
+  // Add any remaining text after the last tspan
+  if (remainingText) {
+    segments.push({ text: remainingText, isTspan: false })
+  }
+
+  return segments
+}
+
+/**
+ * Reconstruct a text element's XML string from its parsed components.
+ * Used to pass to linkedom for proper mixed content parsing.
+ */
+function reconstructTextElementXML(attrs: SvgAttrs, textContent: string | undefined, children: SvgElement[]): string {
+  // Build attribute string
+  const attrStr = Object.entries(attrs)
+    .filter(([k]) => !['x', 'y'].includes(k)) // x,y are handled separately
+    .map(([k, v]) => `${k}="${v}"`)
+    .join(' ')
+
+  const x = attrs.x !== undefined ? `x="${attrs.x}"` : ''
+  const y = attrs.y !== undefined ? `y="${attrs.y}"` : ''
+  const allAttrs = [x, y, attrStr].filter(Boolean).join(' ')
+
+  // Get tspan XML from children
+  const tspanChildren = children.filter(c => c.type === 'tspan')
+  const tspanXML = tspanChildren.map(t => {
+    const tAttrs = Object.entries(t.attrs)
+      .map(([k, v]) => `${k}="${v}"`)
+      .join(' ')
+    return `<tspan ${tAttrs}>${t.text || ''}</tspan>`
+  }).join('')
+
+  return `<text ${allAttrs}>${textContent || ''}${tspanXML}</text>`
+}
+
+/**
+ * Parse mixed text/tspan content using linkedom which correctly preserves node order.
+ * Returns an array of SvgElement children in document order.
+ */
+/**
+ * Post-process element tree to fix mixed text/tspan content using linkedom.
+ * Extracts raw text element XML from original SVG and parses it with linkedom
+ * to correctly preserve text/tspan ordering.
+ */
+function fixMixedTextTspanContentWithLinkedom(element: SvgElement, originalSvg: string): void {
+  // Collect all AST text elements that have tspan children (need fixing) in DFS order
+  const astTextElements: SvgElement[] = []
+  collectAstTextElementsWithTspans(element, astTextElements)
+
+  if (astTextElements.length === 0) return
+
+  // Process each AST element and find its matching regex entry
+  for (const astText of astTextElements) {
+    const x = String(astText.attrs.x || 0)
+    const y = String(astText.attrs.y || 0)
+    const fontFamily = (astText.attrs['font-family'] || '').replace(/['"]/g, '').toLowerCase()
+
+    // Get all regex entries at this position
+    const textXmlArray = extractTextElementXMLs(originalSvg)
+    const matchingEntries = textXmlArray
+      .filter(e => e.x === x && e.y === y && e.fontFamily === fontFamily)
+      .sort((a, b) => a.offset - b.offset)
+
+    // Find the entry that corresponds to this AST element
+    // by checking if the entry's content contains tspan (since AST has tspan children)
+    // AND the concatenated AST text is related to the entry content
+    const astConcatenatedText = astText.text || ''
+
+    for (const entry of matchingEntries) {
+      // Check if this entry has tspan content
+      const hasTspan = entry.content.includes('<tspan')
+
+      if (hasTspan) {
+        // This is likely the correct entry - process it
+        try {
+          const wrappedXml = `<root xmlns="http://www.w3.org/2000/svg"><svgtext>${entry.content}</svgtext></root>`
+          const { document } = parseHTML(wrappedXml)
+          const root = document.firstChild
+          if (root) {
+            const fixedChildren = parseMixedContentWithLinkedom(root)
+            if (fixedChildren.length > 0) {
+              astText.children = fixedChildren
+              astText.text = undefined
+            }
+          }
+        } catch (e) {
+          // Fallback: keep original
+        }
+        break // Found the matching entry, done with this AST element
+      }
+    }
+  }
+}
+
+/**
+ * Extract text element inner content from raw SVG string.
+ * Returns a map keyed by "x,y,font-family".
+ */
+function extractTextElementXMLs(svg: string): { x: string; y: string; fontFamily: string; content: string; offset: number }[] {
+  const result: { x: string; y: string; fontFamily: string; content: string; offset: number }[] = []
+
+  // Match <text ...>...</text> patterns
+  // Handle both single-line and multi-line text elements
+  const textRegex = /<text\s+([^>]*font-family[^>]*)>([\s\S]*?)<\/text>/gi
+  let match
+
+  while ((match = textRegex.exec(svg)) !== null) {
+    const attrsStr = match[1]
+    const innerContent = match[2].trim()
+
+    // Extract x, y, font-family
+    const xMatch = attrsStr.match(/x=["']?([^"'\s,]+)/)
+    const yMatch = attrsStr.match(/y=["']?([^"'\s,]+)/)
+    // font-family value: match either "..." or '...' (value may contain commas)
+    const fontFamilyMatch = attrsStr.match(/font-family=("[^"]*"|'[^']*')/)
+
+    const x = xMatch ? xMatch[1] : '0'
+    const y = yMatch ? yMatch[1] : '0'
+    // Normalize font-family by removing quotes for comparison
+    const fontFamily = fontFamilyMatch ? fontFamilyMatch[1].replace(/['"]/g, '').toLowerCase() : ''
+
+    result.push({ x, y, fontFamily, content: innerContent, offset: match.index })
+  }
+
+  // Sort by offset to process in document order
+  result.sort((a, b) => a.offset - b.offset)
+  return result
+}
+
+/**
+ * Collect all AST text elements that have tspan children (need fixing) in DFS order.
+ */
+function collectAstTextElementsWithTspans(element: SvgElement, result: SvgElement[]): void {
+  if (element.type === 'text' && element.children.some(c => c.type === 'tspan')) {
+    result.push(element)
+  }
+  for (const child of element.children) {
+    collectAstTextElementsWithTspans(child, result)
+  }
+}
+
+/**
+ * Find a matching element in the linkedom document using querySelector.
+ */
+function findLinkedomElementByQuery(document: any, targetElement: SvgElement): any | null {
+  // For text elements, match by x and y attributes
+  if (targetElement.type === 'text' && targetElement.attrs.x !== undefined) {
+    const x = targetElement.attrs.x
+    const y = targetElement.attrs.y
+    // The SVG element is at documentElement, not body (body is empty for SVG docs)
+    const root = document.documentElement || document.body
+    return findElementByAttrs(root, 'text', x, y)
+  }
+  return null
+}
+
+/**
+ * Recursively find an element by tag name and attribute match.
+ */
+function findElementByAttrs(root: any, tagName: string, x: any, y: any): any | null {
+  if (root.nodeType === 1) {
+    const rootTagName = root.tagName?.toLowerCase()
+    if (rootTagName === tagName) {
+      const xMatch = String(root.getAttribute('x')) === String(x)
+      const yMatch = String(root.getAttribute('y')) === String(y)
+      if (xMatch && yMatch) {
+        return root
+      }
+    }
+    for (const child of root.childNodes) {
+      const found = findElementByAttrs(child, tagName, x, y)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+/**
+ * Reconstruct text element XML string from an SvgElement.
+ */
+function reconstructTextElementXMLFromElement(element: SvgElement): string {
+  const attrParts: string[] = []
+  if (element.attrs.x !== undefined) attrParts.push(`x="${element.attrs.x}"`)
+  if (element.attrs.y !== undefined) attrParts.push(`y="${element.attrs.y}"`)
+  for (const [k, v] of Object.entries(element.attrs)) {
+    if (!['x', 'y'].includes(k) && v !== undefined) {
+      attrParts.push(`${k}="${v}"`)
+    }
+  }
+
+  const tspanChildren = element.children.filter(c => c.type === 'tspan')
+  const tspanXML = tspanChildren.map(t => {
+    const tAttrParts = Object.entries(t.attrs)
+      .filter(([k, v]) => v !== undefined)
+      .map(([k, v]) => `${k}="${v}"`)
+      .join(' ')
+    return `<tspan ${tAttrParts}>${t.text || ''}</tspan>`
+  }).join('')
+
+  return `<text ${attrParts.join(' ')}>${element.text || ''}${tspanXML}</text>`
+}
+
+/**
+ * Parse a text element's child nodes using linkedom, returning ordered children.
+ */
+function parseTextElementWithLinkedom(textEl: any): SvgElement[] {
+  const result: SvgElement[] = []
+
+  for (const node of textEl.childNodes) {
+    if (node.nodeType === 3) {
+      const text = node.textContent?.trim()
+      if (text) {
+        result.push({
+          type: 'text',
+          attrs: {},
+          children: [],
+          text: text,
+        })
+      }
+    } else if (node.nodeType === 1) {
+      const tagName = node.tagName?.toLowerCase()
+      if (tagName === 'tspan') {
+        const attrs: SvgAttrs = {}
+        for (const attr of node.attributes) {
+          attrs[attr.name] = attr.value
+        }
+
+        // Collect text content from tspan children
+        let tspanText = ''
+        const tspanChildren: SvgElement[] = []
+        for (const child of node.childNodes) {
+          if (child.nodeType === 3) {
+            tspanText += child.textContent || ''
+          }
+        }
+
+        result.push({
+          type: 'tspan',
+          attrs,
+          children: tspanChildren,
+          text: tspanText,
+        })
+      }
+    }
+  }
+
+  return result
+}
+
+function parseMixedContentWithLinkedom(
+  root: any,
+  gradientRegistry?: Map<string, GradientDef>,
+  filterRegistry?: Map<string, FilterDef>,
+  patternRegistry?: Map<string, PatternDef>
+): SvgElement[] {
+  const result: SvgElement[] = []
+
+  for (const node of root.childNodes) {
+    if (node.nodeType === 1) {
+      // ELEMENT_NODE - could be text, tspan, or other
+      const tagName = node.tagName?.toLowerCase()
+
+      if (tagName === 'text' || tagName === 'root' || tagName === 'svgtext') {
+        // text or root element - recursively process its children
+        const childResults = parseMixedContentWithLinkedom(node, gradientRegistry, filterRegistry, patternRegistry)
+        result.push(...childResults)
+      } else if (tagName === 'tspan') {
+        // tspan element
+        const attrs: SvgAttrs = {}
+        for (const attr of node.attributes) {
+          attrs[attr.name] = attr.value
+        }
+
+        // Recursively process tspan children
+        const tspanChildren: SvgElement[] = []
+        for (const child of node.childNodes) {
+          if (child.nodeType === 3) {
+            const text = child.textContent || ''
+            if (text) {
+              tspanChildren.push({
+                type: 'text',
+                attrs: {},
+                children: [],
+                text: text,
+              })
+            }
+          } else if (child.nodeType === 1) {
+            const childTag = child.tagName?.toLowerCase()
+            if (childTag === 'tspan') {
+              const nestedAttrs: SvgAttrs = {}
+              for (const attr of child.attributes) {
+                nestedAttrs[attr.name] = attr.value
+              }
+              const nestedText = child.textContent || ''
+              tspanChildren.push({
+                type: 'tspan',
+                attrs: nestedAttrs,
+                children: [],
+                text: nestedText,
+              })
+            }
+          }
+        }
+
+        result.push({
+          type: 'tspan',
+          attrs,
+          children: tspanChildren,
+          text: node.textContent || '',
+        })
+      }
+    } else if (node.nodeType === 3) {
+      // TEXT_NODE - plain text segment
+      const text = node.textContent?.trim()
+      if (text) {
+        result.push({
+          type: 'text',
+          attrs: {},
+          children: [],
+          text: text,
+        })
+      }
+    }
+  }
+
+  return result
+}
+
 function convertToSvgElement(node: any, parentTag: string = '', gradientRegistry?: Map<string, GradientDef>, filterRegistry?: Map<string, FilterDef>, patternRegistry?: Map<string, PatternDef>): SvgElement {
   const tagName = (node['#tag'] || parentTag || '').toLowerCase()
 
@@ -512,6 +908,10 @@ function convertToSvgElement(node: any, parentTag: string = '', gradientRegistry
     }
   }
 
+  // Note: Mixed text/tspan fixing is handled by fixMixedTextTspanContentWithLinkedom
+  // which uses the original SVG to correctly preserve text/tspan ordering.
+  // DO NOT process linkedom here - it will be done in fixMixedTextTspanContentWithLinkedom.
+
   return {
     type: tagName,
     attrs,
@@ -555,78 +955,6 @@ function adjustPathToViewBox(d: string, viewBox: { x: number; y: number }): stri
   // 简单情况：如果 viewBox 是 0 0 24 24，路径坐标本来就是相对于 0,0 的
   // 不需要调整（tabler 图标都是这样）
   return d
-}
-
-/**
- * 缩放 path 坐标 - 所有坐标使用统一比例缩放
- */
-function scalePathCoords(d: string, scaleX: number, scaleY: number): string {
-  let result = ''
-  let curX = 0  // 当前 X 坐标（原始，未缩放）
-  let curY = 0  // 当前 Y 坐标（原始，未缩放）
-
-  const segments = d.split(/(?=[MLHVAZ])/i)
-  for (const seg of segments) {
-    const cmdMatch = seg.match(/^([MLHVAZ])\s*/i)
-    if (!cmdMatch) {
-      result += seg
-      continue
-    }
-    const cmd = cmdMatch[1]
-    const isRel = cmd === cmd.toLowerCase()
-    const cmdU = cmd.toUpperCase()
-    const nums = seg.slice(cmdMatch[0].length).trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n))
-
-    if (cmdU === 'Z') {
-      result += 'Z'
-      curX = 0
-      curY = 0
-      continue
-    }
-
-    if (cmdU === 'M') {
-      for (let i = 0; i < nums.length; i += 2) {
-        const absX = isRel ? curX + nums[i] : nums[i]
-        const absY = i + 1 < nums.length ? (isRel ? curY + nums[i + 1] : nums[i + 1]) : curY
-        result += (i === 0 ? `M${absX * scaleX},${absY * scaleY}` : `L${absX * scaleX},${absY * scaleY}`)
-        curX = absX
-        curY = absY
-      }
-    } else if (cmdU === 'L') {
-      for (let i = 0; i < nums.length; i += 2) {
-        const absX = isRel ? curX + nums[i] : nums[i]
-        const absY = i + 1 < nums.length ? (isRel ? curY + nums[i + 1] : nums[i + 1]) : curY
-        result += `L${absX * scaleX},${absY * scaleY}`
-        curX = absX
-        curY = absY
-      }
-    } else if (cmdU === 'H') {
-      for (const nx of nums) {
-        const absX = isRel ? curX + nx : nx
-        result += `H${absX * scaleX}`
-        curX = absX
-      }
-    } else if (cmdU === 'V') {
-      for (const ny of nums) {
-        const absY = isRel ? curY + ny : ny
-        result += `V${absY * scaleY}`
-        curY = absY
-      }
-    } else if (cmdU === 'A') {
-      for (let i = 0; i < nums.length; i += 7) {
-        const absX = isRel ? curX + nums[i + 5] : nums[i + 5]
-        const absY = isRel ? curY + nums[i + 6] : nums[i + 6]
-        result += `A${nums[i] * scaleX},${nums[i + 1] * scaleY},${nums[i + 2]},${nums[i + 3]},${nums[i + 4]},${absX * scaleX},${absY * scaleY}`
-        curX = absX
-        curY = absY
-      }
-    } else {
-      // 不支持的命令，保持原样
-      result += seg
-    }
-  }
-
-  return result
 }
 
 export function parseSvg(xmlString: string, svgFilePath?: string): SvgParseResult {
@@ -715,6 +1043,11 @@ export function parseSvg(xmlString: string, svgFilePath?: string): SvgParseResul
   // Build clean element tree from svg root with gradient and filter registries for resolving references
   const root = convertToSvgElement(svgRoot, 'svg', gradientRegistry, filterRegistry, patternRegistry)
   root.attrs = rootAttrs
+
+  // D-??: Fix mixed text/tspan content using linkedom with raw SVG extraction
+  // fast-xml-parser concatenates all non-tspan text, losing ordering.
+  // We extract raw text element XML from original SVG and use linkedom to parse it correctly.
+  fixMixedTextTspanContentWithLinkedom(root, xmlString)
 
   return {
     root,
