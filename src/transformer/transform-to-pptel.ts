@@ -475,32 +475,41 @@ function buildRichTextAST(element: SvgElement, parentFontSize: number): RichText
 /**
  * 将 Rich Text AST 序列化为 HTML
  * @param nodes - AST 节点数组
- * @param parentFontSize - 父级 font-size（用于继承）
+ * @param parentFontSize - 父级 font-size（已缩放，用于继承）
+ * @param scaleY - 缩放比例
+ * @param parentTag - 父级标签（用于判断是否需要为 TextNode 生成 span）
  */
-function serializeRichText(nodes: RichTextNode[], parentFontSize: number): string {
+function serializeRichText(nodes: RichTextNode[], parentFontSize: number, scaleY: number, parentTag: 'span' | 'sub' | 'sup' | null = null): string {
   let html = ''
 
   for (const node of nodes) {
     if (node.type === 'text') {
-      html += escapeHtml(node.content)
+      // TextNode: 父级如果是 span 则需要 span 包裹；sub/sup 不需要（已在外层设置 fontSize）
+      if (parentTag === 'span') {
+        html += `<span style="font-size: ${parentFontSize}px">${escapeHtml(node.content)}</span>`
+      } else {
+        html += escapeHtml(node.content)
+      }
     } else {
-      // ElementNode
-      const fontSize = node.fontSize ?? parentFontSize
-      const needSpan = node.tag === 'span' && fontSize !== parentFontSize
+      // ElementNode: 子级如果无 fontSize 继承父级，否则应用 scaleY 缩放
+      const effectiveFontSize = node.fontSize !== null
+        ? node.fontSize * scaleY
+        : parentFontSize  // 继承父级（已缩放）
+      const needSpan = node.tag === 'span' && Math.abs(effectiveFontSize - parentFontSize) > 0.01
 
       if (node.tag === 'span') {
         // span: 只有 font-size 与父级不同时才需要 span 包装
         if (needSpan) {
-          html += `<span style="font-size: ${fontSize}px">`
+          html += `<span style="font-size: ${effectiveFontSize}px">`
         }
-        html += serializeRichText(node.children, fontSize)
+        html += serializeRichText(node.children, effectiveFontSize, scaleY, node.tag)
         if (needSpan) {
           html += '</span>'
         }
       } else {
-        // sub/sup: 总是需要标签包裹
-        html += `<${node.tag} style="font-size: ${fontSize}px">`
-        html += serializeRichText(node.children, fontSize)
+        // sub/sup: 总是需要标签包裹，但子元素如果是 inline text 不需要额外 span
+        html += `<${node.tag} style="font-size: ${effectiveFontSize}px">`
+        html += serializeRichText(node.children, effectiveFontSize, scaleY, node.tag)
         html += `</${node.tag}>`
       }
     }
@@ -537,11 +546,16 @@ function escapeHtml(str: string): string {
 
 /**
  * 构建 HTML content from a text element using AST approach.
+ * @param element - SVG 元素
+ * @param parentFontSize - 父级原始 font-size（未缩放）
+ * @param scaleY - 缩放比例
  * Returns both the HTML content string and plain text for measurement.
  */
-function buildTextContentFromElement(element: SvgElement, parentFontSize: number = 16): { html: string; text: string } {
+function buildTextContentFromElement(element: SvgElement, parentFontSize: number, scaleY: number): { html: string; text: string } {
+  // 父级 fontSize 需要缩放
+  const scaledParentFontSize = parentFontSize * scaleY
   const nodes = buildRichTextAST(element, parentFontSize)
-  const html = serializeRichText(nodes, parentFontSize)
+  const html = serializeRichText(nodes, scaledParentFontSize, scaleY)
   const text = extractPlainText(nodes)
   return { html, text }
 }
@@ -594,15 +608,16 @@ function extractTspansWithPosition(
   const tspanChildren = element.children.filter(child => child.type === 'tspan')
 
   if (tspanChildren.length === 0) {
-    // No tspans, use direct text content
+    // No tspans, use direct text content (apply scaleY to fontSize)
     const text = element.text || ''
+    const scaledFontSize = fontSize * scaleY
     if (text) {
       results.push({
         left: baseLeft,
         top: baseTop,
         fontSize,
         content: text,
-        htmlContent: `<span style="font-size: ${fontSize}px">${text}</span>`,
+        htmlContent: `<span style="font-size: ${scaledFontSize}px">${text}</span>`,
       })
     }
     return results
@@ -630,7 +645,7 @@ function extractTspansWithPosition(
     const scaledFontSize = tspanFontSize * scaleY
 
     // Build HTML content for this tspan (preserve baseline-shift styling)
-    const { html: tspanHtml, text: tspanText } = buildTextContentFromElement(tspan, tspanFontSize)
+    const { html: tspanHtml, text: tspanText } = buildTextContentFromElement(tspan, tspanFontSize, scaleY)
 
     // Update position based on dy (relative to previous line in SVG coordinate space)
     // Note: In SVG, dy is the displacement from the previous line's baseline position
@@ -1161,7 +1176,7 @@ export async function transformElement(
       const isItalic = fontStyle === 'italic'
 
       // D-??: Build content HTML with baseline-shift support (sup/sub tags)
-      const { html: contentHtml, text: content } = buildTextContentFromElement(element, fontSize)
+      const { html: contentHtml, text: content } = buildTextContentFromElement(element, fontSize, scaleY)
 
       // Measure text using resvg-js with fallback to heuristic
       let textWidth: number
