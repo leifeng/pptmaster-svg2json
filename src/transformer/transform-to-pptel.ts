@@ -403,66 +403,145 @@ function extractTextContentFromElement(element: SvgElement): string {
   return content
 }
 
+// =============================================================================
+// Rich Text AST - 替代字符串拼接，更清晰可靠
+// =============================================================================
+
+/** AST 节点类型 */
+type RichTextNode = TextNode | ElementNode
+
+interface TextNode {
+  type: 'text'
+  content: string
+}
+
+interface ElementNode {
+  type: 'element'
+  tag: 'span' | 'sub' | 'sup'
+  fontSize: number | null  // null = 继承父级
+  children: RichTextNode[]
+}
+
 /**
- * Build HTML content from a text element, processing tspan children with baseline-shift support.
- * Wraps content in <sup> or <sub> tags based on baseline-shift attribute.
- * Returns both the HTML content string and plain text for measurement.
+ * 递归构建 Rich Text AST
+ * @param element - SVG 元素
+ * @param parentFontSize - 父级 font-size（用于继承）
  */
-function buildTextContentFromElement(element: SvgElement, parentFontSize: number = 16, scaleY: number = 1): { html: string; text: string } {
-  let htmlContent = ''
-  let textContent = element.text || ''
+function buildRichTextAST(element: SvgElement, parentFontSize: number): RichTextNode[] {
+  const nodes: RichTextNode[] = []
 
-  // D-??: Process ALL children in document order, not just tspans.
-  // Children can be either 'text' (inline text segments) or 'tspan' (styled segments)
-  // The parser now interleaves text and tspan children to preserve order.
-  for (let i = 0; i < element.children.length; i++) {
-    const child = element.children[i]
+  // 1. 处理直接文本内容
+  if (element.text && element.children.length === 0) {
+    // 叶子节点：只有文本，直接返回 TextNode
+    return [{ type: 'text', content: element.text }]
+  }
 
+  // 2. 遍历子元素（tspan 和 inline text 混合）
+  for (const child of element.children) {
     if (child.type === 'tspan') {
-      // Tspan with potential baseline-shift styling and its own font-size
+      // 继承逻辑：子元素没有 font-size 就用父级的
+      const explicitFontSize = child.attrs['font-size'] !== undefined
+        ? Number(child.attrs['font-size'])
+        : null
+      const effectiveFontSize = explicitFontSize ?? parentFontSize
+
+      // baseline-shift 决定 tag
       const baselineShift = child.attrs['baseline-shift']
-      const childFontSize = Number(child.attrs['font-size']) || parentFontSize
-      const scaledChildFontSize = childFontSize * scaleY
-      const { html: childHtml, text: childText } = buildTextContentFromElement(child, childFontSize, scaleY)
+      const tag: 'sub' | 'sup' | 'span' =
+        baselineShift === 'sub' ? 'sub' :
+        baselineShift === 'super' ? 'sup' : 'span'
 
-      let wrappedHtml = childHtml
-      const hasFontSizeDiff = childFontSize !== parentFontSize
+      // 递归构建子节点
+      const childNodes = buildRichTextAST(child, effectiveFontSize)
 
-      // When baseline-shift exists: use span with vertical-align CSS instead of sub/sup tag
-      // This preserves font-size styling which pptist doesn't support on sub/sup tags
-      if (baselineShift === 'super' || baselineShift === 'sub') {
-        const vaValue = baselineShift === 'super' ? 'super' : 'sub'
-        if (hasFontSizeDiff) {
-          wrappedHtml = `<span style="vertical-align: ${vaValue}; font-size: ${scaledChildFontSize}px">${childHtml}</span>`
-        } else {
-          wrappedHtml = `<span style="vertical-align: ${vaValue}">${childHtml}</span>`
-        }
-      } else {
-        // Always wrap tspan content in font-size span (even when same as parent)
-        // This ensures text rendering always has explicit font-size information
-        wrappedHtml = `<span style="font-size: ${scaledChildFontSize}px">${childHtml}</span>`
-      }
-
-      htmlContent += wrappedHtml
-      textContent += childText
-    } else if (child.type === 'text') {
-      // Inline text segment (from mixed text/tspan content)
-      // All text segments need explicit font-size wrapper (text's font-size is the main font size)
-      const { html: childHtml, text: childText } = buildTextContentFromElement(child, parentFontSize, scaleY)
-      const scaledParentFontSize = parentFontSize * scaleY
-      htmlContent += `<span style="font-size: ${scaledParentFontSize}px">${childHtml}</span>`
-      textContent += childText
+      // 包装到 ElementNode
+      nodes.push({
+        type: 'element',
+        tag,
+        fontSize: explicitFontSize,  // null 表示继承
+        children: childNodes,
+      })
+    } else if (child.type === 'text' && child.text) {
+      // inline text 片段，直接作为文本节点
+      nodes.push({ type: 'text', content: child.text })
     }
   }
 
-  // If element has direct text content, wrap it with font-size span
-  // This ensures all text segments have explicit font-size (even when no children)
-  if (!htmlContent && element.text) {
-    const scaledParentFontSize = parentFontSize * scaleY
-    htmlContent = `<span style="font-size: ${scaledParentFontSize}px">${element.text}</span>`
+  return nodes
+}
+
+/**
+ * 将 Rich Text AST 序列化为 HTML
+ * @param nodes - AST 节点数组
+ * @param parentFontSize - 父级 font-size（用于继承）
+ */
+function serializeRichText(nodes: RichTextNode[], parentFontSize: number): string {
+  let html = ''
+
+  for (const node of nodes) {
+    if (node.type === 'text') {
+      html += escapeHtml(node.content)
+    } else {
+      // ElementNode
+      const fontSize = node.fontSize ?? parentFontSize
+      const needSpan = node.tag === 'span' && fontSize !== parentFontSize
+
+      if (node.tag === 'span') {
+        // span: 只有 font-size 与父级不同时才需要 span 包装
+        if (needSpan) {
+          html += `<span style="font-size: ${fontSize}px">`
+        }
+        html += serializeRichText(node.children, fontSize)
+        if (needSpan) {
+          html += '</span>'
+        }
+      } else {
+        // sub/sup: 总是需要标签包裹
+        html += `<${node.tag} style="font-size: ${fontSize}px">`
+        html += serializeRichText(node.children, fontSize)
+        html += `</${node.tag}>`
+      }
+    }
   }
 
-  return { html: htmlContent, text: textContent }
+  return html
+}
+
+/**
+ * 提取纯文本（用于 text measurement）
+ */
+function extractPlainText(nodes: RichTextNode[]): string {
+  let text = ''
+  for (const node of nodes) {
+    if (node.type === 'text') {
+      text += node.content
+    } else {
+      text += extractPlainText(node.children)
+    }
+  }
+  return text
+}
+
+/**
+ * HTML 转义
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+/**
+ * 构建 HTML content from a text element using AST approach.
+ * Returns both the HTML content string and plain text for measurement.
+ */
+function buildTextContentFromElement(element: SvgElement, parentFontSize: number = 16): { html: string; text: string } {
+  const nodes = buildRichTextAST(element, parentFontSize)
+  const html = serializeRichText(nodes, parentFontSize)
+  const text = extractPlainText(nodes)
+  return { html, text }
 }
 
 /**
@@ -549,7 +628,7 @@ function extractTspansWithPosition(
     const scaledFontSize = tspanFontSize * scaleY
 
     // Build HTML content for this tspan (preserve baseline-shift styling)
-    const { html: tspanHtml, text: tspanText } = buildTextContentFromElement(tspan, tspanFontSize, scaleY)
+    const { html: tspanHtml, text: tspanText } = buildTextContentFromElement(tspan, tspanFontSize)
 
     // Update position based on dy (relative to previous line in SVG coordinate space)
     // Note: In SVG, dy is the displacement from the previous line's baseline position
@@ -1080,7 +1159,7 @@ export async function transformElement(
       const isItalic = fontStyle === 'italic'
 
       // D-??: Build content HTML with baseline-shift support (sup/sub tags)
-      const { html: contentHtml, text: content } = buildTextContentFromElement(element, fontSize, scaleY)
+      const { html: contentHtml, text: content } = buildTextContentFromElement(element, fontSize)
 
       // Measure text using resvg-js with fallback to heuristic
       let textWidth: number
