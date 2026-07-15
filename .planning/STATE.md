@@ -3,30 +3,37 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Path 合并优化
 current_phase: 10
-current_phase_name: path-merge
-status: executing
-stopped_at: Milestone v1.6 complete — ready for next milestone
-last_updated: "2026-07-13T08:25:18.740Z"
-last_activity: 2026-07-13
-last_activity_desc: Phase 10 execution started
+status: complete
+stopped_at: Milestone v1.7 shipped — ready for next milestone
+last_updated: "2026-07-14T10:31:09.000Z"
+last_activity: 2026-07-14
+last_activity_desc: Milestone v1.7 shipped
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 0
-  percent: 0
+  completed_plans: 2
+  percent: 100
+current_phase_name: path-merge
 ---
 
 # Project State
 
 ## Current Position
 
-Phase: 10 (path-merge) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 10
-Last activity: 2026-07-13 — Phase 10 execution started
+Phase: 10 (complete)
+Plan: N/A
+Status: Milestone v1.7 shipped
+Last activity: 2026-07-14 — Milestone v1.7 complete
 
 ## Accumulated Context
+
+### Decisions (v1.7)
+
+- **D-29:** Independent path-merge module with shouldMerge() and mergePaths()
+- **D-30:** extractCommonStyle() iterates styleKeys to find common attrs
+- **D-31:** pathBoundingBox() extended with control point enclosure for C/Q/S/T
+- **D-33:** Absolute coordinates via toAbsolutePath() before concatenation
 
 ### Decisions (v1.6)
 
@@ -48,9 +55,9 @@ None
 
 ---
 
-*State last updated: 2026-07-13 after Milestone v1.6 complete*
+*State last updated: 2026-07-14 after Milestone v1.7 shipped*
 
 ## Session
 
-**Last session:** 2026-07-13T12:50:00.000Z
-**Stopped at:** Milestone v1.6 complete — ready for next milestone
+**Last session:** 2026-07-14T18:31:09.000Z
+**Stopped at:** Milestone v1.7 shipped — ready for next milestone

@@ -28,14 +28,13 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 - ✓ **S/s T/t bezier reflection** — correct smooth quadratic/cubic bezier control point calculation
 - ✓ **clipPath preprocessing** — coordinate expansion before transform pipeline
 - ✓ **baseline-shift pixel scaling** — absolute pixel values scaled by scaleY
+- ✓ **path merge decision tree** — merge/no-merge/cautious-merge for all-path groups
+- ✓ **path merge with C/Q/S/T curves** — control point enclosure for bounding box
+- ✓ **text/tspan content parsing** — correctly parse mixed text/tspan with font-size
 
 ### Active
 
-- [ ] **PATH-MERGE-01** — 决策树判断逻辑：当 `<g>` 子元素全为 `<path>` 时，按决策树判断是否合并
-- [ ] **PATH-MERGE-02** — 提取 `<g>` 内所有 path 的公共样式属性
-- [ ] **PATH-MERGE-03** — 检测 path 之间的重叠填充区域
-- [ ] **PATH-MERGE-04** — 处理 `fill-rule="evenodd"` 特殊镂空效果
-- [ ] **PATH-MERGE-05** — 合并后的 path 输出正确坐标和样式
+(None — all requirements shipped in v1.0-v1.7)
 
 ### Out of Scope
 
@@ -49,7 +48,7 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 
 ## Context
 
-**Existing library** — svg-to-pptel v1.6, published as npm package.
+**Existing library** — svg-to-pptel v1.7, published as npm package.
 
 **Target canvas** — 1000×562.5 (16:9 aspect ratio).
 
@@ -72,6 +71,7 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 | Parent transform composition | Pass parent transform to mapCoordinates without AST mutation | ✓ Complete |
 | clipPath via AST preprocessing | Expand clipPath definitions before transform pipeline | ✓ Complete |
 | Pixel baseline-shift scaling | Scale pixel values by scaleY (e.g., -5px → -3.90625) | ✓ Complete |
+| Path merge decision tree | Merge all-path groups when safe to reduce element count | ✓ Complete |
 
 ## Evolution
 
@@ -85,20 +85,21 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: v1.7 — Path 合并优化
+## Current Milestone: v1.8 — Next Release
 
-**Goal:** 当 `<g>` 标签的子元素全部为 `<path>` 时，按照决策树判断是否合并为单一 path 以减少输出元素数量。
-
-**Target features:**
-- 实现决策树判断逻辑（共享样式属性 → 语义/交互/可访问性 → fill="none"/无重叠 → fill-rule 检查）
-- 提取 `<g>` 内所有 path 的公共样式属性
-- 检测 path 之间的重叠填充区域
-- 处理 `fill-rule="evenodd"` 特殊镂空效果
-- 合并后的 path 输出正确坐标和样式
+**Status:** Planning
 
 ---
 
 ## Previous Milestones
+
+### v1.7 — Path 合并优化 (2026-07-14)
+
+- Path merge decision tree with shouldMerge/mergePaths/extractCommonStyle
+- Extended pathBoundingBox for C/Q/S/T curves using control point enclosure
+- 27 comprehensive unit tests for all decision tree branches
+- Fixed canvas scaling for merged shape bbox in nested g scenarios
+- Fixed text/tspan mixed content parsing with proper font-size handling
 
 ### v1.6 — SVG Converter Refactor (2026-07-13)
 
@@ -132,6 +133,16 @@ Research confirmed all target PPTist schema properties already implemented or de
 - Correct rotate transform with rotation center (`rotate(deg, cx, cy)`)
 - Correct text y coordinate (baseline → top)
 
+### v1.0 — Initial release (2026-06-26)
+
+- SVG parsing via fast-xml-parser
+- Coordinate mapping from SVG viewBox to 1000×562.5 canvas
+- Shape conversion (rect, circle, ellipse, path, polygon, polyline, line)
+- Text element extraction with font-family, font-size, fill
+- Image element with href/xlink:href
+- CLI tool (svg2pptel)
+- Basic transform attribute (translate, scale only)
+
 ---
 
-*Last updated: 2026-07-13 after v1.7 milestone started*
+*Last updated: 2026-07-14 after v1.7 milestone shipped*

@@ -2,7 +2,7 @@
 
 ## Milestones
 
-- 🔄 **v1.7** — Path 合并优化 (2026-07-13)
+- ✅ **v1.7** — Path 合并优化 (2026-07-14)
 - ✅ **v1.6** — SVG Converter Refactor (2026-07-13)
 - ✅ **v1.5** — Use Tag Refactor (2026-07-10)
 - ✅ **v1.4** — Directory Batch CLI (2026-07-02)
@@ -24,7 +24,7 @@
 4. fill-rule="evenodd" 的 path 正确标记为谨慎合并
 5. 合并后的 path 输出到 PPTElement 时坐标和样式正确
 
-**Status:** Planning
+**Status:** Complete (SHIPPED 2026-07-14)
 
 ---
 
@@ -36,8 +36,8 @@
 | Phase 7 | v1.4 | Complete | 2026-07-02 |
 | Phase 8 | v1.5 | Complete | 2026-07-10 |
 | Phase 9 | v1.6 | Complete | 2026-07-13 |
-| Phase 10 | v1.7 | Planned | — |
+| Phase 10 | v1.7 | Complete | 2026-07-14 |
 
 ---
 
-*Roadmap updated: 2026-07-13 after v1.7 milestone started*
+*Roadmap updated: 2026-07-14 after v1.7 milestone shipped*
