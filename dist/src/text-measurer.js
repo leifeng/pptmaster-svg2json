@@ -40,7 +40,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildMeasurementSvg = buildMeasurementSvg;
 exports.measureTextBBox = measureTextBBox;
 exports.measureTextElement = measureTextElement;
+exports.renderSvgToPng = renderSvgToPng;
 const resvg_js_1 = require("@resvg/resvg-js");
+const utils_1 = require("./utils");
 /**
  * Build a self-contained SVG string for text measurement.
  * Uses fixed 1280x720 viewBox per D-37 to prevent content clipping.
@@ -111,6 +113,7 @@ async function ensureInit() {
  * @throws if bounding box is undefined or has zero dimensions
  */
 async function measureTextBBox(svgString) {
+    const start = performance.now();
     await ensureInit();
     const resvg = new resvg_js_1.Resvg(svgString);
     const bbox = resvg.getBBox();
@@ -120,6 +123,7 @@ async function measureTextBBox(svgString) {
     if (bbox.width === 0 || bbox.height === 0) {
         throw new Error('Bounding box has zero dimensions');
     }
+    (0, utils_1.logEnd)('[文本测量] measureTextBBox', Math.round(performance.now() - start));
     return { width: bbox.width, height: bbox.height, y: bbox.y };
 }
 /**
@@ -129,5 +133,20 @@ async function measureTextBBox(svgString) {
 async function measureTextElement(input) {
     const svgString = buildMeasurementSvg(input);
     return measureTextBBox(svgString);
+}
+/**
+ * Render SVG string to PNG as base64 data URL.
+ * Used for rendering background patterns and other complex SVG elements.
+ */
+async function renderSvgToPng(svgString, width, height) {
+    await ensureInit();
+    const resvg = new resvg_js_1.Resvg(svgString, {
+        fitTo: {
+            mode: 'width',
+            value: width,
+        },
+    });
+    const pngData = resvg.render().asPng();
+    return `data:image/png;base64,${pngData.toString('base64')}`;
 }
 //# sourceMappingURL=text-measurer.js.map

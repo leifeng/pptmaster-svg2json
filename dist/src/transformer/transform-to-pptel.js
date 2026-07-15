@@ -8,8 +8,82 @@ exports.transformToPPTElement = transformToPPTElement;
 const uuid_1 = require("uuid");
 const coordinate_mapper_1 = require("../mapper/coordinate-mapper");
 const apply_transform_1 = require("./apply-transform");
+const clip_path_preprocessor_1 = require("./clip-path-preprocessor");
 const shape_to_path_1 = require("../shapes/shape-to-path");
 const text_measurer_1 = require("../text-measurer");
+const path_utils_1 = require("../utils/path-utils");
+const path_merge_1 = require("../merger/path-merge");
+const utils_1 = require("../utils");
+/**
+ * 转换 icon 元素（有 data-icon-width/height 属性的 path）
+ * icon 的位置和尺寸已经在 autoEmbedIcons 中处理过
+ */
+function transformIconElement(element, coords, iconW, iconH, scaleX, scaleY, transform, id) {
+    const d = typeof element.attrs.d === 'string' ? element.attrs.d : '';
+    const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'));
+    const fillValue = element.attrs.fill;
+    const isFillNone = fillValue === 'none' || fillValue === 'transparent';
+    const { rotate, flipH, flipV } = (0, apply_transform_1.applyTransform)(coords.left, coords.top, coords.width, coords.height, transform);
+    // Icon 的 width/height/viewBox 都用缩放后的值
+    const resultWidth = iconW * Math.abs(scaleX);
+    const resultHeight = iconH * Math.abs(scaleY);
+    const viewBoxW = iconW * Math.abs(scaleX);
+    const viewBoxH = iconH * Math.abs(scaleY);
+    // Path 坐标转绝对坐标，并缩放到 canvas 空间
+    const pathD = (0, path_utils_1.scalePathCoords)((0, path_utils_1.toAbsolutePath)(d), scaleX, scaleY);
+    // 应用 canvas scale 得到 canvas 空间坐标
+    const finalLeft = coords.left * scaleX;
+    const finalTop = coords.top * scaleY;
+    const result = {
+        id,
+        type: 'shape',
+        left: finalLeft,
+        top: finalTop,
+        width: resultWidth,
+        height: resultHeight,
+        rotate,
+        viewBox: [viewBoxW, viewBoxH],
+        path: pathD,
+        fixedRatio: false,
+        fill: isFillNone ? 'none' : (colorToHex(fillValue) || '#000000'),
+        opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
+    };
+    if (element.attrs.gradient) {
+        result.gradient = element.attrs.gradient;
+        // @ts-expect-error - fill may not exist on result
+        delete result.fill;
+    }
+    else if (!isFillNone) {
+        const fillOpacity = element.attrs['fill-opacity'];
+        if (fillOpacity && parseFloat(String(fillOpacity)) < 1) {
+            result.fill = colorToRgba(String(element.attrs.fill), parseFloat(String(fillOpacity)));
+        }
+    }
+    if (flipH)
+        result.flipH = true;
+    if (flipV)
+        result.flipV = true;
+    if (element.attrs.stroke) {
+        const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity']);
+        result.outline = {
+            style: parseDashArray(element.attrs['stroke-dasharray']),
+            width: strokeWidth || 1,
+            color,
+            ...(opacity !== undefined && { opacity }),
+        };
+        // D-37: For stroke-only paths with height=0 or width=0, set minimum dimension
+        if (result.height === 0 && strokeWidth > 0) {
+            result.height = strokeWidth * scaleY;
+        }
+        if (result.width === 0 && strokeWidth > 0) {
+            result.width = strokeWidth * scaleX;
+        }
+    }
+    if (element.attrs.shadow) {
+        result.shadow = element.attrs.shadow;
+    }
+    return result;
+}
 /**
  * Parse stroke-dasharray into line style.
  * Per D-05 (CRITICAL PITFALL 5): normalize "5,3" / "5 3" / "5" variants.
@@ -198,6 +272,9 @@ function decodeHtmlEntities(str) {
 function colorToHex(color) {
     if (!color)
         return '#000000';
+    // "none" is a valid SVG fill value meaning no fill - return it as-is
+    if (color.toLowerCase() === 'none')
+        return 'none';
     // Already hex
     if (color.startsWith('#'))
         return color;
@@ -303,16 +380,238 @@ function polylineToPath(points) {
 }
 /**
  * Extract text content from a text or tspan element.
+ * Adds newline between tspan children to preserve multi-line structure.
  */
 function extractTextContentFromElement(element) {
     let content = element.text || '';
-    // Process tspan children
-    for (const child of element.children) {
-        if (child.type === 'tspan') {
-            content += extractTextContentFromElement(child);
+    // Process tspan children - add newline between lines
+    const tspanChildren = element.children.filter(child => child.type === 'tspan');
+    for (let i = 0; i < tspanChildren.length; i++) {
+        content += extractTextContentFromElement(tspanChildren[i]);
+        // Add newline after each tspan except the last one
+        if (i < tspanChildren.length - 1) {
+            content += '\n';
         }
     }
     return content;
+}
+/**
+ * 递归构建 Rich Text AST
+ * @param element - SVG 元素
+ * @param parentFontSize - 父级 font-size（用于继承）
+ */
+function buildRichTextAST(element, parentFontSize) {
+    const nodes = [];
+    // 情况1：叶子节点（只有文本，没有 children）
+    // 例如：<text>Hello</text> → element.text = "Hello", children = []
+    if (element.text && element.children.length === 0) {
+        return [{ type: 'text', content: element.text }];
+    }
+    // 情况2：有 children（包含 tspan 或 inline text）
+    // children[0] 通常是 inline text，代表的正是 element.text
+    // 所以不要重复添加 element.text
+    for (const child of element.children) {
+        if (child.type === 'tspan') {
+            // 继承逻辑：子元素没有 font-size 就用父级的
+            const explicitFontSize = child.attrs['font-size'] !== undefined
+                ? Number(child.attrs['font-size'])
+                : null;
+            const effectiveFontSize = explicitFontSize ?? parentFontSize;
+            // baseline-shift 决定 tag
+            const baselineShift = child.attrs['baseline-shift'];
+            const tag = baselineShift === 'sub' ? 'sub' :
+                baselineShift === 'super' ? 'sup' : 'span';
+            // 递归构建子节点
+            const childNodes = buildRichTextAST(child, effectiveFontSize);
+            // 包装到 ElementNode
+            nodes.push({
+                type: 'element',
+                tag,
+                fontSize: explicitFontSize, // null 表示继承
+                children: childNodes,
+            });
+        }
+        else if (child.type === 'text' && child.text) {
+            // inline text 片段，直接作为文本节点
+            nodes.push({ type: 'text', content: child.text });
+        }
+    }
+    return nodes;
+}
+/**
+ * 将 Rich Text AST 序列化为 HTML
+ * @param nodes - AST 节点数组
+ * @param parentFontSize - 父级 font-size（已缩放，用于继承）
+ * @param scaleY - 缩放比例
+ * @param parentTag - 父级标签（用于判断是否需要为 TextNode 生成 span）
+ */
+function serializeRichText(nodes, parentFontSize, scaleY, parentTag = null) {
+    let html = '';
+    for (const node of nodes) {
+        if (node.type === 'text') {
+            // TextNode: 父级如果是 span 则需要 span 包裹；sub/sup 不需要（已在外层设置 fontSize）
+            if (parentTag === 'span') {
+                html += `<span style="font-size: ${parentFontSize}px">${escapeHtml(node.content)}</span>`;
+            }
+            else {
+                html += escapeHtml(node.content);
+            }
+        }
+        else {
+            // ElementNode: 子级如果无 fontSize 继承父级，否则应用 scaleY 缩放
+            const effectiveFontSize = node.fontSize !== null
+                ? node.fontSize * scaleY
+                : parentFontSize; // 继承父级（已缩放）
+            const needSpan = node.tag === 'span' && Math.abs(effectiveFontSize - parentFontSize) > 0.01;
+            if (node.tag === 'span') {
+                // span: 只有 font-size 与父级不同时才需要 span 包装
+                if (needSpan) {
+                    html += `<span style="font-size: ${effectiveFontSize}px">`;
+                }
+                html += serializeRichText(node.children, effectiveFontSize, scaleY, node.tag);
+                if (needSpan) {
+                    html += '</span>';
+                }
+            }
+            else {
+                // sub/sup: 总是需要标签包裹，但子元素如果是 inline text 不需要额外 span
+                html += `<${node.tag} style="font-size: ${effectiveFontSize}px">`;
+                html += serializeRichText(node.children, effectiveFontSize, scaleY, node.tag);
+                html += `</${node.tag}>`;
+            }
+        }
+    }
+    return html;
+}
+/**
+ * 提取纯文本（用于 text measurement）
+ */
+function extractPlainText(nodes) {
+    let text = '';
+    for (const node of nodes) {
+        if (node.type === 'text') {
+            text += node.content;
+        }
+        else {
+            text += extractPlainText(node.children);
+        }
+    }
+    return text;
+}
+/**
+ * HTML 转义
+ */
+function escapeHtml(str) {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+/**
+ * 构建 HTML content from a text element using AST approach.
+ * @param element - SVG 元素
+ * @param parentFontSize - 父级原始 font-size（未缩放）
+ * @param scaleY - 缩放比例
+ * Returns both the HTML content string and plain text for measurement.
+ */
+function buildTextContentFromElement(element, parentFontSize, scaleY) {
+    // 父级 fontSize 需要缩放
+    const scaledParentFontSize = parentFontSize * scaleY;
+    const nodes = buildRichTextAST(element, parentFontSize);
+    const html = serializeRichText(nodes, scaledParentFontSize, scaleY);
+    const text = extractPlainText(nodes);
+    return { html, text };
+}
+/**
+ * Check if element has tspan children with x attribute (indicating multiline text).
+ * Rule: 有 x = 换行（多行文本），无 x = 同行连续排列（公式/上下标）
+ */
+function hasLineBreakTspans(element) {
+    for (const child of element.children) {
+        if (child.type === 'tspan') {
+            if (child.attrs['x'] !== undefined) {
+                return true;
+            }
+            if (hasLineBreakTspans(child)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+/**
+ * Extract tspan elements with calculated positions for multiline text.
+ * Position calculation based on parent text x/y plus each tspan's x and dy.
+ */
+function extractTspansWithPosition(element, baseLeft, baseTop, baseFontSize, scaleX = 1, scaleY = 1, parentSvgX) {
+    const results = [];
+    const fontSize = parseFloat(String(element.attrs['font-size'] || baseFontSize));
+    // The parent's x in SVG coordinates (before transform)
+    const parentX = parentSvgX ?? 0;
+    // Process tspan children
+    const tspanChildren = element.children.filter(child => child.type === 'tspan');
+    if (tspanChildren.length === 0) {
+        // No tspans, use direct text content (apply scaleY to fontSize)
+        const text = element.text || '';
+        const scaledFontSize = fontSize * scaleY;
+        if (text) {
+            results.push({
+                left: baseLeft,
+                top: baseTop,
+                fontSize,
+                content: text,
+                htmlContent: `<span style="font-size: ${scaledFontSize}px">${text}</span>`,
+            });
+        }
+        return results;
+    }
+    let currentTop = baseTop;
+    let currentLeft = baseLeft;
+    for (const tspan of tspanChildren) {
+        const hasX = tspan.attrs['x'] !== undefined;
+        // tspanX calculation:
+        // - parentX is the parent text element's x in SVG coordinates
+        // - baseLeft is the parent text's transformed left position (after translate + scale)
+        // - The offset = baseLeft - parentX (in SVG space, before scale)
+        // - For tspan, effective x = tspanX + offset (then scaled)
+        // Formula: effectiveX = (tspanX - parentX) * scaleX + baseLeft
+        const tspanX = hasX
+            ? (parseFloat(String(tspan.attrs['x'])) - parentX) * scaleX + baseLeft
+            : currentLeft;
+        const tspanDy = tspan.attrs['dy'] !== undefined ? parseFloat(String(tspan.attrs['dy'])) : 0;
+        // Inherit font-size from parent if not specified on tspan
+        const tspanFontSize = tspan.attrs['font-size'] !== undefined
+            ? parseFloat(String(tspan.attrs['font-size']))
+            : fontSize;
+        const scaledFontSize = tspanFontSize * scaleY;
+        // Build HTML content for this tspan (preserve baseline-shift styling)
+        const { html: tspanHtml, text: tspanText } = buildTextContentFromElement(tspan, tspanFontSize, scaleY);
+        // Update position based on dy (relative to previous line in SVG coordinate space)
+        // Note: In SVG, dy is the displacement from the previous line's baseline position
+        // dy="0" means same baseline as previous line
+        // dy="22" means 22 SVG units lower than previous line
+        currentTop += tspanDy * scaleY;
+        // REF-04: Handle pixel baseline-shift values
+        // baseline-shift="-5px" with scaleY=0.78125 → top offset = -5 * 0.78125 = -3.90625
+        // Negative pixel value raises the text (smaller top = higher on canvas)
+        const baselineShift = tspan.attrs['baseline-shift'];
+        if (baselineShift && /^-?\d+(\.\d+)?px$/.test(String(baselineShift))) {
+            const pixelValue = parseFloat(String(baselineShift));
+            const scaledOffset = pixelValue * scaleY;
+            // Subtract because negative offset means raise (smaller top = higher)
+            currentTop -= scaledOffset;
+        }
+        results.push({
+            left: tspanX,
+            top: currentTop,
+            fontSize: tspanFontSize,
+            content: tspanText,
+            htmlContent: tspanHtml,
+        });
+        currentLeft = tspanX;
+    }
+    return results;
 }
 /**
  * Transform a single SVG element to PPTElement.
@@ -322,9 +621,10 @@ function extractTextContentFromElement(element) {
  * @param targetCanvas - Target canvas size [width, height], defaults to [1000, 562.5]
  * @param groupId - Current groupId context from parent g elements
  */
-async function transformElement(element, viewBox, index, targetCanvas = [1000, 562.5], groupId) {
+async function transformElement(element, viewBox, index, targetCanvas = [1000, 562.5], groupId, effectiveTransform) {
     const tag = element.type.toLowerCase();
-    const coords = (0, coordinate_mapper_1.mapCoordinates)(element, viewBox);
+    // REF-01: Pass effectiveTransform (parent + element transform composed) to mapCoordinates
+    const coords = (0, coordinate_mapper_1.mapCoordinates)(element, viewBox, effectiveTransform);
     const id = (0, uuid_1.v4)();
     // Calculate scale ratio from SVG viewBox to target canvas
     const scaleX = targetCanvas[0] / viewBox[2];
@@ -335,7 +635,8 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
     const width = coords.width * scaleX;
     const height = coords.height * scaleY;
     // Parse transform attribute for rotate/flip handling
-    const transform = (0, coordinate_mapper_1.parseTransform)(element.attrs.transform);
+    // REF-01: Use effectiveTransform (already composed with parent transform)
+    const transform = (0, coordinate_mapper_1.parseTransform)(effectiveTransform || element.attrs.transform);
     // Skip non-renderable elements
     if (['defs', 'linearGradient', 'stop', 'filter', 'marker', 'clippath'].includes(tag)) {
         return null;
@@ -534,23 +835,47 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
             return result;
         }
         case 'path': {
+            // Check if this is an icon element (has data-icon-width/height)
+            const iconW = element.attrs['data-icon-width'] != null ? parseFloat(String(element.attrs['data-icon-width'])) : undefined;
+            const iconH = element.attrs['data-icon-height'] != null ? parseFloat(String(element.attrs['data-icon-height'])) : undefined;
+            if (iconW !== undefined && iconH !== undefined) {
+                // Icon path: use dedicated method
+                const iconResult = transformIconElement(element, coords, iconW, iconH, scaleX, scaleY, transform, id);
+                if (iconResult) {
+                    console.log(`[icon-shape] id=${id} path="${iconResult.path.substring(0, 40)}${iconResult.path.length > 40 ? '...' : ''}" left=${iconResult.left.toFixed(2)} top=${iconResult.top.toFixed(2)} size=${iconResult.width.toFixed(2)}x${iconResult.height.toFixed(2)}`);
+                    return iconResult;
+                }
+            }
+            // Normal path handling below
             const transformed = (0, apply_transform_1.applyTransform)(left, top, width, height, transform);
             const { rotate, flipH, flipV } = transformed;
-            // Per D-03: path elements keep original d attribute unchanged
             const d = typeof element.attrs.d === 'string' ? element.attrs.d : '';
             const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'));
+            const fillValue = element.attrs.fill;
+            const isFillNone = fillValue === 'none' || fillValue === 'transparent';
+            // Fix: With mapCoordinates not applying groupScale to path width/height,
+            // and applyTransform not scaling width/height:
+            // - transformed.width = original_bbox * canvasScale (canvasScale was applied by mapCoordinates)
+            // We need: viewBox = original_bbox, width = original_bbox * groupScale * canvasScale
+            const groupScaleX = transform.scaleX ?? 1;
+            const groupScaleY = transform.scaleY ?? 1;
+            const viewBoxW = transformed.width / Math.abs(scaleX); // = original_bbox.width
+            const viewBoxH = transformed.height / Math.abs(scaleY); // = original_bbox.height
+            const finalWidth = viewBoxW * Math.abs(groupScaleX) * Math.abs(scaleX);
+            const finalHeight = viewBoxH * Math.abs(groupScaleY) * Math.abs(scaleY);
+            const pathD = (0, path_utils_1.toAbsolutePath)(d);
             const result = {
                 id,
                 type: 'shape',
                 left: transformed.left,
                 top: transformed.top,
-                width: transformed.width,
-                height: transformed.height,
+                width: finalWidth,
+                height: finalHeight,
                 rotate,
-                viewBox: [transformed.width, transformed.height],
-                path: d,
+                viewBox: [viewBoxW, viewBoxH],
+                path: pathD,
                 fixedRatio: false,
-                fill: colorToHex(element.attrs.fill) || '#000000',
+                fill: isFillNone ? 'none' : (colorToHex(fillValue) || '#000000'),
                 opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
             };
             // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
@@ -559,8 +884,8 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
                 // @ts-expect-error - fill may not exist on result
                 delete result.fill;
             }
-            else {
-                // D-18: fill-opacity < 1 → rgba() color
+            else if (!isFillNone) {
+                // D-18: fill-opacity < 1 → rgba() color (only if fill is not "none")
                 const fillOpacity = element.attrs['fill-opacity'];
                 if (fillOpacity && parseFloat(String(fillOpacity)) < 1) {
                     result.fill = colorToRgba(String(element.attrs.fill), parseFloat(String(fillOpacity)));
@@ -578,6 +903,14 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
                     color,
                     ...(opacity !== undefined && { opacity }),
                 };
+                // D-37: For stroke-only paths with height=0 (horizontal lines) or width=0 (vertical lines),
+                // set minimum dimension to stroke-width so the stroke is visible
+                if (result.height === 0 && strokeWidth > 0) {
+                    result.height = strokeWidth * scaleY;
+                }
+                if (result.width === 0 && strokeWidth > 0) {
+                    result.width = strokeWidth * scaleX;
+                }
             }
             // D-22: SVG filter="url(#shadowId)" → shadow
             if (element.attrs.shadow) {
@@ -760,7 +1093,6 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
         case 'text': {
             const transformed = (0, apply_transform_1.applyTransform)(left, top, width, height, transform);
             const { rotate } = transformed;
-            const content = extractTextContentFromElement(element);
             // Force Microsoft YaHei for all text (width calculation and output)
             const fontFamily = element.attrs['font-family'] || 'Microsoft YaHei';
             const fontSize = Number(String(element.attrs["font-size"] || "16")) || 16;
@@ -773,6 +1105,8 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
             const isBold = fontWeight === 'bold' || fontWeight === '600' || fontWeight === '700';
             const fontStyle = element.attrs['font-style'];
             const isItalic = fontStyle === 'italic';
+            // D-??: Build content HTML with baseline-shift support (sup/sub tags)
+            const { html: contentHtml, text: content } = buildTextContentFromElement(element, fontSize, scaleY);
             // Measure text using resvg-js with fallback to heuristic
             let textWidth;
             let textHeight;
@@ -810,8 +1144,6 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
                 // Note: transformed.top is already scaled, so subtract scaled ascent directly
                 textTop = transformed.top - fontSize * 0.8 * scaleY;
             }
-            // Log text measurement info
-            console.log(`[text] "${content.substring(0, 30)}${content.length > 30 ? '...' : ''}" | fontSize=${fontSize} | scaleX=${scaleX.toFixed(3)} scaleY=${scaleY.toFixed(3)} | svg_w=${(textWidth / scaleX).toFixed(1)} | out_w=${textWidth.toFixed(1)} | svg_h=${(textHeight / scaleY).toFixed(1)} | out_h=${textHeight.toFixed(1)}`);
             // X轴: 考虑 text-anchor 调整 left
             // SVG text x 对于 middle/end 是参考点，需要偏移
             const textAnchorForLeft = element.attrs['text-anchor'];
@@ -832,14 +1164,17 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
             else if (textAnchor === 'middle')
                 textAlign = 'center';
             const pStyle = textAlign ? `text-align: ${textAlign}` : '';
+            // Use scaledFontSize for outer content span (matches the visual scale from viewBox→canvas)
             let spanStyle = `font-size: ${scaledFontSize}px`;
             if (hasRgba) {
                 const rgbaColor = colorToRgba(fillColor, parseFloat(String(fillOpacity)));
                 spanStyle += `; color: ${rgbaColor}`;
             }
-            // Build content HTML: <p style="text-align: ..."><strong><em><span style="...">content</span></em></strong></p>
+            // If contentHtml doesn't contain HTML tags (raw text), wrap it in a span with font-size
+            // This handles simple text elements without tspan children
+            const hasHtmlTags = contentHtml.includes('<');
+            const innerSpan = hasHtmlTags ? contentHtml : `<span style="${spanStyle}">${contentHtml}</span>`;
             // ProseMirror marks order: strong > em > fontsize > fontname > forecolor > backcolor > underline > strikethrough
-            const innerSpan = `<span style="${spanStyle}">${content}</span>`;
             let weightedContent = innerSpan;
             if (isItalic)
                 weightedContent = `<em>${weightedContent}</em>`;
@@ -852,20 +1187,12 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
             // D-09: fixedHeight based on SVG height attribute presence
             const fixedHeight = !!element.attrs.height;
             // D-26: inset=[0,0,0,0] to avoid 10px default padding causing coordinate offset
-            const result = {
-                id,
-                type: 'text',
-                left: textLeft,
-                top: textTop,
-                width: textWidth,
-                height: textHeight,
-                defaultFontSize: scaledFontSize,
+            const baseResult = {
                 rotate,
-                content: richContent,
-                defaultFontName: fontFamily,
+                defaultFontName: 'Source Han Sans CN Regular',
                 defaultColor: colorToHex(fillColor) || '#000000',
                 lineHeight: 1,
-                opacity: element.attrs.opacity ? parseFloat(element.attrs.opacity) : undefined,
+                opacity: element.attrs.opacity ? parseFloat(String(element.attrs.opacity)) : undefined,
                 shadow: undefined,
                 vAlign: 'middle',
                 fixedHeight,
@@ -874,18 +1201,66 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
                 vertical,
                 inset: [0, 0, 0, 0],
             };
-            // D-19: stroke color/opacity handling for text outline
-            if (element.attrs.stroke) {
-                const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity']);
-                result.outline = { color, width: 1 };
-                if (opacity !== undefined)
-                    result.outline.opacity = opacity;
+            // Check if this is multiline text (has tspan with x attribute)
+            // Rule: 有 x = 换行（多行文本），无 x = 同行连续排列
+            const isMultiline = hasLineBreakTspans(element);
+            if (isMultiline) {
+                // Multiline text: extract each tspan as separate text element
+                // Pass parent text's SVG x coordinate so tspan positions can be calculated correctly
+                const parentSvgX = parseFloat(String(element.attrs['x'] || '0'));
+                const tspanElements = extractTspansWithPosition(element, textLeft, textTop, fontSize, scaleX, scaleY, parentSvgX);
+                const results = tspanElements.map((tspan, idx) => {
+                    // Apply text-level strong/em styles to each line's content
+                    let lineContent = tspan.htmlContent;
+                    if (isItalic)
+                        lineContent = `<em>${lineContent}</em>`;
+                    if (isBold)
+                        lineContent = `<strong>${lineContent}</strong>`;
+                    const tspanRichContent = `<p${pStyle ? ` style="${pStyle}"` : ''}>${lineContent}</p>`;
+                    const result = {
+                        id: idx === 0 ? id : `${id}-line-${idx}`,
+                        type: 'text',
+                        left: tspan.left,
+                        top: tspan.top,
+                        width: textWidth,
+                        height: tspan.fontSize * 1.2,
+                        defaultFontSize: tspan.fontSize * scaleY,
+                        content: tspanRichContent,
+                        ...baseResult,
+                    };
+                    if (groupId) {
+                        result.groupId = groupId;
+                    }
+                    return result;
+                });
+                return results;
             }
-            // D-23: groupId propagation from parent g element
-            if (groupId) {
-                result.groupId = groupId;
+            else {
+                // Single line or inline content: single text element
+                const result = {
+                    id,
+                    type: 'text',
+                    left: textLeft,
+                    top: textTop,
+                    width: textWidth,
+                    height: textHeight,
+                    defaultFontSize: scaledFontSize,
+                    content: richContent,
+                    ...baseResult,
+                };
+                // D-19: stroke color/opacity handling for text outline
+                if (element.attrs.stroke) {
+                    const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity']);
+                    result.outline = { color, width: 1 };
+                    if (opacity !== undefined)
+                        result.outline.opacity = opacity;
+                }
+                // D-23: groupId propagation from parent g element
+                if (groupId) {
+                    result.groupId = groupId;
+                }
+                return result;
             }
-            return result;
         }
         case 'image': {
             const transformed = (0, apply_transform_1.applyTransform)(left, top, width, height, transform);
@@ -960,8 +1335,11 @@ function composeTransforms(parentTransform, childTransform) {
     return `${parentTransform} ${childTransform}`;
 }
 async function transformToPPTElement(ast, targetCanvas = [1000, 562.5]) {
+    const transformStart = performance.now();
+    (0, utils_1.log)('[转换] 开始 transformToPPTElement');
+    (() => { const start = performance.now(); (0, clip_path_preprocessor_1.preprocessClipPaths)(ast); (0, utils_1.logEnd)('[转换] preprocessClipPaths', Math.round(performance.now() - start)); })();
     const elements = [];
-    async function walk(element, viewBox, currentGroupId, parentTransform) {
+    async function walk(element, viewBox, currentGroupId, parentTransform, inheritedAttrs) {
         const tag = element.type.toLowerCase();
         // D-23: When tag='g' with id, update groupId context for children
         // Children inherit parent g id as their groupId. Nested g: innermost id takes precedence.
@@ -970,28 +1348,109 @@ async function transformToPPTElement(ast, targetCanvas = [1000, 562.5]) {
         const effectiveGroupId = isG ? (element.attrs.id || undefined) : currentGroupId;
         // Accumulate parent transform: child's transform is composed with parent's
         const effectiveTransform = composeTransforms(parentTransform, element.attrs.transform);
+        // D-38: Accumulate inherited visual attributes from parent g elements
+        // Inheritable attributes: fill, stroke, stroke-width, fill-opacity, stroke-opacity
+        const effectiveInheritedAttrs = inheritedAttrs ? { ...inheritedAttrs } : {};
+        if (isG) {
+            // g element's fill/stroke attributes are inherited by its children
+            if (element.attrs.fill !== undefined)
+                effectiveInheritedAttrs.fill = element.attrs.fill;
+            if (element.attrs.stroke !== undefined)
+                effectiveInheritedAttrs.stroke = element.attrs.stroke;
+            if (element.attrs['stroke-width'] !== undefined)
+                effectiveInheritedAttrs['stroke-width'] = element.attrs['stroke-width'];
+            if (element.attrs['fill-opacity'] !== undefined)
+                effectiveInheritedAttrs['fill-opacity'] = String(element.attrs['fill-opacity']);
+            if (element.attrs['stroke-opacity'] !== undefined)
+                effectiveInheritedAttrs['stroke-opacity'] = String(element.attrs['stroke-opacity']);
+        }
+        // D-29: Check if this is a group with all-path children for potential merge
+        if (isG) {
+            const gChildren = element.children;
+            // Check if all children are path elements and more than one
+            const allPathChildren = gChildren.length > 1 && gChildren.every(child => child.type.toLowerCase() === 'path');
+            if (allPathChildren) {
+                // Build effective group attrs combining element.attrs with inherited attrs
+                const effectiveGroupAttrs = {};
+                // Start with element's own attrs (string values only)
+                for (const [key, value] of Object.entries(element.attrs)) {
+                    if (typeof value === 'string')
+                        effectiveGroupAttrs[key] = value;
+                }
+                // Fill in inherited attrs where element doesn't have them
+                if (effectiveInheritedAttrs.fill !== undefined && effectiveGroupAttrs.fill === undefined) {
+                    effectiveGroupAttrs.fill = effectiveInheritedAttrs.fill;
+                }
+                if (effectiveInheritedAttrs.stroke !== undefined && effectiveGroupAttrs.stroke === undefined) {
+                    effectiveGroupAttrs.stroke = effectiveInheritedAttrs.stroke;
+                }
+                if (effectiveInheritedAttrs['stroke-width'] !== undefined && effectiveGroupAttrs['stroke-width'] === undefined) {
+                    effectiveGroupAttrs['stroke-width'] = effectiveInheritedAttrs['stroke-width'];
+                }
+                if (effectiveInheritedAttrs['fill-opacity'] !== undefined && effectiveGroupAttrs['fill-opacity'] === undefined) {
+                    effectiveGroupAttrs['fill-opacity'] = effectiveInheritedAttrs['fill-opacity'];
+                }
+                if (effectiveInheritedAttrs['stroke-opacity'] !== undefined && effectiveGroupAttrs['stroke-opacity'] === undefined) {
+                    effectiveGroupAttrs['stroke-opacity'] = effectiveInheritedAttrs['stroke-opacity'];
+                }
+                const decision = (0, path_merge_1.shouldMerge)(gChildren, effectiveGroupAttrs);
+                if (decision === 'merge' || decision === 'cautious-merge') {
+                    const commonStyle = (0, path_merge_1.extractCommonStyle)(gChildren, effectiveGroupAttrs);
+                    if (commonStyle) {
+                        const mergedElement = (0, path_merge_1.createMergedShapeElement)(gChildren, commonStyle, effectiveTransform, [viewBox[2], viewBox[3]], targetCanvas, elements.length);
+                        elements.push(mergedElement);
+                        // Skip individual child processing since we've merged them
+                        return;
+                    }
+                }
+                // Fall through to normal processing if merge not decided
+            }
+        }
         // Process children (for groups - g elements themselves are not output)
         for (const child of element.children) {
             if (child.type.toLowerCase() === 'g') {
                 // Recursively process group children with inherited/overridden groupId and accumulated transform
-                await walk(child, viewBox, effectiveGroupId, effectiveTransform);
+                await walk(child, viewBox, effectiveGroupId, effectiveTransform, effectiveInheritedAttrs);
             }
             else {
                 // Skip non-renderable container elements
                 if (!['defs', 'linearGradient', 'stop', 'filter', 'marker', 'clippath'].includes(child.type.toLowerCase())) {
-                    // Apply accumulated parent transform to child element before processing
-                    if (effectiveTransform && !child.attrs.transform) {
-                        child.attrs.transform = effectiveTransform;
+                    // D-38: Merge inherited attrs into child element attrs before transform
+                    // Child's own attrs take precedence over inherited attrs
+                    const mergedAttrs = { ...child.attrs };
+                    if (child.attrs.fill === undefined && effectiveInheritedAttrs.fill !== undefined) {
+                        mergedAttrs.fill = effectiveInheritedAttrs.fill;
                     }
-                    const pptel = await transformElement(child, viewBox, elements.length, targetCanvas, effectiveGroupId);
+                    if (child.attrs.stroke === undefined && effectiveInheritedAttrs.stroke !== undefined) {
+                        mergedAttrs.stroke = effectiveInheritedAttrs.stroke;
+                    }
+                    if (child.attrs['stroke-width'] === undefined && effectiveInheritedAttrs['stroke-width'] !== undefined) {
+                        mergedAttrs['stroke-width'] = effectiveInheritedAttrs['stroke-width'];
+                    }
+                    if (child.attrs['fill-opacity'] === undefined && effectiveInheritedAttrs['fill-opacity'] !== undefined) {
+                        mergedAttrs['fill-opacity'] = effectiveInheritedAttrs['fill-opacity'];
+                    }
+                    if (child.attrs['stroke-opacity'] === undefined && effectiveInheritedAttrs['stroke-opacity'] !== undefined) {
+                        mergedAttrs['stroke-opacity'] = effectiveInheritedAttrs['stroke-opacity'];
+                    }
+                    // REF-01: Pass effectiveTransform to mapCoordinates instead of mutating child.attrs.transform
+                    // D-38: Use mergedAttrs instead of child.attrs for fill/stroke inheritance
+                    const mergedElement = { ...child, attrs: mergedAttrs };
+                    const pptel = await transformElement(mergedElement, viewBox, elements.length, targetCanvas, effectiveGroupId, effectiveTransform);
                     if (pptel !== null) {
-                        elements.push(pptel);
+                        if (Array.isArray(pptel)) {
+                            elements.push(...pptel);
+                        }
+                        else {
+                            elements.push(pptel);
+                        }
                     }
                 }
             }
         }
     }
     await walk(ast.root, ast.viewBox);
+    (0, utils_1.logEnd)('[转换] transformToPPTElement 总耗时', Math.round(performance.now() - transformStart), `共 ${elements.length} 个元素`);
     return elements;
 }
 //# sourceMappingURL=transform-to-pptel.js.map

@@ -1,10 +1,26 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.composeTransforms = composeTransforms;
 exports.parseGradientTransform = parseGradientTransform;
 exports.parseViewBox = parseViewBox;
 exports.extractNumber = extractNumber;
 exports.parseTransform = parseTransform;
+exports.pathBoundingBox = pathBoundingBox;
 exports.mapCoordinates = mapCoordinates;
+/**
+ * Compose two transform strings into a single transform string.
+ * Parent transform is applied first, then child transform.
+ */
+function composeTransforms(parentTransform, childTransform) {
+    if (!parentTransform && !childTransform)
+        return undefined;
+    if (!parentTransform)
+        return childTransform;
+    if (!childTransform)
+        return parentTransform;
+    // Both exist: apply parent then child
+    return `${parentTransform} ${childTransform}`;
+}
 /**
  * Parse gradientTransform attribute to extract rotation angle.
  * D-17: gradientTransform matrix rotation extracted via matrix decomposition.
@@ -60,29 +76,40 @@ function extractNumber(value, fallback) {
 /**
  * Parse SVG transform attribute into component values.
  * Per D-04: translate/scale/rotate parsed; D-05: matrix marked as special.
+ * Handles multiple transform commands (e.g., "translate(60, 220) translate(0, 116)")
+ * by accumulating all translate/scale values and using the last rotate.
  */
 function parseTransform(transform) {
     if (!transform)
         return { translateX: 0, translateY: 0, scaleX: 1, scaleY: 1, rotateDeg: 0 };
-    const result = {};
-    // translate(dx, dy) or translate(dx) — allow negative values
-    const translateMatch = transform.match(/translate\(\s*([\d.-]+)(?:[,\s]+([\d.-]+))?\s*\)/);
-    if (translateMatch) {
-        result.translateX = parseFloat(translateMatch[1]);
-        result.translateY = translateMatch[2] ? parseFloat(translateMatch[2]) : 0;
+    const result = {
+        translateX: 0,
+        translateY: 0,
+        scaleX: 1,
+        scaleY: 1,
+        rotateDeg: 0,
+    };
+    // Match all translate commands and accumulate
+    const translateMatches = transform.matchAll(/translate\(\s*([\d.-]+)(?:[,\s]+([\d.-]+))?\s*\)/g);
+    for (const match of translateMatches) {
+        result.translateX += parseFloat(match[1]);
+        result.translateY += match[2] ? parseFloat(match[2]) : 0;
     }
-    // scale(sx, sy) or scale(s) — allow negative values for flip transforms
-    const scaleMatch = transform.match(/scale\(\s*([\d.-]+)(?:[,\s]+([\d.-]+))?\s*\)/);
-    if (scaleMatch) {
-        result.scaleX = parseFloat(scaleMatch[1]);
-        result.scaleY = scaleMatch[2] ? parseFloat(scaleMatch[2]) : result.scaleX;
+    // Match all scale commands and accumulate (multiply)
+    const scaleMatches = transform.matchAll(/scale\(\s*([\d.-]+)(?:[,\s]+([\d.-]+))?\s*\)/g);
+    for (const match of scaleMatches) {
+        const sx = parseFloat(match[1]);
+        const sy = match[2] ? parseFloat(match[2]) : sx;
+        result.scaleX *= sx;
+        result.scaleY *= sy;
     }
-    // rotate(deg, cx, cy) or rotate(deg)
-    const rotateMatch = transform.match(/rotate\(\s*([\d.]+)(?:[,\s]+([\d.]+),?\s*([\d.]+))?\s*\)/);
-    if (rotateMatch) {
-        result.rotateDeg = parseFloat(rotateMatch[1]);
-        result.rotateCX = rotateMatch[2] ? parseFloat(rotateMatch[2]) : undefined;
-        result.rotateCY = rotateMatch[3] ? parseFloat(rotateMatch[3]) : undefined;
+    // Match last rotate command (only one rotation is meaningful)
+    const rotateMatches = [...transform.matchAll(/rotate\(\s*([\d.]+)(?:[,\s]+([\d.]+),?\s*([\d.]+))?\s*\)/g)];
+    if (rotateMatches.length > 0) {
+        const lastMatch = rotateMatches[rotateMatches.length - 1];
+        result.rotateDeg = parseFloat(lastMatch[1]);
+        result.rotateCX = lastMatch[2] ? parseFloat(lastMatch[2]) : undefined;
+        result.rotateCY = lastMatch[3] ? parseFloat(lastMatch[3]) : undefined;
     }
     // matrix not supported → special: true
     if (/matrix\(/.test(transform)) {
@@ -92,41 +119,205 @@ function parseTransform(transform) {
     return result;
 }
 /**
- * Compute bounding box of a path's M/L/H/V commands.
+ * Compute bounding box of a path's M/L/H/V/A/C/Q/S/T commands.
+ * For arcs, we include the endpoint. For curves (C/Q/S/T), use control point enclosure.
  */
 function pathBoundingBox(d) {
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
     let maxY = -Infinity;
-    // Simple path parser for M, L, H, V commands
-    // Split by command letter, then extract numbers from each segment
-    const segments = d.split(/(?=[MLHV])/i);
+    let curX = 0;
+    let curY = 0;
+    let prevCtrlX = 0;
+    let prevCtrlY = 0;
+    let prevCmdU = '';
+    // Split by any command letter
+    const segments = d.split(/(?=[MLHVACQSz])/i);
     for (const seg of segments) {
-        const cmdMatch = seg.match(/^([MLHV])\s*/i);
+        const cmdMatch = seg.match(/^([MLHVACQSz])\s*/i);
         if (!cmdMatch)
             continue;
-        const cmd = cmdMatch[1].toUpperCase();
+        const cmd = cmdMatch[1];
+        const isRel = cmd === cmd.toLowerCase();
+        const cmdU = cmd.toUpperCase();
         const nums = seg.slice(cmdMatch[0].length).trim().split(/[\s,]+/).map(Number).filter((n) => !isNaN(n));
-        if (cmd === 'M' || cmd === 'L') {
-            for (let i = 0; i < nums.length; i += 2) {
-                if (i < nums.length)
-                    minX = Math.min(minX, nums[i]), maxX = Math.max(maxX, nums[i]);
-                if (i + 1 < nums.length)
-                    minY = Math.min(minY, nums[i + 1]), maxY = Math.max(maxY, nums[i + 1]);
-            }
+        if (cmdU === 'Z') {
+            continue;
         }
-        else if (cmd === 'H') {
-            for (const x of nums) {
+        if (cmdU === 'M' || cmdU === 'L') {
+            for (let i = 0; i < nums.length; i += 2) {
+                const x = isRel ? curX + nums[i] : nums[i];
+                const y = i + 1 < nums.length ? (isRel ? curY + nums[i + 1] : nums[i + 1]) : curY;
                 minX = Math.min(minX, x);
                 maxX = Math.max(maxX, x);
-            }
-        }
-        else if (cmd === 'V') {
-            for (const y of nums) {
                 minY = Math.min(minY, y);
                 maxY = Math.max(maxY, y);
+                curX = x;
+                curY = y;
+                prevCtrlX = curX;
+                prevCtrlY = curY;
             }
+        }
+        else if (cmdU === 'H') {
+            for (const nx of nums) {
+                const x = isRel ? curX + nx : nx;
+                minX = Math.min(minX, x);
+                maxX = Math.max(maxX, x);
+                curX = x;
+                prevCtrlX = curX;
+                prevCtrlY = curY;
+            }
+        }
+        else if (cmdU === 'V') {
+            for (const ny of nums) {
+                const y = isRel ? curY + ny : ny;
+                minY = Math.min(minY, y);
+                maxY = Math.max(maxY, y);
+                curY = y;
+                prevCtrlX = curX;
+                prevCtrlY = curY;
+            }
+        }
+        else if (cmdU === 'A') {
+            // Arc: rx ry x-axis-rotation large-arc-flag sweep-flag x y
+            // For accurate bbox, we need to consider the arc's extent
+            // Using center-based approach works for most cases but can overestimate for small arcs
+            // We use the chord endpoints + arc extremes based on sweep direction
+            if (nums.length >= 7) {
+                const rx = Math.abs(nums[0]);
+                const ry = Math.abs(nums[1]);
+                const xAxisRot = nums[2];
+                const largeArcFlag = nums[3];
+                const sweepFlag = nums[4];
+                const x = isRel ? curX + nums[5] : nums[5];
+                const y = isRel ? curY + nums[6] : nums[6];
+                // Get actual start point
+                const sx = curX;
+                const sy = curY;
+                // For most arcs, using center ± rx/ry gives a reasonable bbox
+                // For small arcs (like rounded rectangle corners), this overestimates
+                // We use both approaches and take the union
+                const chordMinX = Math.min(sx, x);
+                const chordMaxX = Math.max(sx, x);
+                const chordMinY = Math.min(sy, y);
+                const chordMaxY = Math.max(sy, y);
+                // Center-based estimate (may overestimate for small arcs)
+                const centerX = (sx + x) / 2;
+                const centerY = (sy + y) / 2;
+                // Include chord endpoints and center-based ellipse extents
+                // For large arcs (>180°): center ± rx/ry is appropriate since arc covers significant portion
+                // For small arcs: add buffer based on rx/ry but not full extension
+                if (largeArcFlag) {
+                    // Large arc: center-based expansion is appropriate
+                    minX = Math.min(minX, centerX - rx);
+                    maxX = Math.max(maxX, centerX + rx);
+                    minY = Math.min(minY, centerY - ry);
+                    maxY = Math.max(maxY, centerY + ry);
+                }
+                else {
+                    // Small arc: use chord endpoints only
+                    // This may slightly underestimate for corner arcs but is consistent
+                    // For corner arcs (rx ~= 0.5 * chord length for 90°), the arc stays close to chord
+                    minX = Math.min(minX, sx, x);
+                    maxX = Math.max(maxX, sx, x);
+                    minY = Math.min(minY, sy, y);
+                    maxY = Math.max(maxY, sy, y);
+                }
+                curX = x;
+                curY = y;
+                prevCtrlX = curX;
+                prevCtrlY = curY;
+            }
+        }
+        else if (cmdU === 'C') {
+            // Cubic bezier: x1,y1 x2,y2 x,y (6 params after command)
+            for (let i = 0; i < nums.length; i += 6) {
+                const x1 = isRel ? curX + nums[i] : nums[i];
+                const y1 = isRel ? curY + nums[i + 1] : nums[i + 1];
+                const x2 = isRel ? curX + nums[i + 2] : nums[i + 2];
+                const y2 = isRel ? curY + nums[i + 3] : nums[i + 3];
+                const x = isRel ? curX + nums[i + 4] : nums[i + 4];
+                const y = isRel ? curY + nums[i + 5] : nums[i + 5];
+                // Control point enclosure: curve is within convex hull of 4 control points
+                minX = Math.min(minX, x1, x2, x);
+                maxX = Math.max(maxX, x1, x2, x);
+                minY = Math.min(minY, y1, y2, y);
+                maxY = Math.max(maxY, y1, y2, y);
+                curX = x;
+                curY = y;
+                prevCtrlX = x2;
+                prevCtrlY = y2;
+            }
+            prevCmdU = 'C';
+        }
+        else if (cmdU === 'Q') {
+            // Quadratic bezier: x1,y1 x,y (4 params after command)
+            for (let i = 0; i < nums.length; i += 4) {
+                const x1 = isRel ? curX + nums[i] : nums[i];
+                const y1 = isRel ? curY + nums[i + 1] : nums[i + 1];
+                const x = isRel ? curX + nums[i + 2] : nums[i + 2];
+                const y = isRel ? curY + nums[i + 3] : nums[i + 3];
+                // Control point enclosure: curve is within triangle of 3 points
+                minX = Math.min(minX, x1, x);
+                maxX = Math.max(maxX, x1, x);
+                minY = Math.min(minY, y1, y);
+                maxY = Math.max(maxY, y1, y);
+                curX = x;
+                curY = y;
+                prevCtrlX = x1;
+                prevCtrlY = y1;
+            }
+            prevCmdU = 'Q';
+        }
+        else if (cmdU === 'S') {
+            // Smooth cubic bezier: x2,y2 x,y (4 params, first control point reflected)
+            for (let i = 0; i < nums.length; i += 4) {
+                // First control point: reflect prevCtrl about cur
+                const x1 = (prevCmdU === 'C' || prevCmdU === 'S')
+                    ? 2 * curX - prevCtrlX
+                    : curX;
+                const y1 = (prevCmdU === 'C' || prevCmdU === 'S')
+                    ? 2 * curY - prevCtrlY
+                    : curY;
+                const x2 = isRel ? curX + nums[i] : nums[i];
+                const y2 = isRel ? curY + nums[i + 1] : nums[i + 1];
+                const x = isRel ? curX + nums[i + 2] : nums[i + 2];
+                const y = isRel ? curY + nums[i + 3] : nums[i + 3];
+                // Control point enclosure with reflected first control point
+                minX = Math.min(minX, x1, x2, x);
+                maxX = Math.max(maxX, x1, x2, x);
+                minY = Math.min(minY, y1, y2, y);
+                maxY = Math.max(maxY, y1, y2, y);
+                curX = x;
+                curY = y;
+                prevCtrlX = x2;
+                prevCtrlY = y2;
+            }
+            prevCmdU = 'S';
+        }
+        else if (cmdU === 'T') {
+            // Smooth quadratic bezier: x,y (2 params, control point reflected)
+            const x1 = (prevCmdU === 'Q' || prevCmdU === 'T')
+                ? 2 * curX - prevCtrlX
+                : curX;
+            const y1 = (prevCmdU === 'Q' || prevCmdU === 'T')
+                ? 2 * curY - prevCtrlY
+                : curY;
+            for (let i = 0; i < nums.length; i += 2) {
+                const x = isRel ? curX + nums[i] : nums[i];
+                const y = isRel ? curY + nums[i + 1] : nums[i + 1];
+                // Control point enclosure with reflected control point
+                minX = Math.min(minX, x1, x);
+                maxX = Math.max(maxX, x1, x);
+                minY = Math.min(minY, y1, y);
+                maxY = Math.max(maxY, y1, y);
+                curX = x;
+                curY = y;
+                prevCtrlX = curX;
+                prevCtrlY = curY;
+            }
+            prevCmdU = 'T';
         }
     }
     if (!isFinite(minX))
@@ -142,12 +333,15 @@ function pathBoundingBox(d) {
  * Map an SVG element's geometry to left/top/width/height.
  * Per D-08: 1:1 mapping from SVG viewBox coordinates.
  * Per D-04: transform attribute applied BEFORE reading direct attributes.
+ * Per D-04 (REF-01): parent transform composed with element's own transform.
  */
-function mapCoordinates(element, viewBox) {
+function mapCoordinates(element, viewBox, parentTransform) {
     const { attrs } = element;
     const tag = element.type.toLowerCase();
+    // Compose parent transform with element's own transform (per D-04 REF-01)
+    const effectiveTransform = composeTransforms(parentTransform, attrs.transform);
     // Parse transform first (per D-04)
-    const transform = parseTransform(attrs.transform);
+    const transform = parseTransform(effectiveTransform);
     const tx = transform.translateX || 0;
     const ty = transform.translateY || 0;
     // Use absolute scale values — negative scale is handled via flipH/flipV in applyTransform
@@ -176,8 +370,8 @@ function mapCoordinates(element, viewBox) {
             break;
         }
         case 'ellipse': {
-            const cx = extractNumber(attrs.cx, 0) + tx;
-            const cy = extractNumber(attrs.cy, 0) + ty;
+            const cx = extractNumber(attrs.cx, 0) * Math.abs(sx) + tx;
+            const cy = extractNumber(attrs.cy, 0) * Math.abs(sy) + ty;
             const rx = extractNumber(attrs.rx, 0) * Math.abs(sx);
             const ry = extractNumber(attrs.ry, 0) * Math.abs(sy);
             left = cx - rx;
@@ -199,13 +393,17 @@ function mapCoordinates(element, viewBox) {
         }
         case 'path': {
             // Per D-03: path d attribute kept unchanged; compute bounding box from path data
+            // NOTE: We do NOT apply groupScale to width/height here because:
+            // 1. The path d attribute is not scaled
+            // 2. mapCoordinates returns coords which are then scaled by canvasScale in transformElement
+            // 3. groupScale should be applied in transformElement when computing viewBox to match path coords
             const d = typeof attrs.d === 'string' ? attrs.d : '';
             const bbox = pathBoundingBox(d);
             if (bbox) {
                 left = bbox.left * Math.abs(sx) + tx;
                 top = bbox.top * Math.abs(sy) + ty;
-                width = bbox.width * Math.abs(sx);
-                height = bbox.height * Math.abs(sy);
+                width = bbox.width; // NO groupScale applied here
+                height = bbox.height; // NO groupScale applied here
             }
             break;
         }

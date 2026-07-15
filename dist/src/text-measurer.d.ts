@@ -54,4 +54,9 @@ export declare function measureTextElement(input: TextMeasurementInput): Promise
     height: number;
     y: number;
 }>;
+/**
+ * Render SVG string to PNG as base64 data URL.
+ * Used for rendering background patterns and other complex SVG elements.
+ */
+export declare function renderSvgToPng(svgString: string, width: number, height: number): Promise<string>;
 //# sourceMappingURL=text-measurer.d.ts.map

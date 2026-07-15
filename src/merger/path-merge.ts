@@ -5,7 +5,7 @@
 
 import { v4 as uuidv4 } from 'uuid'
 import { SvgElement } from '../types/ast'
-import { toAbsolutePath } from '../utils/path-utils'
+import { toAbsolutePath, scalePathCoords } from '../utils/path-utils'
 import { pathBoundingBox } from '../mapper/coordinate-mapper'
 import type { PPTShapeElement } from '../slides'
 import type { TransformResult } from '../types/ast'
@@ -178,23 +178,6 @@ export function createMergedShapeElement(
   targetCanvas: [number, number],
   index: number,
 ): PPTShapeElement {
-  // Merge path d attributes
-  const mergedD = mergePaths(paths, commonStyle, groupTransform)
-
-  // Compute bounding box from merged path
-  const bbox = pathBoundingBox(mergedD)
-
-  let left = 0
-  let top = 0
-  let width = viewBox[0]
-  let height = viewBox[1]
-  if (bbox) {
-    left = bbox.left
-    top = bbox.top
-    width = bbox.width || viewBox[0]
-    height = bbox.height || viewBox[1]
-  }
-
   // Parse group transform for scale, rotation and translation
   let rotate = 0
   let scaleX = 1
@@ -210,15 +193,34 @@ export function createMergedShapeElement(
     translateY = parsed.translateY ?? 0
   }
 
-  // Apply scale and translation from group transform to bounding box
-  // SVG transform composition: scale(s) translate(t) means "first translate, then scale"
-  // So the formula is: left = (bbox.left + translateX) * scaleX
-  // Width and height only scale, they don't get translate added (translate affects position, not size)
+  // Merge path d attributes
+  const mergedD = mergePaths(paths, commonStyle, groupTransform)
+
+  // Scale the path coordinates to match the scaled bbox/viewBox
+  // This ensures path and viewBox are in the same coordinate space
+  const scaledMergedD = (scaleX !== 1 || scaleY !== 1)
+    ? scalePathCoords(toAbsolutePath(mergedD), scaleX, scaleY)
+    : mergedD
+
+  // Compute bounding box from merged path
+  const bbox = pathBoundingBox(scaledMergedD)
+
+  let left = 0
+  let top = 0
+  let width = viewBox[0]
+  let height = viewBox[1]
   if (bbox) {
-    left = (bbox.left + translateX) * scaleX
-    top = (bbox.top + translateY) * scaleY
-    width = (bbox.width || viewBox[0]) * scaleX
-    height = (bbox.height || viewBox[1]) * scaleY
+    left = bbox.left
+    top = bbox.top
+    width = bbox.width || viewBox[0]
+    height = bbox.height || viewBox[1]
+  }
+
+  // Apply translation from group transform to bounding box position
+  // SVG transform composition: scale(s) translate(t) means "first translate, then scale"
+  if (bbox) {
+    left = left + translateX
+    top = top + translateY
   }
 
   // Apply canvas scaling (same as transformElement does)
@@ -230,15 +232,21 @@ export function createMergedShapeElement(
   height = height * canvasScaleY
 
   // Build outline from stroke if present
+  // Scale stroke width by groupScale * canvasScale
   let outline: PPTShapeElement['outline'] = undefined
   if (commonStyle.stroke !== undefined) {
+    const strokeScale = Math.min(Math.abs(scaleX), Math.abs(scaleY)) * Math.min(canvasScaleX, canvasScaleY)
     outline = {
       color: commonStyle.stroke,
-      width: commonStyle['stroke-width'] ? parseFloat(commonStyle['stroke-width']) : 1,
+      width: (commonStyle['stroke-width'] ? parseFloat(commonStyle['stroke-width']) : 1) * strokeScale,
     }
   }
 
   const id = uuidv4()
+  // viewBox should be the scaled bbox dimensions (path coordinate space), NOT canvas-scaled dimensions
+  // path is in scaled space (after scalePathCoords), so viewBox should match that space
+  const viewBoxW = bbox ? (bbox.width || viewBox[0]) : viewBox[0]
+  const viewBoxH = bbox ? (bbox.height || viewBox[1]) : viewBox[1]
   const result: PPTShapeElement = {
     id,
     type: 'shape',
@@ -247,10 +255,10 @@ export function createMergedShapeElement(
     width,
     height,
     rotate,
-    viewBox: [width, height],
-    path: mergedD,
+    viewBox: [viewBoxW, viewBoxH],
+    path: scaledMergedD,
     fixedRatio: false,
-    fill: commonStyle.fill || '#000000',
+    fill: commonStyle.fill !== undefined ? commonStyle.fill : '#000000',
     opacity: commonStyle.opacity ? parseFloat(commonStyle.opacity) : undefined,
     outline,
   }

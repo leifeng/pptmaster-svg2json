@@ -1,0 +1,29 @@
+{
+  "phase": "01",
+  "phase_name": "Transform System Fixes",
+  "phase_slug": "transform-system-fixes",
+  "phase_dir": ".planning/phases/01-transform-system-fixes",
+  "padded_phase": "01",
+  "areas_completed": ["rotate-center-implementation"],
+  "decisions": {
+    "rotate-center-implementation": {
+      "file_location": "新建 src/transforms/apply-transform.ts（独立模块）",
+      "pipeline_stage": "独立变换步骤：mapCoordinates → applyTransform → transform-to-pptel",
+      "function_signature": "applyTransform(bounds: Bounds, transform): Bounds"
+    },
+    "baseline_offset_ratio": "待讨论"
+  },
+  "discussion_log": [
+    {
+      "area": "rotate-center-implementation",
+      "q1": {"question": "旋转中心逻辑应该放在哪里？", "options": ["新建 src/transforms/apply-transform.ts", "直接写入 mapCoordinates", "直接写入 transform-to-pptel.ts"], "answer": "新建 src/transforms/apply-transform.ts"},
+      "q2": {"question": "旋转应该在管道哪个阶段应用？", "options": ["在 mapCoordinates 中直接计算", "作为独立变换步骤（在 map 和 transform 之间）", "在 transform-to-pptel 中调用 applyTransform"], "answer": "作为独立变换步骤（在 map 和 transform 之间）"},
+      "q3": {"question": "applyTransform 函数签名应该是什么形式？", "options": ["applyTransform(x, y, transform): {x, y}", "applyTransform(bounds: Bounds, transform): Bounds", "applyTransform(x, y, w, h, transform): {x, y, w, h}"], "answer": "applyTransform(bounds: Bounds, transform): Bounds"},
+      "q4_status": "用户暂停（'先暂停'）— rotate 字段处理方式尚未讨论"
+    }
+  ],
+  "deferred_ideas": [],
+  "canonical_refs": [],
+  "started_at": "2026-06-27T00:00:00.000Z",
+  "paused_at": "2026-06-27（rotate-center 第4问之前）"
+}

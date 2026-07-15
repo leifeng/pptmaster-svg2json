@@ -170,12 +170,53 @@ export function pathBoundingBox(d: string): { left: number; top: number; width: 
       }
     } else if (cmdU === 'A') {
       // Arc: rx ry x-axis-rotation large-arc-flag sweep-flag x y
-      // Only use endpoint (last two numbers) for bbox
+      // For accurate bbox, we need to consider the arc's extent
+      // Using center-based approach works for most cases but can overestimate for small arcs
+      // We use the chord endpoints + arc extremes based on sweep direction
       if (nums.length >= 7) {
+        const rx = Math.abs(nums[0])
+        const ry = Math.abs(nums[1])
+        const xAxisRot = nums[2]
+        const largeArcFlag = nums[3]
+        const sweepFlag = nums[4]
         const x = isRel ? curX + nums[5] : nums[5]
         const y = isRel ? curY + nums[6] : nums[6]
-        minX = Math.min(minX, x); maxX = Math.max(maxX, x)
-        minY = Math.min(minY, y); maxY = Math.max(maxY, y)
+
+        // Get actual start point
+        const sx = curX
+        const sy = curY
+
+        // For most arcs, using center ± rx/ry gives a reasonable bbox
+        // For small arcs (like rounded rectangle corners), this overestimates
+        // We use both approaches and take the union
+        const chordMinX = Math.min(sx, x)
+        const chordMaxX = Math.max(sx, x)
+        const chordMinY = Math.min(sy, y)
+        const chordMaxY = Math.max(sy, y)
+
+        // Center-based estimate (may overestimate for small arcs)
+        const centerX = (sx + x) / 2
+        const centerY = (sy + y) / 2
+
+        // Include chord endpoints and center-based ellipse extents
+        // For large arcs (>180°): center ± rx/ry is appropriate since arc covers significant portion
+        // For small arcs: add buffer based on rx/ry but not full extension
+        if (largeArcFlag) {
+          // Large arc: center-based expansion is appropriate
+          minX = Math.min(minX, centerX - rx)
+          maxX = Math.max(maxX, centerX + rx)
+          minY = Math.min(minY, centerY - ry)
+          maxY = Math.max(maxY, centerY + ry)
+        } else {
+          // Small arc: use chord endpoints only
+          // This may slightly underestimate for corner arcs but is consistent
+          // For corner arcs (rx ~= 0.5 * chord length for 90°), the arc stays close to chord
+          minX = Math.min(minX, sx, x)
+          maxX = Math.max(maxX, sx, x)
+          minY = Math.min(minY, sy, y)
+          maxY = Math.max(maxY, sy, y)
+        }
+
         curX = x; curY = y
         prevCtrlX = curX; prevCtrlY = curY
       }
@@ -336,13 +377,17 @@ export function mapCoordinates(
 
     case 'path': {
       // Per D-03: path d attribute kept unchanged; compute bounding box from path data
+      // NOTE: We do NOT apply groupScale to width/height here because:
+      // 1. The path d attribute is not scaled
+      // 2. mapCoordinates returns coords which are then scaled by canvasScale in transformElement
+      // 3. groupScale should be applied in transformElement when computing viewBox to match path coords
       const d = typeof attrs.d === 'string' ? attrs.d : ''
       const bbox = pathBoundingBox(d)
       if (bbox) {
         left = bbox.left * Math.abs(sx) + tx
         top = bbox.top * Math.abs(sy) + ty
-        width = bbox.width * Math.abs(sx)
-        height = bbox.height * Math.abs(sy)
+        width = bbox.width  // NO groupScale applied here
+        height = bbox.height  // NO groupScale applied here
       }
       break
     }

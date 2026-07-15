@@ -7,6 +7,7 @@ import { rectToPath, roundedRectToPath, circleToPath, ellipseToPath, lineToPath,
 import { measureTextElement, TextMeasurementInput } from '../text-measurer'
 import { toAbsolutePath, scalePathCoords } from '../utils/path-utils'
 import { shouldMerge, extractCommonStyle, createMergedShapeElement } from '../merger/path-merge'
+import { log, logEnd } from '../utils'
 
 
 import type { PPTElement, PPTTextElement, PPTShapeElement, PPTLineElement, PPTImageElement, LineStyleType } from '../slides'
@@ -278,6 +279,8 @@ function decodeHtmlEntities(str: string): string {
  */
 export function colorToHex(color: string | undefined): string {
   if (!color) return '#000000'
+  // "none" is a valid SVG fill value meaning no fill - return it as-is
+  if (color.toLowerCase() === 'none') return 'none'
   // Already hex
   if (color.startsWith('#')) return color
   // Named color lookup
@@ -933,10 +936,16 @@ export async function transformElement(
       const fillValue = element.attrs.fill
       const isFillNone = fillValue === 'none' || fillValue === 'transparent'
 
-      const resultWidth = transformed.width
-      const resultHeight = transformed.height
-      const viewBoxW = transformed.width / Math.abs(scaleX)
-      const viewBoxH = transformed.height / Math.abs(scaleY)
+      // Fix: With mapCoordinates not applying groupScale to path width/height,
+      // and applyTransform not scaling width/height:
+      // - transformed.width = original_bbox * canvasScale (canvasScale was applied by mapCoordinates)
+      // We need: viewBox = original_bbox, width = original_bbox * groupScale * canvasScale
+      const groupScaleX = transform.scaleX ?? 1
+      const groupScaleY = transform.scaleY ?? 1
+      const viewBoxW = transformed.width / Math.abs(scaleX)  // = original_bbox.width
+      const viewBoxH = transformed.height / Math.abs(scaleY)  // = original_bbox.height
+      const finalWidth = viewBoxW * Math.abs(groupScaleX) * Math.abs(scaleX)
+      const finalHeight = viewBoxH * Math.abs(groupScaleY) * Math.abs(scaleY)
       const pathD = toAbsolutePath(d)
 
       const result: PPTShapeElement = {
@@ -944,8 +953,8 @@ export async function transformElement(
         type: 'shape',
         left: transformed.left,
         top: transformed.top,
-        width: resultWidth,
-        height: resultHeight,
+        width: finalWidth,
+        height: finalHeight,
         rotate,
         viewBox: [viewBoxW, viewBoxH],
         path: pathD,
@@ -1262,7 +1271,7 @@ export async function transformElement(
       // D-26: inset=[0,0,0,0] to avoid 10px default padding causing coordinate offset
       const baseResult = {
         rotate,
-        defaultFontName: fontFamily,
+        defaultFontName: 'Source Han Sans CN Regular',
         defaultColor: colorToHex(fillColor) || '#000000',
         lineHeight: 1,
         opacity: element.attrs.opacity ? parseFloat(String(element.attrs.opacity)) : undefined,
@@ -1419,8 +1428,11 @@ export async function transformToPPTElement(
   ast: SvgParseResult,
   targetCanvas: [number, number] = [1000, 562.5],
 ): Promise<PPTElement[]> {
+  const transformStart = performance.now()
+  log('[转换] 开始 transformToPPTElement')
+
   // REF-03: Preprocess clipPath definitions before transform
-  preprocessClipPaths(ast)
+  ;(() => { const start = performance.now(); preprocessClipPaths(ast); logEnd('[转换] preprocessClipPaths', Math.round(performance.now() - start)) })()
 
   const elements: PPTElement[] = []
 
@@ -1550,5 +1562,7 @@ export async function transformToPPTElement(
   }
 
   await walk(ast.root, ast.viewBox)
+
+  logEnd('[转换] transformToPPTElement 总耗时', Math.round(performance.now() - transformStart), `共 ${elements.length} 个元素`)
   return elements
 }

@@ -9,13 +9,13 @@ const picocolors_1 = __importDefault(require("picocolors"));
 const fs_1 = require("fs");
 const path_1 = require("path");
 const index_1 = require("./index");
-const cli = (0, cac_1.default)('svg2pptel');
+const cli = (0, cac_1.default)('svg2json');
 cli.command('<input>', 'SVG file or directory to convert')
     .option('-o, --output <path>', 'Output file path (default: stdout)')
     .option('-r, --recursive', 'Process directories recursively')
-    .example('svg2pptel input.svg')
-    .example('svg2pptel input.svg -o output.json')
-    .example('svg2pptel dir --recursive');
+    .example('svg2json input.svg')
+    .example('svg2json input.svg -o output.json')
+    .example('svg2json dir --recursive');
 cli.help();
 const parsed = cli.parse();
 const options = parsed.options;
@@ -58,7 +58,7 @@ function walkDir(dir, recursive) {
 async function processFile(filePath) {
     try {
         const content = (0, fs_1.readFileSync)(filePath, 'utf-8');
-        const result = await (0, index_1.convert)(content);
+        const result = await (0, index_1.convert)(content, { svgFilePath: filePath });
         return result;
     }
     catch (err) {
@@ -108,13 +108,9 @@ async function main() {
             console.error(picocolors_1.default.red(`Error: ${result.error}`));
             process.exit(1);
         }
-        if (options.output) {
-            (0, fs_1.writeFileSync)(options.output, result.output, 'utf-8');
-            console.error(picocolors_1.default.green(`Written to ${options.output}`));
-        }
-        else {
-            console.log(result.output);
-        }
+        const outputPath = options.output || (input + '.json');
+        (0, fs_1.writeFileSync)(outputPath, result.output, 'utf-8');
+        console.error(picocolors_1.default.green(`Written to ${outputPath}`));
         process.exit(0);
     }
 }

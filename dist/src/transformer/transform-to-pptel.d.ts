@@ -22,6 +22,6 @@ export declare function colorToRgba(color: string | undefined, opacity: number):
  * @param targetCanvas - Target canvas size [width, height], defaults to [1000, 562.5]
  * @param groupId - Current groupId context from parent g elements
  */
-export declare function transformElement(element: SvgElement, viewBox: [number, number, number, number], index: number, targetCanvas?: [number, number], groupId?: string): Promise<PPTElement | null>;
+export declare function transformElement(element: SvgElement, viewBox: [number, number, number, number], index: number, targetCanvas?: [number, number], groupId?: string, effectiveTransform?: string): Promise<PPTElement | PPTElement[] | null>;
 export declare function transformToPPTElement(ast: SvgParseResult, targetCanvas?: [number, number]): Promise<PPTElement[]>;
 //# sourceMappingURL=transform-to-pptel.d.ts.map

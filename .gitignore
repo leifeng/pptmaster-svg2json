@@ -1,0 +1,9 @@
+/code
+/exampels
+node_modules
+.claude
+.codegraph
+.git
+/node_modules
+/dist
+/templates

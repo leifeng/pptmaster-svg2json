@@ -2,6 +2,7 @@ import { XMLParser } from 'fast-xml-parser'
 import { SvgParseResult, SvgElement, SvgAttrs, GradientDef, GradientColorDef, PatternDef, PatternChild } from '../types/ast'
 import { colorToRgba, colorToHex } from '../transformer/transform-to-pptel'
 import { autoEmbedIcons } from '../svg-use-handler'
+import { log, logEnd } from '../utils'
 
 export interface FilterDef {
   id: string
@@ -630,6 +631,9 @@ function scalePathCoords(d: string, scaleX: number, scaleY: number): string {
 }
 
 export function parseSvg(xmlString: string, svgFilePath?: string): SvgParseResult {
+  const parseStart = performance.now()
+  log('[解析] 开始 parseSvg')
+
   // 先解析 SVG 获取 viewBox，计算画布缩放比例
   const vbMatch = xmlString.match(/viewBox="([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"/)
   const svgWidth = vbMatch ? parseFloat(vbMatch[3]) : 1280
@@ -640,8 +644,13 @@ export function parseSvg(xmlString: string, svgFilePath?: string): SvgParseResul
 
   // 自动嵌入图标占位符（生成临时文件，不修改原文件）
   // svgFilePath 用于解析外部 SVG href 引用的相对路径
-  const { xmlString: embeddedXml, tempFilePath } = autoEmbedIcons(xmlString, canvasScaleX, canvasScaleY, svgFilePath)
-  xmlString = embeddedXml
+  let tempFilePath: string | undefined
+  ;({ xmlString, tempFilePath } = (() => {
+    const start = performance.now()
+    const result = autoEmbedIcons(xmlString, canvasScaleX, canvasScaleY, svgFilePath)
+    logEnd('[解析] autoEmbedIcons', Math.round(performance.now() - start))
+    return result
+  })())
 
   const parser = new XMLParser({
     ignoreAttributes: false,
@@ -669,7 +678,12 @@ export function parseSvg(xmlString: string, svgFilePath?: string): SvgParseResul
       ].includes(name),
   })
 
-  const result = parser.parse(xmlString)
+  const result = (() => {
+    const start = performance.now()
+    const r = parser.parse(xmlString)
+    logEnd('[解析] XML解析', Math.round(performance.now() - start))
+    return r
+  })()
 
   // Navigate to svg root
   const svgRoot = result.svg || result['svg:svg'] || result
@@ -702,19 +716,26 @@ export function parseSvg(xmlString: string, svgFilePath?: string): SvgParseResul
 
   // First pass: collect all gradient definitions into registry
   const gradientRegistry = new Map<string, GradientDef>()
-  collectGradientDefs(svgRoot, gradientRegistry)
+  ;(() => { const start = performance.now(); collectGradientDefs(svgRoot, gradientRegistry); logEnd('[解析] collectGradientDefs', Math.round(performance.now() - start)) })()
 
   // First pass: collect all filter definitions into registry
   const filterRegistry = new Map<string, FilterDef>()
-  collectFilterDefs(svgRoot, filterRegistry)
+  ;(() => { const start = performance.now(); collectFilterDefs(svgRoot, filterRegistry); logEnd('[解析] collectFilterDefs', Math.round(performance.now() - start)) })()
 
   // First pass: collect all pattern definitions into registry
   const patternRegistry = new Map<string, PatternDef>()
-  collectPatternDefs(svgRoot, patternRegistry)
+  ;(() => { const start = performance.now(); collectPatternDefs(svgRoot, patternRegistry); logEnd('[解析] collectPatternDefs', Math.round(performance.now() - start)) })()
 
   // Build clean element tree from svg root with gradient and filter registries for resolving references
-  const root = convertToSvgElement(svgRoot, 'svg', gradientRegistry, filterRegistry, patternRegistry)
+  const root = (() => {
+    const start = performance.now()
+    const r = convertToSvgElement(svgRoot, 'svg', gradientRegistry, filterRegistry, patternRegistry)
+    logEnd('[解析] convertToSvgElement (构建AST)', Math.round(performance.now() - start))
+    return r
+  })()
   root.attrs = rootAttrs
+
+  logEnd('[解析] parseSvg 总耗时', Math.round(performance.now() - parseStart))
 
   return {
     root,

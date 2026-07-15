@@ -5,6 +5,8 @@ exports.parseSvg = parseSvg;
 exports.flattenElements = flattenElements;
 const fast_xml_parser_1 = require("fast-xml-parser");
 const transform_to_pptel_1 = require("../transformer/transform-to-pptel");
+const svg_use_handler_1 = require("../svg-use-handler");
+const utils_1 = require("../utils");
 /**
  * Apply fill-opacity to a color string (handles hex, rgb, rgba formats).
  * D-15: fill-opacity must be applied after gradient reference resolution.
@@ -137,6 +139,65 @@ function collectGradientDefs(xmlNode, registry) {
     }
 }
 /**
+ * Collect all pattern definitions from parsed XML into a registry.
+ * D-36: pattern defs collected for fill="url(#patternId)" resolution.
+ */
+function collectPatternDefs(xmlNode, registry) {
+    const defs = xmlNode['defs'];
+    if (!defs)
+        return;
+    const defsArr = Array.isArray(defs) ? defs : [defs];
+    for (const def of defsArr) {
+        if (!def)
+            continue;
+        if (def['pattern']) {
+            const patterns = Array.isArray(def['pattern']) ? def['pattern'] : [def['pattern']];
+            for (const pat of patterns) {
+                if (!pat)
+                    continue;
+                const id = pat['@_id'];
+                if (!id)
+                    continue;
+                // Collect children of the pattern
+                const children = [];
+                const childTags = ['rect', 'circle', 'ellipse', 'path', 'polygon', 'polyline', 'line', 'text', 'image', 'use'];
+                for (const tag of childTags) {
+                    if (pat[tag]) {
+                        const childNodes = Array.isArray(pat[tag]) ? pat[tag] : [pat[tag]];
+                        for (const child of childNodes) {
+                            if (!child)
+                                continue;
+                            // Extract attributes with @_ prefix
+                            const attrs = {};
+                            for (const key of Object.keys(child)) {
+                                if (key.startsWith('@_')) {
+                                    attrs[key.substring(2)] = child[key];
+                                }
+                            }
+                            // Also handle xlink:href
+                            if (child['xlink:href'])
+                                attrs['href'] = child['xlink:href'];
+                            if (child.href)
+                                attrs.href = child.href;
+                            children.push({ type: tag, attrs });
+                        }
+                    }
+                }
+                const patternDef = {
+                    id,
+                    width: parseFloat(pat['@_width']) || 0,
+                    height: parseFloat(pat['@_height']) || 0,
+                    patternUnits: pat['@_patternUnits'],
+                    patternContentUnits: pat['@_patternContentUnits'],
+                    patternTransform: pat['@_patternTransform'],
+                    children,
+                };
+                registry.set(id, patternDef);
+            }
+        }
+    }
+}
+/**
  * Collect all filter definitions from parsed XML into a registry.
  * D-22: filter defs collected and resolved at parse time.
  */
@@ -232,6 +293,25 @@ function resolveFillReference(attrs, registry) {
     // Clear fill and fill-opacity since gradient is now in attrs.gradient
     delete attrs.fill;
     delete attrs['fill-opacity'];
+}
+/**
+ * Resolve fill="url(#patternId)" references by storing pattern reference.
+ * D-36: Pattern resolution happens at transform time (to PNG) rather than parse time.
+ * This stores the patternId in attrs.pattern for later PNG rendering.
+ */
+function resolvePatternReference(attrs, registry) {
+    const fill = attrs.fill;
+    if (!fill || !fill.startsWith('url(#'))
+        return;
+    const match = fill.match(/url\(#([^)]+)\)/);
+    if (!match)
+        return;
+    const patternId = match[1];
+    const patternDef = registry.get(patternId);
+    if (!patternDef)
+        return;
+    // Store pattern reference for later PNG rendering in transform-to-pptel.ts
+    attrs.pattern = patternId;
 }
 /**
  * Parse complex SVG filter chain (feGaussianBlur + feOffset + feFlood + feComposite + feMerge)
@@ -354,7 +434,7 @@ function parseViewBox(viewBoxStr) {
         return [0, 0, 1280, 720];
     return [parts[0], parts[1], parts[2], parts[3]];
 }
-function convertToSvgElement(node, parentTag = '', gradientRegistry, filterRegistry) {
+function convertToSvgElement(node, parentTag = '', gradientRegistry, filterRegistry, patternRegistry) {
     const tagName = (node['#tag'] || parentTag || '').toLowerCase();
     // Extract attributes with @_ prefix
     const attrs = {};
@@ -377,6 +457,11 @@ function convertToSvgElement(node, parentTag = '', gradientRegistry, filterRegis
     if (filterRegistry) {
         resolveFilterReference(attrs, filterRegistry);
     }
+    // Resolve fill="url(#patternId)" references by storing pattern reference (D-36)
+    // Note: pattern rendering to PNG happens in transform-to-pptel.ts
+    if (patternRegistry) {
+        resolvePatternReference(attrs, patternRegistry);
+    }
     // Handle text content
     let text;
     if (node['#text']) {
@@ -389,7 +474,7 @@ function convertToSvgElement(node, parentTag = '', gradientRegistry, filterRegis
         if (node[tag]) {
             const childNodes = Array.isArray(node[tag]) ? node[tag] : [node[tag]];
             for (const child of childNodes) {
-                children.push(convertToSvgElement(child, tag, gradientRegistry, filterRegistry));
+                children.push(convertToSvgElement(child, tag, gradientRegistry, filterRegistry, patternRegistry));
             }
         }
     }
@@ -400,12 +485,137 @@ function convertToSvgElement(node, parentTag = '', gradientRegistry, filterRegis
         text,
     };
 }
-function parseSvg(xmlString) {
+/**
+ * 调整路径坐标，使其相对于 viewBox 原点
+ * 图标 SVG 的 viewBox 通常是 0 0 24 24，但路径内容可能从 (4, 6) 等位置开始
+ * 这会导致 translate(x, y) 不能正确定位图标
+ */
+function adjustPathToViewBox(d, viewBox) {
+    // 如果 viewBox 正好是 0,0，不需要调整
+    if (viewBox.x === 0 && viewBox.y === 0) {
+        return d;
+    }
+    // 使用简单的字符串替换来调整坐标
+    // 注意：这只能处理简单的 M/L/H/V 命令，对于复杂的 arc/curve 不准确
+    // 但大多数 tabler 图标只用 M/L/H/V
+    let adjusted = d;
+    // 匹配命令后的坐标对并添加 viewBox 偏移
+    // 格式: 命令 数字 数字 (可能重复)
+    adjusted = adjusted.replace(/([MLHV])\s*([-\d.]+)/gi, (match, cmd, numStr) => {
+        const num = parseFloat(numStr);
+        if (cmd.toUpperCase() === 'H') {
+            // 水平线只影响 X
+            return cmd + ' ' + (num + viewBox.x);
+        }
+        else if (cmd.toUpperCase() === 'V') {
+            // 垂直线只影响 Y
+            return cmd + ' ' + (num + viewBox.y);
+        }
+        else {
+            // M/L 需要处理 x,y 对
+            return match; // 复杂情况暂不处理
+        }
+    });
+    // 简单情况：如果 viewBox 是 0 0 24 24，路径坐标本来就是相对于 0,0 的
+    // 不需要调整（tabler 图标都是这样）
+    return d;
+}
+/**
+ * 缩放 path 坐标 - 所有坐标使用统一比例缩放
+ */
+function scalePathCoords(d, scaleX, scaleY) {
+    let result = '';
+    let curX = 0; // 当前 X 坐标（原始，未缩放）
+    let curY = 0; // 当前 Y 坐标（原始，未缩放）
+    const segments = d.split(/(?=[MLHVAZ])/i);
+    for (const seg of segments) {
+        const cmdMatch = seg.match(/^([MLHVAZ])\s*/i);
+        if (!cmdMatch) {
+            result += seg;
+            continue;
+        }
+        const cmd = cmdMatch[1];
+        const isRel = cmd === cmd.toLowerCase();
+        const cmdU = cmd.toUpperCase();
+        const nums = seg.slice(cmdMatch[0].length).trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+        if (cmdU === 'Z') {
+            result += 'Z';
+            curX = 0;
+            curY = 0;
+            continue;
+        }
+        if (cmdU === 'M') {
+            for (let i = 0; i < nums.length; i += 2) {
+                const absX = isRel ? curX + nums[i] : nums[i];
+                const absY = i + 1 < nums.length ? (isRel ? curY + nums[i + 1] : nums[i + 1]) : curY;
+                result += (i === 0 ? `M${absX * scaleX},${absY * scaleY}` : `L${absX * scaleX},${absY * scaleY}`);
+                curX = absX;
+                curY = absY;
+            }
+        }
+        else if (cmdU === 'L') {
+            for (let i = 0; i < nums.length; i += 2) {
+                const absX = isRel ? curX + nums[i] : nums[i];
+                const absY = i + 1 < nums.length ? (isRel ? curY + nums[i + 1] : nums[i + 1]) : curY;
+                result += `L${absX * scaleX},${absY * scaleY}`;
+                curX = absX;
+                curY = absY;
+            }
+        }
+        else if (cmdU === 'H') {
+            for (const nx of nums) {
+                const absX = isRel ? curX + nx : nx;
+                result += `H${absX * scaleX}`;
+                curX = absX;
+            }
+        }
+        else if (cmdU === 'V') {
+            for (const ny of nums) {
+                const absY = isRel ? curY + ny : ny;
+                result += `V${absY * scaleY}`;
+                curY = absY;
+            }
+        }
+        else if (cmdU === 'A') {
+            for (let i = 0; i < nums.length; i += 7) {
+                const absX = isRel ? curX + nums[i + 5] : nums[i + 5];
+                const absY = isRel ? curY + nums[i + 6] : nums[i + 6];
+                result += `A${nums[i] * scaleX},${nums[i + 1] * scaleY},${nums[i + 2]},${nums[i + 3]},${nums[i + 4]},${absX * scaleX},${absY * scaleY}`;
+                curX = absX;
+                curY = absY;
+            }
+        }
+        else {
+            // 不支持的命令，保持原样
+            result += seg;
+        }
+    }
+    return result;
+}
+function parseSvg(xmlString, svgFilePath) {
+    const parseStart = performance.now();
+    (0, utils_1.log)('[解析] 开始 parseSvg');
+    // 先解析 SVG 获取 viewBox，计算画布缩放比例
+    const vbMatch = xmlString.match(/viewBox="([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)"/);
+    const svgWidth = vbMatch ? parseFloat(vbMatch[3]) : 1280;
+    const svgHeight = vbMatch ? parseFloat(vbMatch[4]) : 720;
+    // 默认 targetCanvas 是 1000x562.5
+    const canvasScaleX = 1000 / svgWidth;
+    const canvasScaleY = 562.5 / svgHeight;
+    // 自动嵌入图标占位符（生成临时文件，不修改原文件）
+    // svgFilePath 用于解析外部 SVG href 引用的相对路径
+    let tempFilePath;
+    ({ xmlString, tempFilePath } = (() => {
+        const start = performance.now();
+        const result = (0, svg_use_handler_1.autoEmbedIcons)(xmlString, canvasScaleX, canvasScaleY, svgFilePath);
+        (0, utils_1.logEnd)('[解析] autoEmbedIcons', Math.round(performance.now() - start));
+        return result;
+    })());
     const parser = new fast_xml_parser_1.XMLParser({
         ignoreAttributes: false,
         attributeNamePrefix: '@_',
         parseAttributeValue: true,
-        parseTagValue: true,
+        parseTagValue: false,
         trimValues: true,
         isArray: (name) => [
             'rect',
@@ -425,7 +635,12 @@ function parseSvg(xmlString) {
             'stop',
         ].includes(name),
     });
-    const result = parser.parse(xmlString);
+    const result = (() => {
+        const start = performance.now();
+        const r = parser.parse(xmlString);
+        (0, utils_1.logEnd)('[解析] XML解析', Math.round(performance.now() - start));
+        return r;
+    })();
     // Navigate to svg root
     const svgRoot = result.svg || result['svg:svg'] || result;
     if (!svgRoot || typeof svgRoot !== 'object') {
@@ -451,18 +666,28 @@ function parseSvg(xmlString) {
     const height = parseFloat(String(svgRoot['@_height'] || rootAttrs.height || viewBox[3]));
     // First pass: collect all gradient definitions into registry
     const gradientRegistry = new Map();
-    collectGradientDefs(svgRoot, gradientRegistry);
+    (() => { const start = performance.now(); collectGradientDefs(svgRoot, gradientRegistry); (0, utils_1.logEnd)('[解析] collectGradientDefs', Math.round(performance.now() - start)); })();
     // First pass: collect all filter definitions into registry
     const filterRegistry = new Map();
-    collectFilterDefs(svgRoot, filterRegistry);
+    (() => { const start = performance.now(); collectFilterDefs(svgRoot, filterRegistry); (0, utils_1.logEnd)('[解析] collectFilterDefs', Math.round(performance.now() - start)); })();
+    // First pass: collect all pattern definitions into registry
+    const patternRegistry = new Map();
+    (() => { const start = performance.now(); collectPatternDefs(svgRoot, patternRegistry); (0, utils_1.logEnd)('[解析] collectPatternDefs', Math.round(performance.now() - start)); })();
     // Build clean element tree from svg root with gradient and filter registries for resolving references
-    const root = convertToSvgElement(svgRoot, 'svg', gradientRegistry, filterRegistry);
+    const root = (() => {
+        const start = performance.now();
+        const r = convertToSvgElement(svgRoot, 'svg', gradientRegistry, filterRegistry, patternRegistry);
+        (0, utils_1.logEnd)('[解析] convertToSvgElement (构建AST)', Math.round(performance.now() - start));
+        return r;
+    })();
     root.attrs = rootAttrs;
+    (0, utils_1.logEnd)('[解析] parseSvg 总耗时', Math.round(performance.now() - parseStart));
     return {
         root,
         viewBox,
         width,
         height,
+        patternRegistry,
     };
 }
 function flattenElements(element) {

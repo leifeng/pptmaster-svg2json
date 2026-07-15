@@ -15,6 +15,6 @@
     "declarationMap": true,
     "sourceMap": true
   },
-  "include": ["src/types/**/*", "src/parser/**/*", "src/shapes/**/*", "src/mapper/**/*", "src/transformer/**/*", "src/*.ts"],
+  "include": ["src/types/**/*", "src/parser/**/*", "src/shapes/**/*", "src/mapper/**/*", "src/transformer/**/*", "src/utils/**/*", "src/*.ts"],
   "exclude": ["node_modules", "dist", "__tests__", "src/scripts"]
 }

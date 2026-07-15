@@ -23,6 +23,21 @@ export interface GradientDef {
   colors: GradientColorDef[]
 }
 
+export interface PatternChild {
+  type: string
+  attrs: Record<string, any>
+}
+
+export interface PatternDef {
+  id: string
+  width: number
+  height: number
+  patternUnits?: string
+  patternContentUnits?: string
+  patternTransform?: string
+  children: PatternChild[]
+}
+
 export interface SvgAttrs {
   [key: string]: string | number | undefined;
   fill?: string;
@@ -87,6 +102,7 @@ export interface SvgParseResult {
   viewBox: [number, number, number, number]; // [minX, minY, width, height]
   width: number;
   height: number;
+  patternRegistry?: Map<string, PatternDef>;
 }
 
 export interface CoordinateMapping {

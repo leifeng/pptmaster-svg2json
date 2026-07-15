@@ -1,5 +1,6 @@
 export interface ConvertOptions {
     targetCanvas?: [number, number];
+    svgFilePath?: string;
 }
 export interface ConvertResult {
     success: boolean;

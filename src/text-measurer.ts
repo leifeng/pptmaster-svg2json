@@ -4,6 +4,7 @@
  */
 
 import { Resvg } from '@resvg/resvg-js'
+import { logEnd } from './utils'
 
 /**
  * Input type for measureTextElement.
@@ -106,6 +107,7 @@ async function ensureInit(): Promise<void> {
  * @throws if bounding box is undefined or has zero dimensions
  */
 export async function measureTextBBox(svgString: string): Promise<{ width: number; height: number; y: number }> {
+  const start = performance.now()
   await ensureInit()
   const resvg = new Resvg(svgString)
   const bbox = resvg.getBBox()
@@ -118,6 +120,7 @@ export async function measureTextBBox(svgString: string): Promise<{ width: numbe
     throw new Error('Bounding box has zero dimensions')
   }
 
+  logEnd('[文本测量] measureTextBBox', Math.round(performance.now() - start))
   return { width: bbox.width, height: bbox.height, y: bbox.y }
 }
 
@@ -130,4 +133,20 @@ export async function measureTextElement(
 ): Promise<{ width: number; height: number; y: number }> {
   const svgString = buildMeasurementSvg(input)
   return measureTextBBox(svgString)
+}
+
+/**
+ * Render SVG string to PNG as base64 data URL.
+ * Used for rendering background patterns and other complex SVG elements.
+ */
+export async function renderSvgToPng(svgString: string, width: number, height: number): Promise<string> {
+  await ensureInit()
+  const resvg = new Resvg(svgString, {
+    fitTo: {
+      mode: 'width',
+      value: width,
+    },
+  })
+  const pngData = resvg.render().asPng()
+  return `data:image/png;base64,${pngData.toString('base64')}`
 }

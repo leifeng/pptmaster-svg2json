@@ -4,6 +4,7 @@ import { transformToPPTElement } from './transformer/transform-to-pptel'
 import { renderSvgToPng } from './text-measurer'
 import type { PPTElement, Slide, SlideBackground } from './slides'
 import type { SvgElement } from './types/ast'
+import { log, logStep } from './utils'
 
 export interface ConvertOptions {
   targetCanvas?: [number, number]; // Target canvas size [width, height], defaults to [1000, 562.5]
@@ -148,8 +149,12 @@ function inferBackground(elements: PPTElement[], canvasWidth: number, canvasHeig
 }
 
 export async function convert(svgContent: string, options?: ConvertOptions): Promise<ConvertResult> {
+  const totalStart = performance.now()
+  log('[主流程] 开始转换')
+
   try {
-    const ast = parseSvg(svgContent, options?.svgFilePath)
+    const ast = await logStep('[解析] parseSvg', async () => parseSvg(svgContent, options?.svgFilePath))
+
     // Basic validation: must have a root svg element
     if (!ast.root || ast.root.type !== 'svg') {
       return { success: false, error: 'Invalid SVG: no svg root element' }
@@ -166,15 +171,16 @@ export async function convert(svgContent: string, options?: ConvertOptions): Pro
     // If yes, render full SVG background to PNG to preserve tiling effect
     let backgroundImagePng: string | undefined
     if (ast.patternRegistry && ast.patternRegistry.size > 0) {
-      backgroundImagePng = await renderBackgroundPatternToPng(
-        ast.root,
-        ast.patternRegistry,
-        ast.width,
-        ast.height,
+      backgroundImagePng = await logStep(
+        '[解析] renderBackgroundPatternToPng',
+        async () => renderBackgroundPatternToPng(ast.root, ast.patternRegistry!, ast.width, ast.height),
       )
     }
 
-    const elements = await transformToPPTElement(ast, options?.targetCanvas)
+    const elements = await logStep(
+      '[转换] transformToPPTElement',
+      async () => transformToPPTElement(ast, options?.targetCanvas),
+    )
 
     // Infer background from first element; remove it from elements if found
     const background = inferBackground(elements, canvasWidth, canvasHeight)
@@ -211,13 +217,16 @@ export async function convert(svgContent: string, options?: ConvertOptions): Pro
       theme: {
         themeColors: ['#5b9bd5', '#ed7d31', '#a5a5a5', '#ffc000', '#4472c4', '#70ad47'],
         fontColor: '#333',
-        fontName: '',
+        fontName: 'Source Han Sans CN Regular',
         backgroundColor: '#fff',
         shadow: { h: 3, v: 3, blur: 2, color: '#808080' },
         outline: { width: 2, color: '#525252', style: 'solid' },
       },
       slides: [slide],
     }
+
+    const totalDuration = Math.round(performance.now() - totalStart)
+    log('[主流程] 转换完成', `共 ${elements.length} 个元素, 耗时 ${totalDuration}ms`)
 
     return {
       success: true,
