@@ -11,7 +11,7 @@ import * as fs from 'fs'
 import * as os from 'os'
 
 // Icon library configuration
-const ICONS_BASE = path.resolve(__dirname, '../templates/icons')
+const ICONS_BASE = path.resolve(__dirname, '../../templates/icons')
 
 const STYLE_CONFIG: Record<string, { mode: 'fill' | 'stroke' | 'duotone' }> = {
   'chunk-filled': { mode: 'fill' },
