@@ -440,39 +440,123 @@ function buildRichTextAST(element: SvgElement, parentFontSize: number): RichText
   }
 
   // 情况2：有 children（包含 tspan 或 inline text）
-  // children[0] 通常是 inline text，代表的正是 element.text
-  // 所以不要重复添加 element.text
+  // element.text 是所有文本内容的拼接（XML 解析器行为）
+  // children 包含 tspan 元素
+  //
+  // 例如：<text>own d<tspan>k</tspan> dimensions</text>
+  // element.text = "own ddimensions" (tspan 内容被排除)
+  // children[0].text = "k"
+  //
+  // 问题：element.text 不包含 tspan 文本，所以我们无法直接知道
+  // 哪些文本在 tspan 之前，哪些在 tspan 之后
+  //
+  // 解决方案：使用启发式分割
+  // 1. 收集所有 tspan 的文本内容
+  // 2. 从 element.text 中均匀分割出 N+1 个片段（假设文本在 tspan 之间均匀分布）
+  // 3. 按顺序交替添加：文本片段1、tspan1、文本片段2、tspan2...
+
+  // 收集所有 tspan 的文本
+  const tspanChildren = element.children.filter(c => c.type === 'tspan')
+  const tspanTexts = tspanChildren.map(c => c.text || '')
+
+  // 计算纯文本内容（element.text 中不包含 tspan 内容）
+  const textContent = element.text || ''
+
+  // 将 textContent 分割成 N+1 个片段（N = tspan 数量）
+  const textParts = splitTextForTspans(textContent, tspanTexts.length)
+
+  // 按顺序构建 AST：文本片段1、tspan1、文本片段2、tspan2...
+  let textPartIndex = 0
   for (const child of element.children) {
     if (child.type === 'tspan') {
-      // 继承逻辑：子元素没有 font-size 就用父级的
+      // 添加此 tspan 前的文本片段
+      if (textPartIndex < textParts.length && textParts[textPartIndex]) {
+        nodes.push({ type: 'text', content: textParts[textPartIndex] })
+      }
+      textPartIndex++
+
+      // 添加 tspan 元素
       const explicitFontSize = child.attrs['font-size'] !== undefined
         ? Number(child.attrs['font-size'])
         : null
       const effectiveFontSize = explicitFontSize ?? parentFontSize
-
-      // baseline-shift 决定 tag
       const baselineShift = child.attrs['baseline-shift']
       const tag: 'sub' | 'sup' | 'span' =
         baselineShift === 'sub' ? 'sub' :
         baselineShift === 'super' ? 'sup' : 'span'
-
-      // 递归构建子节点
       const childNodes = buildRichTextAST(child, effectiveFontSize)
-
-      // 包装到 ElementNode
       nodes.push({
         type: 'element',
         tag,
-        fontSize: explicitFontSize,  // null 表示继承
+        fontSize: explicitFontSize,
         children: childNodes,
       })
     } else if (child.type === 'text' && child.text) {
-      // inline text 片段，直接作为文本节点
+      // inline text 片段（不应该出现在有 tspan 的 text 元素中）
       nodes.push({ type: 'text', content: child.text })
     }
   }
 
+  // 添加最后一个文本片段（如果有任何剩余）
+  if (textPartIndex < textParts.length && textParts[textPartIndex]) {
+    nodes.push({ type: 'text', content: textParts[textPartIndex] })
+  }
+
   return nodes
+}
+
+/**
+ * 将文本内容分割成 N+1 个片段，用于 N 个 tspan
+ * 使用空白位置进行智能分割
+ */
+function splitTextForTspans(textContent: string, numTspans: number): string[] {
+  if (numTspans === 0) return [textContent]
+  if (!textContent) return Array(numTspans + 1).fill('')
+
+  const numParts = numTspans + 1
+  const parts: string[] = []
+
+  if (numParts === 2) {
+    // 简单情况：分成两部分
+    // 在最后空白处分割（如果存在），否则在中间分割
+    const lastSpaceIndex = textContent.lastIndexOf(' ');
+    if (lastSpaceIndex > textContent.length / 3) {
+      // 在最后空白处分割，确保前一部分不要太短
+      parts.push(textContent.substring(0, lastSpaceIndex).trim())
+      parts.push(textContent.substring(lastSpaceIndex + 1).trim())
+    } else {
+      // 没有合适的空白，在中间分割
+      const midIndex = Math.floor(textContent.length / 2)
+      parts.push(textContent.substring(0, midIndex).trim())
+      parts.push(textContent.substring(midIndex).trim())
+    }
+    return parts
+  }
+
+  // 多个 tspan：均匀分割，在空白处断开
+  const avgLength = textContent.length / numParts
+  let start = 0
+  for (let i = 0; i < numParts - 1; i++) {
+    const targetEnd = start + avgLength
+    let end = start + Math.floor(avgLength)
+    // 向后找到空白字符
+    while (end < textContent.length && textContent[end] !== ' ' && end < targetEnd + avgLength / 2) {
+      end++
+    }
+    if (end >= textContent.length) {
+      end = textContent.length
+    }
+    parts.push(textContent.substring(start, end).trim())
+    // 跳过空白
+    while (end < textContent.length && textContent[end] === ' ') {
+      end++
+    }
+    start = end
+  }
+  // 最后一个部分
+  parts.push(textContent.substring(start).trim())
+
+  return parts
 }
 
 /**
@@ -487,12 +571,8 @@ function serializeRichText(nodes: RichTextNode[], parentFontSize: number, scaleY
 
   for (const node of nodes) {
     if (node.type === 'text') {
-      // TextNode: 父级如果是 span 则需要 span 包裹；sub/sup 不需要（已在外层设置 fontSize）
-      if (parentTag === 'span') {
-        html += `<span style="font-size: ${parentFontSize}px">${escapeHtml(node.content)}</span>`
-      } else {
-        html += escapeHtml(node.content)
-      }
+      // 始终用 span 包裹文本，确保每个文本片段都有明确的字体大小
+      html += `<span style="font-size: ${parentFontSize}px">${escapeHtml(node.content)}</span>`
     } else {
       // ElementNode: 子级如果无 fontSize 继承父级，否则应用 scaleY 缩放
       const effectiveFontSize = node.fontSize !== null
