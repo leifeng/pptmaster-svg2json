@@ -1201,15 +1201,19 @@ export async function transformElement(
       const y1 = Number(element.attrs.y1) || 0
       const x2 = Number(element.attrs.x2) || 0
       const y2 = Number(element.attrs.y2) || 0
-      // For lines WITHOUT transform: start/end are [0,0] to [width,0] relative to bounding box
+      // For lines WITHOUT transform: start/end are relative to bounding box origin
+      // Use actual coordinate differences (x2-x1, y2-y1) which works for any line orientation
       // For lines WITH transform: need to compute relative positions using transform offsets
       let startRelX: number, startRelY: number, endRelX: number, endRelY: number
       if ((transform.translateX || 0) === 0 && (transform.translateY || 0) === 0 && (transform.scaleX || 1) === 1 && (transform.scaleY || 1) === 1) {
-        // No transform - simple relative coordinates
-        startRelX = 0
-        startRelY = 0
-        endRelX = width
-        endRelY = 0
+        // No transform - compute from actual coordinates
+        // Note: coords.left = min(x1,x2), coords.top = min(y1,y2) via mapCoordinates
+        // So (x1 - coords.left) = horizontal offset from bounding box origin
+        // (y1 - coords.top) = vertical offset from bounding box origin
+        startRelX = x1 - coords.left
+        startRelY = y1 - coords.top
+        endRelX = x2 - coords.left
+        endRelY = y2 - coords.top
       } else {
         // With transform - compute relative positions from transformed coordinates
         const tx = transform.translateX || 0

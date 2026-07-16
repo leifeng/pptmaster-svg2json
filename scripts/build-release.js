@@ -16,8 +16,14 @@ try {
   if (e.code !== 'EEXIST') throw e
 }
 
-// Copy files
-fs.copyFileSync('package.json', path.join(r, 'package.json'))
+// Copy files - read, modify paths for release structure, then write
+const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+// Update paths for release: dist/... -> ./...
+pkg.main = './index.js'
+pkg.types = './index.d.ts'
+pkg.bin = { svg2pptel: './cli.js' }
+delete pkg.scripts  // no need for build scripts in release
+fs.writeFileSync(path.join(r, 'package.json'), JSON.stringify(pkg, null, 2))
 fs.copyFileSync('README.md', path.join(r, 'README.md'))
 
 // Copy directory recursively, skipping existing files
@@ -41,6 +47,18 @@ function copyDir(src, dest) {
 // Copy dist/src/ contents directly to release/ (no dist/src prefix)
 copyDir(path.join('dist', 'src'), r)
 copyDir('templates', path.join(r, 'templates'))
+copyDir('docs', path.join(r, 'docs'))
+
+// Manually add shebang for Unix systems
+const cliPath = path.join(r, 'cli.js')
+const cliContent = fs.readFileSync(cliPath, 'utf8')
+fs.writeFileSync(cliPath, '#!/usr/bin/env node\n' + cliContent)
+
+// Create Windows .cmd wrapper so bin works on Windows
+const cmdPath = path.join(r, 'svg2pptel.cmd')
+fs.writeFileSync(cmdPath, '@echo off\n"%~dp0\\..\\..\\Program Files\\nodejs\\node.exe" "%~dp0cli.js" %*\n')
+// Simpler Windows wrapper using node from PATH
+fs.writeFileSync(cmdPath, `@echo off\nnode "%~dp0cli.js" %*\n`)
 
 // Delete .map files from release directory
 execSync(process.platform === 'win32'
