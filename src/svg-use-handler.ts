@@ -11,7 +11,8 @@ import * as fs from 'fs'
 import * as os from 'os'
 
 // Icon library configuration
-const ICONS_BASE = path.resolve(__dirname, '../../templates/icons')
+// Works in both dev (dist/src/) and release (root) - templates/ is at same level as entry
+const ICONS_BASE = path.resolve(__dirname, 'templates/icons')
 
 const STYLE_CONFIG: Record<string, { mode: 'fill' | 'stroke' | 'duotone' }> = {
   'chunk-filled': { mode: 'fill' },

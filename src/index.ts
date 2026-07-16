@@ -5,6 +5,8 @@ import { renderSvgToPng } from './text-measurer'
 import type { PPTElement, Slide, SlideBackground } from './slides'
 import type { SvgElement } from './types/ast'
 import { log, logStep } from './utils'
+import { resolve, dirname } from 'path'
+import { mkdirSync, writeFileSync } from 'fs'
 
 export interface ConvertOptions {
   targetCanvas?: [number, number]; // Target canvas size [width, height], defaults to [1000, 562.5]
@@ -120,8 +122,9 @@ ${rectsContent}
 </svg>`
 
   // Debug: write SVG to file
-  const fs = require('fs')
-  fs.writeFileSync('exampels/测试/debug-bg.svg', bgSvg)
+  const debugPath = resolve(__dirname, '../../exampels/测试/debug-bg.svg')
+  mkdirSync(dirname(debugPath), { recursive: true })
+  writeFileSync(debugPath, bgSvg)
 
   return renderSvgToPng(bgSvg, width, height)
 }
