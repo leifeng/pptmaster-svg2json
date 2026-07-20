@@ -5,7 +5,7 @@ import { applyTransform, applyRotateWithCenter } from './apply-transform'
 import { preprocessClipPaths } from './clip-path-preprocessor'
 import { rectToPath, roundedRectToPath, circleToPath, ellipseToPath, lineToPath, polygonToPath } from '../shapes/shape-to-path'
 import { measureTextElement, TextMeasurementInput } from '../text-measurer'
-import { toAbsolutePath, scalePathCoords } from '../utils/path-utils'
+import { toAbsolutePath, scalePathCoords, offsetPathCoords } from '../utils/path-utils'
 import { shouldMerge, extractCommonStyle, createMergedShapeElement } from '../merger/path-merge'
 import { log, logEnd } from '../utils'
 
@@ -1026,7 +1026,13 @@ export async function transformElement(
       const viewBoxH = transformed.height / Math.abs(scaleY)  // = original_bbox.height
       const finalWidth = viewBoxW * Math.abs(groupScaleX) * Math.abs(scaleX)
       const finalHeight = viewBoxH * Math.abs(groupScaleY) * Math.abs(scaleY)
-      const pathD = toAbsolutePath(d)
+
+      // Offset path coordinates so it starts from (0, 0) relative to its bounding box.
+      // This ensures the path draws from the container's top-left corner.
+      const absolutePathD = toAbsolutePath(d)
+      const offsetX = transformed.left / scaleX  // = original bbox.left
+      const offsetY = transformed.top / scaleY   // = original bbox.top
+      const pathD = offsetPathCoords(absolutePathD, offsetX, offsetY)
 
       const result: PPTShapeElement = {
         id,

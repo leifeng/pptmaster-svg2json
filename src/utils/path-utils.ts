@@ -179,6 +179,167 @@ export function toAbsolutePath(d: string): string {
 }
 
 /**
+ * Offset path coordinates by subtracting offsetX and offsetY.
+ * This moves the path so it starts from (0, 0) in its local coordinate space.
+ * Supports all path commands: M, L, H, V, A, C, Q, S, T, Z (and lowercase)
+ */
+export function offsetPathCoords(d: string, offsetX: number, offsetY: number): string {
+  let result = ''
+  let curX = 0
+  let curY = 0
+  let prevCtrlX = 0
+  let prevCtrlY = 0
+  let prevCmdU = ''
+
+  const segments = d.split(/(?=[MLHVACSZ])/i)
+  for (const seg of segments) {
+    const cmdMatch = seg.match(/^([MLHVACSZ])\s*/i)
+    if (!cmdMatch) {
+      result += seg
+      continue
+    }
+    const cmd = cmdMatch[1]
+    const isRel = cmd === cmd.toLowerCase()
+    const cmdU = cmd.toUpperCase()
+    const nums = seg.slice(cmdMatch[0].length).trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n))
+
+    if (cmdU === 'Z') {
+      result += 'Z'
+      curX = 0
+      curY = 0
+      prevCtrlX = 0
+      prevCtrlY = 0
+      prevCmdU = 'Z'
+      continue
+    }
+
+    if (cmdU === 'M') {
+      for (let i = 0; i < nums.length; i += 2) {
+        const x = isRel ? curX + nums[i] : nums[i]
+        const y = i + 1 < nums.length ? (isRel ? curY + nums[i + 1] : nums[i + 1]) : curY
+        result += (i === 0 ? `M${x - offsetX},${y - offsetY}` : `L${x - offsetX},${y - offsetY}`)
+        curX = x
+        curY = y
+      }
+      prevCtrlX = curX
+      prevCtrlY = curY
+      prevCmdU = 'M'
+    } else if (cmdU === 'L') {
+      for (let i = 0; i < nums.length; i += 2) {
+        const x = isRel ? curX + nums[i] : nums[i]
+        const y = i + 1 < nums.length ? (isRel ? curY + nums[i + 1] : nums[i + 1]) : curY
+        result += `L${x - offsetX},${y - offsetY}`
+        curX = x
+        curY = y
+      }
+      prevCtrlX = curX
+      prevCtrlY = curY
+      prevCmdU = 'L'
+    } else if (cmdU === 'H') {
+      for (const nx of nums) {
+        const x = isRel ? curX + nx : nx
+        result += `H${x - offsetX}`
+        curX = x
+      }
+      prevCtrlX = curX
+      prevCtrlY = curY
+      prevCmdU = 'H'
+    } else if (cmdU === 'V') {
+      for (const ny of nums) {
+        const y = isRel ? curY + ny : ny
+        result += `V${y - offsetY}`
+        curY = y
+      }
+      prevCtrlX = curX
+      prevCtrlY = curY
+      prevCmdU = 'V'
+    } else if (cmdU === 'A') {
+      for (let i = 0; i < nums.length; i += 7) {
+        const rx = nums[i]
+        const ry = nums[i + 1]
+        const xRot = nums[i + 2]
+        const largeArc = nums[i + 3]
+        const sweep = nums[i + 4]
+        const x = isRel ? curX + nums[i + 5] : nums[i + 5]
+        const y = isRel ? curY + nums[i + 6] : nums[i + 6]
+        result += `A${rx},${ry},${xRot},${largeArc},${sweep},${x - offsetX},${y - offsetY}`
+        curX = x
+        curY = y
+      }
+      prevCtrlX = curX
+      prevCtrlY = curY
+      prevCmdU = 'A'
+    } else if (cmdU === 'C') {
+      for (let i = 0; i < nums.length; i += 6) {
+        const x1 = isRel ? curX + nums[i] : nums[i]
+        const y1 = isRel ? curY + nums[i + 1] : nums[i + 1]
+        const x2 = isRel ? curX + nums[i + 2] : nums[i + 2]
+        const y2 = isRel ? curY + nums[i + 3] : nums[i + 3]
+        const x = isRel ? curX + nums[i + 4] : nums[i + 4]
+        const y = isRel ? curY + nums[i + 5] : nums[i + 5]
+        result += `C${x1 - offsetX},${y1 - offsetY},${x2 - offsetX},${y2 - offsetY},${x - offsetX},${y - offsetY}`
+        curX = x
+        curY = y
+        prevCtrlX = x2
+        prevCtrlY = y2
+      }
+      prevCmdU = 'C'
+    } else if (cmdU === 'S') {
+      for (let i = 0; i < nums.length; i += 4) {
+        const x1 = (prevCmdU === 'C' || prevCmdU === 'S')
+          ? 2 * curX - prevCtrlX
+          : curX
+        const y1 = (prevCmdU === 'C' || prevCmdU === 'S')
+          ? 2 * curY - prevCtrlY
+          : curY
+        const x2 = isRel ? curX + nums[i] : nums[i]
+        const y2 = isRel ? curY + nums[i + 1] : nums[i + 1]
+        const x = isRel ? curX + nums[i + 2] : nums[i + 2]
+        const y = isRel ? curY + nums[i + 3] : nums[i + 3]
+        result += `C${x1 - offsetX},${y1 - offsetY},${x2 - offsetX},${y2 - offsetY},${x - offsetX},${y - offsetY}`
+        curX = x
+        curY = y
+        prevCtrlX = x2
+        prevCtrlY = y2
+      }
+      prevCmdU = 'S'
+    } else if (cmdU === 'Q') {
+      for (let i = 0; i < nums.length; i += 4) {
+        const x1 = isRel ? curX + nums[i] : nums[i]
+        const y1 = isRel ? curY + nums[i + 1] : nums[i + 1]
+        const x = isRel ? curX + nums[i + 2] : nums[i + 2]
+        const y = isRel ? curY + nums[i + 3] : nums[i + 3]
+        result += `Q${x1 - offsetX},${y1 - offsetY},${x - offsetX},${y - offsetY}`
+        curX = x
+        curY = y
+        prevCtrlX = x1
+        prevCtrlY = y1
+      }
+      prevCmdU = 'Q'
+    } else if (cmdU === 'T') {
+      const x1 = (prevCmdU === 'Q' || prevCmdU === 'T')
+        ? 2 * curX - prevCtrlX
+        : curX
+      const y1 = (prevCmdU === 'Q' || prevCmdU === 'T')
+        ? 2 * curY - prevCtrlY
+        : curY
+      for (let i = 0; i < nums.length; i += 2) {
+        const x = isRel ? curX + nums[i] : nums[i]
+        const y = isRel ? curY + nums[i + 1] : nums[i + 1]
+        result += `Q${x1 - offsetX},${y1 - offsetY},${x - offsetX},${y - offsetY}`
+        curX = x
+        curY = y
+        prevCtrlX = curX
+        prevCtrlY = curY
+      }
+      prevCmdU = 'T'
+    }
+  }
+
+  return result
+}
+
+/**
  * Scale path coordinates by scaleX and scaleY factors.
  * Supports all path commands: M, L, H, V, A, C, Q, S, T, Z (and lowercase)
  * Per D-03 (REF-05): Extended from svg-parser version to support C/Q/S/T/Z.
