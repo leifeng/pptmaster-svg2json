@@ -1216,10 +1216,10 @@ export async function transformElement(
         // Note: coords.left = min(x1,x2), coords.top = min(y1,y2) via mapCoordinates
         // So (x1 - coords.left) = horizontal offset from bounding box origin
         // (y1 - coords.top) = vertical offset from bounding box origin
-        startRelX = x1 - coords.left
-        startRelY = y1 - coords.top
-        endRelX = x2 - coords.left
-        endRelY = y2 - coords.top
+        startRelX = (x1 - coords.left) * scaleX
+        startRelY = (y1 - coords.top) * scaleY
+        endRelX = (x2 - coords.left) * scaleX
+        endRelY = (y2 - coords.top) * scaleY
       } else {
         // With transform - compute relative positions from transformed coordinates
         const tx = transform.translateX || 0
