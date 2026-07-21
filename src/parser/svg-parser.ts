@@ -311,6 +311,44 @@ function resolveFillReference(attrs: SvgAttrs, registry: Map<string, GradientDef
   delete attrs['fill-opacity']
 }
 
+
+/**
+ * Resolve stroke="url(#id)" references using the gradient registry.
+ * Similar to resolveFillReference but for stroke attribute.
+ */
+function resolveStrokeReference(attrs: SvgAttrs, registry: Map<string, GradientDef>): void {
+  const stroke = attrs.stroke
+  if (!stroke || !stroke.startsWith('url(#')) return
+
+  const match = stroke.match(/url\(#([^)]+)\)/)
+  if (!match) return
+
+  const gradientId = match[1]
+  const gradientDef = registry.get(gradientId)
+  if (!gradientDef) return
+
+  // Build PPTist Gradient object from GradientDef
+  let rotate = parseGradientTransform(gradientDef.gradientTransform)
+  if (rotate === 0 && gradientDef.gradientTransform === undefined && gradientDef.type === 'linear') {
+    const x1 = parseFloat(String(gradientDef.x1)) || 0
+    const y1 = parseFloat(String(gradientDef.y1)) || 0
+    const x2 = parseFloat(String(gradientDef.x2)) || 0
+    const y2 = parseFloat(String(gradientDef.y2)) || 0
+    rotate = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI
+  }
+  const gradient = {
+    type: gradientDef.type,
+    colors: gradientDef.colors.map(c => {
+      return { pos: c.pos * 100, color: c.color }
+    }),
+    rotate,
+  }
+
+  attrs.gradient = gradient
+  delete attrs.stroke
+  delete attrs['stroke-opacity']
+}
+
 /**
  * Resolve fill="url(#patternId)" references by storing pattern reference.
  * D-36: Pattern resolution happens at transform time (to PNG) rather than parse time.
@@ -481,6 +519,11 @@ function convertToSvgElement(node: any, parentTag: string = '', gradientRegistry
   // Resolve fill="url(#id)" references using gradient registry
   if (gradientRegistry) {
     resolveFillReference(attrs, gradientRegistry)
+  }
+
+  // Resolve stroke="url(#id)" references using gradient registry
+  if (gradientRegistry) {
+    resolveStrokeReference(attrs, gradientRegistry)
   }
 
   // Resolve filter="url(#id)" references using filter registry (D-22)
