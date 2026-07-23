@@ -52,9 +52,8 @@
 | Phase 8 | v1.5 | Complete | 2026-07-10 |
 | Phase 9 | v1.6 | Complete | 2026-07-13 |
 | Phase 10 | v1.7 | Planned | — |
-| Phase 11 | v1.7 | Executing | — |
 | Phase 12 | v1.7 | Planned | — |
 
 ---
 
-*Roadmap updated: 2026-07-20 after Phase 12 planned*
+*Roadmap updated: 2026-07-23 after Phase 11 removed*
