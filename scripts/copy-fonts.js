@@ -18,9 +18,14 @@ if (!fs.existsSync(srcDir)) {
 
 fs.mkdirSync(destDir, { recursive: true })
 
+// 复制所有常见字体格式(woff2/ttf/otf)。resvg-js 底层 fontdb 只支持 ttf/otf,
+// 但保留 woff2 也能让 web 端(如 templates/)继续使用。
+const FONT_EXTS = new Set(['.woff2', '.ttf', '.otf', '.woff'])
+
 let copied = 0
 for (const entry of fs.readdirSync(srcDir)) {
-  if (!entry.toLowerCase().endsWith('.woff2')) continue
+  const ext = path.extname(entry).toLowerCase()
+  if (!FONT_EXTS.has(ext)) continue
   const src = path.join(srcDir, entry)
   const dest = path.join(destDir, entry)
   fs.copyFileSync(src, dest)
