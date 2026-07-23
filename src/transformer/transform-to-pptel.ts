@@ -1511,40 +1511,55 @@ export async function transformElement(
       let textHeight: number
       let textTop: number
 
-      try {
-        const textAnchorAttr = element.attrs['text-anchor']
-        const xAttr = element.attrs['x'] ? Number(element.attrs['x']) : undefined
-        const measurementInput: TextMeasurementInput = {
-          content,
-          // 修复 text-in-circle-vertical-position-v3.md：测量字体必须与 PPTist 渲染字体一致。
-          // SVG 原字体（Georgia/Arial 等）只是浏览器里的视觉，PPTist 实际渲染用思源，
-          // 用原字体测量会导致 bbox 尺寸和 ascent 跟实际渲染不匹配，圆形内数字错位。
-          fontFamily: 'Source Han Sans CN Regular',
-          fontSize,
-          fontWeight: isBold ? 'bold' : 'normal',
-          fontStyle: isItalic ? 'italic' : 'normal',
-          letterSpacing,
-          fill: fillColor,
-          textAnchor: textAnchorAttr,
-          x: xAttr,
-        }
-        const measured = await measureTextElement(measurementInput)
-        // Add 25px safety margin to prevent text wrapping due to measurement discrepancy
-        textWidth = measured.width * scaleX + TEXT_WIDTH_SAFETY_MARGIN
-        textHeight = measured.height * scaleY
-        // SVG text y is baseline; convert to top by subtracting the ascent measured with
-        // the target render font (思源). Using a fixed 0.8 ratio mismatched fonts whose
-        // actual ascent ratio differs (Georgia 16 = 0.54, Arial 13 = 0.72, 思源 = 0.76).
-        const measuredAscent = fontSize - measured.y
-        textTop = transformed.top - measuredAscent * scaleY
-      } catch {
-        // D-35: MEAS-06 fallback: heuristic estimate when resvg-js measurement fails.
-        // 思源的实际 ascent ratio 是 0.764，0.8 只是历史上用的近似值；用 0.764 跟实际更接近。
-        textWidth = fontSize * content.length * 0.6
-        textHeight = scaledFontSize
-        // Fallback: SVG y is baseline, convert to top using 思源 heuristic ascent ratio.
-        // Note: transformed.top is already scaled, so subtract scaled ascent directly.
+      // Phase 11: 直通 SVG text 自带的 width / height 属性，跳过 resvg-js 测量
+      // 仅当 width 和 height 都解析为正数时生效；其他情况继续走测量路径
+      const rawTextWidth = element.attrs.width
+      const rawTextHeight = element.attrs.height
+      const parsedTextWidth = rawTextWidth !== undefined ? parseFloat(String(rawTextWidth)) : NaN
+      const parsedTextHeight = rawTextHeight !== undefined ? parseFloat(String(rawTextHeight)) : NaN
+      const usePassthrough = Number.isFinite(parsedTextWidth) && parsedTextWidth > 0
+        && Number.isFinite(parsedTextHeight) && parsedTextHeight > 0
+      if (usePassthrough) {
+        textWidth = parsedTextWidth * scaleX + TEXT_WIDTH_SAFETY_MARGIN
+        textHeight = parsedTextHeight * scaleY
+        // 没有 measured.y，使用 FALLBACK_ASCENT_RATIO 与 catch 块保持一致
         textTop = transformed.top - fontSize * FALLBACK_ASCENT_RATIO * scaleY
+      } else {
+        try {
+          const textAnchorAttr = element.attrs['text-anchor']
+          const xAttr = element.attrs['x'] ? Number(element.attrs['x']) : undefined
+          const measurementInput: TextMeasurementInput = {
+            content,
+            // 修复 text-in-circle-vertical-position-v3.md：测量字体必须与 PPTist 渲染字体一致。
+            // SVG 原字体（Georgia/Arial 等）只是浏览器里的视觉，PPTist 实际渲染用思源，
+            // 用原字体测量会导致 bbox 尺寸和 ascent 跟实际渲染不匹配，圆形内数字错位。
+            fontFamily: 'Source Han Sans CN Regular',
+            fontSize,
+            fontWeight: isBold ? 'bold' : 'normal',
+            fontStyle: isItalic ? 'italic' : 'normal',
+            letterSpacing,
+            fill: fillColor,
+            textAnchor: textAnchorAttr,
+            x: xAttr,
+          }
+          const measured = await measureTextElement(measurementInput)
+          // Add 25px safety margin to prevent text wrapping due to measurement discrepancy
+          textWidth = measured.width * scaleX + TEXT_WIDTH_SAFETY_MARGIN
+          textHeight = measured.height * scaleY
+          // SVG text y is baseline; convert to top by subtracting the ascent measured with
+          // the target render font (思源). Using a fixed 0.8 ratio mismatched fonts whose
+          // actual ascent ratio differs (Georgia 16 = 0.54, Arial 13 = 0.72, 思源 = 0.76).
+          const measuredAscent = fontSize - measured.y
+          textTop = transformed.top - measuredAscent * scaleY
+        } catch {
+          // D-35: MEAS-06 fallback: heuristic estimate when resvg-js measurement fails.
+          // 思源的实际 ascent ratio 是 0.764，0.8 只是历史上用的近似值；用 0.764 跟实际更接近。
+          textWidth = fontSize * content.length * 0.6
+          textHeight = scaledFontSize
+          // Fallback: SVG y is baseline, convert to top using 思源 heuristic ascent ratio.
+          // Note: transformed.top is already scaled, so subtract scaled ascent directly.
+          textTop = transformed.top - fontSize * FALLBACK_ASCENT_RATIO * scaleY
+        }
       }
 
       // text-anchor="middle" 时对 top 加常量补偿以修正视觉对齐
