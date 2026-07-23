@@ -7,12 +7,12 @@ const { Resvg } = require("@resvg/resvg-js");
 
 // 测试1: Georgia 字体（SVG原始字体）
 const svgGeorgia = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
-<text xmlns="http://www.w3.org/2000/svg" x="246" y="318" font-family="Arial, &quot;Microsoft YaHei&quot;, sans-serif" font-size="14" fill="#1A202C">Reducing <tspan font-family="Consolas, monospace" font-weight="700" fill="#3182CE">d_k</tspan> hurts quality more than reducing <tspan font-family="Consolas, monospace" font-weight="700" fill="#3182CE">d_v</tspan> — determining compatibility is the harder learning problem.</text>
+<text xmlns="http://www.w3.org/2000/svg" x="84" y="88" font-family="Georgia, &quot;Microsoft YaHei&quot;, serif" font-size="36" font-weight="700" fill="#1A365D">A simpler model, better results, less training</text>
 </svg>`;
 
 // 测试2: Source Han Sans CN Regular（替换后的字体）
 const svgSourceHan = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
-<text xmlns="http://www.w3.org/2000/svg" x="246" y="318" font-family="Source Han Sans CN Regular" font-size="14" fill="#1A202C">Reducing <tspan font-family="Source Han Sans CN Regular" font-weight="700" fill="#3182CE">d_k</tspan> hurts quality more than reducing <tspan font-family="Source Han Sans CN Regular" font-weight="700" fill="#3182CE">d_v</tspan> — determining compatibility is the harder learning problem.</text>
+<text xmlns="http://www.w3.org/2000/svg" x="84" y="88" font-family="Source Han Sans CN Regular" font-size="36" font-weight="700" fill="#1A365D">A simpler model, better results, less training</text>
 </svg>`;
 
 function measure(svg, label, fontPath = null) {
@@ -45,8 +45,13 @@ function measure(svg, label, fontPath = null) {
 
 console.log("=== 文字宽度测量对比 ===\n");
 
-// 使用相对路径（相对于当前工作目录）
-const sourceHanFontPath = "src/fonts/Source Han Sans CN Regular.woff2";
+// 使用绝对路径,避免 Resvg 找不到字体文件
+// 注意:resvg-js 底层用 fontdb,只支持 TTF/OTF,不支持 WOFF2
+const path = require('path')
+const sourceHanFontPath = path.resolve(__dirname, 'src/fonts/Source Han Sans CN Regular.ttf')
+console.log('Source Han 字体路径:', sourceHanFontPath)
+const fs = require('fs')
+console.log('字体文件存在:', fs.existsSync(sourceHanFontPath))
 
 console.log("--- 无字体文件加载 (使用系统字体) ---\n");
 measure(svgGeorgia, "测试1: Georgia (无字体加载)");

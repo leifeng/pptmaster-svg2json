@@ -5,6 +5,24 @@
 
 import { Resvg } from '@resvg/resvg-js'
 import { logEnd } from './utils'
+import { join } from 'path'
+
+/**
+ * 思源黑体简体 Regular 字体路径(打包后通过 scripts/copy-fonts.js 复制到 dist/src/fonts/)。
+ * Resvg 必须显式加载字体文件,否则会用内置 fallback 测量,导致 bbox 与 PPTist 实际渲染不一致。
+ */
+export const FONT_FILE = join(__dirname, 'fonts', 'Source Han Sans CN Regular.ttf')
+
+/**
+ * Resvg 字体选项:只加载思源字体,关闭系统字体,避免测量与 PPTist 渲染不一致。
+ */
+export const FONT_OPTIONS = {
+  font: {
+    fontFiles: [FONT_FILE],
+    loadSystemFonts: false,
+    defaultFontFamily: 'Source Han Sans CN Regular',
+  },
+}
 
 /**
  * Input type for measureTextElement.
@@ -109,7 +127,7 @@ async function ensureInit(): Promise<void> {
 export async function measureTextBBox(svgString: string): Promise<{ width: number; height: number; y: number }> {
   const start = performance.now()
   await ensureInit()
-  const resvg = new Resvg(svgString)
+  const resvg = new Resvg(svgString, FONT_OPTIONS)
   const bbox = resvg.getBBox()
 
   if (!bbox) {
@@ -142,6 +160,7 @@ export async function measureTextElement(
 export async function renderSvgToPng(svgString: string, width: number, height: number): Promise<string> {
   await ensureInit()
   const resvg = new Resvg(svgString, {
+    ...FONT_OPTIONS,
     fitTo: {
       mode: 'width',
       value: width,

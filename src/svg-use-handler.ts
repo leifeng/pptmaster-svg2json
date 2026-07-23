@@ -9,6 +9,7 @@ import { Resvg } from '@resvg/resvg-js'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
+import { FONT_OPTIONS } from './text-measurer'
 
 // Icon library configuration
 // Works in both dev (dist/src/) and release (root) - templates/ is at same level as entry
@@ -68,9 +69,8 @@ function adjustPathToViewBox(d: string, viewBox: { x: number; y: number; width: 
  * Render SVG string to PNG and return base64 data URL.
  */
 async function renderSvgToBase64Png(svgString: string, width?: number, height?: number): Promise<string> {
-  const resvg = new Resvg(svgString, width && height ? {
-    fitTo: { mode: 'width', value: width }
-  } : undefined)
+  const fitTo = width && height ? { fitTo: { mode: 'width' as const, value: width } } : {}
+  const resvg = new Resvg(svgString, { ...FONT_OPTIONS, ...fitTo })
   const pngData = resvg.render()
   const pngBuffer = pngData.asPng()
   return `data:image/png;base64,${pngBuffer.toString('base64')}`
@@ -161,6 +161,7 @@ export function autoEmbedIcons(
     try {
       // Render SVG to PNG using resvg-js
       const resvg = new Resvg(adjustedSvgContent, {
+        ...FONT_OPTIONS,
         fitTo: { mode: 'width', value: width }
       })
       const pngData = resvg.render()
@@ -250,6 +251,7 @@ export function autoEmbedIcons(
       // Use synchronous rendering approach with Resvg's sync API
 
       const resvg = new Resvg(adjustedSvgContent, {
+        ...FONT_OPTIONS,
         fitTo: { mode: 'width', value: parseFloat(width) }
       })
       const pngData = resvg.render()
