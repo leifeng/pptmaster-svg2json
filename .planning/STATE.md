@@ -6,9 +6,9 @@ current_phase: 10
 current_phase_name: path-merge
 status: executing
 stopped_at: Milestone v1.6 complete — ready for next milestone
-last_updated: "2026-07-23T04:08:00.000Z"
+last_updated: "2026-07-23T04:36:00.000Z"
 last_activity: 2026-07-23
-last_activity_desc: Quick Task 260723-gqv complete — text-anchor=middle top 补偿
+last_activity_desc: Quick Task 260723-he6 complete — constants 集中到 src/constants.ts
 progress:
   total_phases: 1
   completed_phases: 0
@@ -51,10 +51,11 @@ None
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260723-gqv | text-anchor="middle" 时对 top 加 -5 补偿 | 2026-07-23 | d91da53 | [260723-gqv-text-json-top-svg-text-text-anchor-middl](./quick/260723-gqv-text-json-top-svg-text-text-anchor-middl/) |
+| 260723-he6 | 集中所有命名常量到 src/constants.ts | 2026-07-23 | bbecb99 | [260723-he6-constants-to-single-file](./quick/260723-he6-constants-to-single-file/) |
 
 ---
 
-*State last updated: 2026-07-23 after Quick Task 260723-gqv complete*
+*State last updated: 2026-07-23 after Quick Task 260723-he6 complete*
 
 ## Session
 
