@@ -78,7 +78,7 @@ export function buildMeasurementSvg(opts: {
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
   <text x="${x}" y="${fontSize}"
-        font-family="${opts.fontFamily}"
+        font-family="${escapeXml(opts.fontFamily)}"
         font-size="${fontSize}"
         font-weight="${fontWeight}"
         font-style="${fontStyle}"
