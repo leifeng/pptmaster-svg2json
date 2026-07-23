@@ -28,6 +28,9 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 - ✓ **S/s T/t bezier reflection** — correct smooth quadratic/cubic bezier control point calculation
 - ✓ **clipPath preprocessing** — coordinate expansion before transform pipeline
 - ✓ **baseline-shift pixel scaling** — absolute pixel values scaled by scaleY
+- ✓ **TEXT-WHPASS-01** — valid SVG `<text width height>` skips resvg-js measurement
+- ✓ **TEXT-WHPASS-02** — passthrough dimensions scale via `scaleX` / `scaleY` with `TEXT_WIDTH_SAFETY_MARGIN`
+- ✓ **TEXT-WHPASS-03** — missing, invalid, non-positive, or non-finite dimensions preserve the measurement/fallback path
 
 ### Active
 
@@ -50,6 +53,8 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 ## Context
 
 **Existing library** — svg-to-pptel v1.6, published as npm package.
+
+**Current state** — Phase 11 complete: SVG text width/height passthrough is implemented and verified; Phase 12 font preprocessing is ready to plan.
 
 **Target canvas** — 1000×562.5 (16:9 aspect ratio).
 
@@ -134,4 +139,4 @@ Research confirmed all target PPTist schema properties already implemented or de
 
 ---
 
-*Last updated: 2026-07-13 after v1.7 milestone started*
+*Last updated: 2026-07-23 after Phase 11 completion*
