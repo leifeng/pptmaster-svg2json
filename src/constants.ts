@@ -52,8 +52,8 @@ export const TEXT_WIDTH_SAFETY_MARGIN = 25
 /** 思源字体的 ascent 比率，用于 resvg-js 测量失败的 fallback */
 export const FALLBACK_ASCENT_RATIO = 0.764
 
-/** SVG `<text text-anchor="middle">` 转 PPTElement 时对 top 加的补偿（画布像素，默认 -5） */
-export const TEXT_ANCHOR_MIDDLE_TOP_OFFSET = -5
+/** SVG `<text text-anchor="middle">` 转 PPTElement 时对 top 加的补偿（画布像素，默认 -10） */
+export const TEXT_ANCHOR_MIDDLE_TOP_OFFSET = -10
 
 // =============================================================================
 // 命名颜色映射 (CSS named color → hex)
