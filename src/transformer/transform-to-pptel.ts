@@ -8,6 +8,12 @@ import { measureTextElement, TextMeasurementInput } from '../text-measurer'
 import { toAbsolutePath, scalePathCoords, offsetPathCoords } from '../utils/path-utils'
 import { shouldMerge, extractCommonStyle, createMergedShapeElement } from '../merger/path-merge'
 import { log, logEnd } from '../utils'
+import {
+  NAMED_COLORS,
+  TEXT_ANCHOR_MIDDLE_TOP_OFFSET,
+  TEXT_WIDTH_SAFETY_MARGIN,
+  FALLBACK_ASCENT_RATIO,
+} from '../constants'
 
 
 import type { PPTElement, PPTTextElement, PPTShapeElement, PPTLineElement, PPTImageElement, LineStyleType } from '../slides'
@@ -121,146 +127,6 @@ export function parseDashArray(dash: string | undefined): LineStyleType {
 }
 
 /**
- * Named CSS colors map to hex values.
- */
-const namedColors: Record<string, string> = {
-  black: '#000000',
-  silver: '#c0c0c0',
-  gray: '#808080',
-  grey: '#808080',
-  white: '#ffffff',
-  maroon: '#800000',
-  red: '#ff0000',
-  purple: '#800080',
-  fuchsia: '#ff00ff',
-  green: '#00ff00',
-  lime: '#00ff00',
-  olive: '#808000',
-  yellow: '#ffff00',
-  navy: '#000080',
-  blue: '#0000ff',
-  teal: '#008080',
-  aqua: '#00ffff',
-  orange: '#ffa500',
-  aliceblue: '#f0f8ff',
-  antiquewhite: '#faebd7',
-  aquamarine: '#7fffd4',
-  azure: '#f0ffff',
-  beige: '#f5f5dc',
-  bisque: '#ffe4c4',
-  blanchedalmond: '#ffebcd',
-  coral: '#ff7f50',
-  cornflowerblue: '#6495ed',
-  cornsilk: '#fff8dc',
-  crimson: '#dc143c',
-  cyan: '#00ffff',
-  darkblue: '#00008b',
-  darkcyan: '#008b8b',
-  darkgoldenrod: '#b8860b',
-  darkgray: '#a9a9a9',
-  darkgreen: '#006400',
-  darkkhaki: '#bdb76b',
-  darkmagenta: '#8b008b',
-  darkolivegreen: '#556b2f',
-  darkorange: '#ff8c00',
-  darkorchid: '#9932cc',
-  darkred: '#8b0000',
-  darksalmon: '#e9967a',
-  darkseagreen: '#8fbc8f',
-  darkslateblue: '#483d8b',
-  darkslategray: '#2f4f4f',
-  darkturquoise: '#00ced1',
-  darkviolet: '#9400d3',
-  deeppink: '#ff1493',
-  deepskyblue: '#00bfff',
-  dimgray: '#696969',
-  dodgerblue: '#1e90ff',
-  firebrick: '#b22222',
-  floralwhite: '#fffaf0',
-  forestgreen: '#228b22',
-  gainsboro: '#dcdcdc',
-  ghostwhite: '#f8f8ff',
-  gold: '#ffd700',
-  goldenrod: '#daa520',
-  greenyellow: '#adff2f',
-  honeydew: '#f0fff0',
-  hotpink: '#ff69b4',
-  indianred: '#cd5c5c',
-  indigo: '#4b0082',
-  ivory: '#fffff0',
-  khaki: '#f0e68c',
-  lavender: '#e6e6fa',
-  lavenderblush: '#fff0f5',
-  lemonchiffon: '#fffacd',
-  lightblue: '#add8e6',
-  lightcoral: '#f08080',
-  lightcyan: '#e0ffff',
-  lightgoldenrodyellow: '#fafad2',
-  lightgray: '#d3d3d3',
-  lightgreen: '#90ee90',
-  lightpink: '#ffb6c1',
-  lightsalmon: '#ffa07a',
-  lightseagreen: '#20b2aa',
-  lightskyblue: '#87cefa',
-  lightslategray: '#778899',
-  lightsteelblue: '#b0c4de',
-  lightyellow: '#ffffe0',
-  limegreen: '#32cd32',
-  linen: '#faf0e6',
-  magenta: '#ff00ff',
-  mediumaquamarine: '#66cdaa',
-  mediumblue: '#0000cd',
-  mediumorchid: '#ba55d3',
-  mediumpurple: '#9370db',
-  mediumseagreen: '#3cb371',
-  mediumslateblue: '#7b68ee',
-  mediumspringgreen: '#00fa9a',
-  mediumturquoise: '#48d1cc',
-  mediumvioletred: '#c71585',
-  midnightblue: '#191970',
-  mintcream: '#f5fffa',
-  mistyrose: '#ffe4e1',
-  moccasin: '#ffe4b5',
-  navajowhite: '#ffdead',
-  oldlace: '#fdf5e6',
-  olivedrab: '#6b8e23',
-  orangered: '#ff4500',
-  orchid: '#da70d6',
-  palegoldenrod: '#eee8aa',
-  palegreen: '#98fb98',
-  paleturquoise: '#afeeee',
-  palevioletred: '#db7093',
-  papayawhip: '#ffefd5',
-  peachpuff: '#ffdab9',
-  peru: '#cd853f',
-  pink: '#ffc0cb',
-  plum: '#dda0dd',
-  powderblue: '#b0e0e6',
-  rosybrown: '#bc8f8f',
-  royalblue: '#4169e1',
-  saddlebrown: '#8b4513',
-  salmon: '#fa8072',
-  sandybrown: '#f4a460',
-  seagreen: '#2e8b57',
-  seashell: '#fff5ee',
-  sienna: '#a0522d',
-  skyblue: '#87ceeb',
-  slateblue: '#6a5acd',
-  slategray: '#708090',
-  snow: '#fffafa',
-  springgreen: '#00ff7f',
-  steelblue: '#4682b4',
-  tan: '#d2b48c',
-  thistle: '#d8bfd8',
-  tomato: '#ff6347',
-  turquoise: '#40e0d0',
-  violet: '#ee82ee',
-  wheat: '#f5deb3',
-  whitesmoke: '#f5f5f5',
-  yellowgreen: '#9acd32',
-}
-
-/**
  * Decode common HTML entities in a string.
  */
 function decodeHtmlEntities(str: string): string {
@@ -284,7 +150,7 @@ export function colorToHex(color: string | undefined): string {
   // Already hex
   if (color.startsWith('#')) return color
   // Named color lookup
-  if (namedColors[color.toLowerCase()]) return namedColors[color.toLowerCase()]
+  if (NAMED_COLORS[color.toLowerCase()]) return NAMED_COLORS[color.toLowerCase()]
   // rgb(r, g, b)
   const rgbMatch = color.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/)
   if (rgbMatch) {
@@ -310,8 +176,8 @@ export function colorToRgba(color: string | undefined, opacity: number): string 
     return `rgba(${r}, ${g}, ${b}, ${opacity})`
   }
   // Named color lookup
-  if (namedColors[color.toLowerCase()]) {
-    const hex = namedColors[color.toLowerCase()]
+  if (NAMED_COLORS[color.toLowerCase()]) {
+    const hex = NAMED_COLORS[color.toLowerCase()]
     const r = parseInt(hex.slice(1, 3), 16)
     const g = parseInt(hex.slice(3, 5), 16)
     const b = parseInt(hex.slice(5, 7), 16)
@@ -1645,10 +1511,6 @@ export async function transformElement(
       let textHeight: number
       let textTop: number
 
-      // 当 SVG <text text-anchor="middle"> 时，对转换后的 PPTElement.top 加一个常量补偿，
-      // 解决 middle 对齐文本视觉位置偏下的问题。单位：画布像素。默认 -5。
-      const TEXT_ANCHOR_MIDDLE_TOP_OFFSET = -5
-
       try {
         const textAnchorAttr = element.attrs['text-anchor']
         const xAttr = element.attrs['x'] ? Number(element.attrs['x']) : undefined
@@ -1668,7 +1530,6 @@ export async function transformElement(
         }
         const measured = await measureTextElement(measurementInput)
         // Add 25px safety margin to prevent text wrapping due to measurement discrepancy
-        const TEXT_WIDTH_SAFETY_MARGIN = 25
         textWidth = measured.width * scaleX + TEXT_WIDTH_SAFETY_MARGIN
         textHeight = measured.height * scaleY
         // SVG text y is baseline; convert to top by subtracting the ascent measured with
@@ -1683,7 +1544,6 @@ export async function transformElement(
         textHeight = scaledFontSize
         // Fallback: SVG y is baseline, convert to top using 思源 heuristic ascent ratio.
         // Note: transformed.top is already scaled, so subtract scaled ascent directly.
-        const FALLBACK_ASCENT_RATIO = 0.764
         textTop = transformed.top - fontSize * FALLBACK_ASCENT_RATIO * scaleY
       }
 

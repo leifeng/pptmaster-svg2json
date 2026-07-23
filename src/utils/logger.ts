@@ -3,27 +3,27 @@
  * 格式：[SVG2JSON] [步骤] 描述: Xms
  */
 
-const PREFIX = '[SVG2JSON]'
+import { LOG_PREFIX } from '../constants'
 
 /**
  * 记录步骤开始
  */
 export function logStart(label: string, description?: string): void {
-  console.log(`${PREFIX} [开始] ${label}${description ? ` - ${description}` : ''}`)
+  console.log(`${LOG_PREFIX} [开始] ${label}${description ? ` - ${description}` : ''}`)
 }
 
 /**
  * 记录步骤结束及耗时
  */
 export function logEnd(label: string, durationMs: number, description?: string): void {
-  console.log(`${PREFIX} [完成] ${label}: ${durationMs}ms${description ? ` - ${description}` : ''}`)
+  console.log(`${LOG_PREFIX} [完成] ${label}: ${durationMs}ms${description ? ` - ${description}` : ''}`)
 }
 
 /**
  * 记录步骤完成（无耗时）
  */
 export function log(label: string, description?: string): void {
-  console.log(`${PREFIX} ${label}${description ? ` - ${description}` : ''}`)
+  console.log(`${LOG_PREFIX} ${label}${description ? ` - ${description}` : ''}`)
 }
 
 /**

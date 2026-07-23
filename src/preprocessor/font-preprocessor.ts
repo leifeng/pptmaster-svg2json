@@ -3,7 +3,7 @@
  * 在 SVG 被解析转换之前，将文件中所有字体替换为 "Source Han Sans CN Regular"
  */
 
-const TARGET_FONT = 'Source Han Sans CN Regular'
+import { TARGET_FONT } from '../constants'
 
 /**
  * 统一 SVG 内容中的字体为 Source Han Sans CN Regular

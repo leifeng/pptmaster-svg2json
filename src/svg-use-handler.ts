@@ -9,19 +9,7 @@ import { Resvg } from '@resvg/resvg-js'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
-import { FONT_OPTIONS } from './text-measurer'
-
-// Icon library configuration
-// Works in both dev (dist/src/) and release (root) - templates/ is at same level as entry
-const ICONS_BASE = path.resolve(__dirname, 'templates/icons')
-
-const STYLE_CONFIG: Record<string, { mode: 'fill' | 'stroke' | 'duotone' }> = {
-  'chunk-filled': { mode: 'fill' },
-  'tabler-filled': { mode: 'fill' },
-  'tabler-outline': { mode: 'stroke' },
-  'phosphor-duotone': { mode: 'duotone' },
-  'simple-icons': { mode: 'fill' },
-}
+import { FONT_OPTIONS, ICONS_BASE, STYLE_CONFIG } from './constants'
 
 /**
  * Adjust path d attribute to account for viewBox offset.
