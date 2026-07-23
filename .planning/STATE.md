@@ -6,9 +6,9 @@ current_phase: 10
 current_phase_name: path-merge
 status: executing
 stopped_at: Milestone v1.6 complete — ready for next milestone
-last_updated: "2026-07-13T08:25:18.740Z"
-last_activity: 2026-07-13
-last_activity_desc: Phase 10 execution started
+last_updated: "2026-07-23T04:08:00.000Z"
+last_activity: 2026-07-23
+last_activity_desc: Quick Task 260723-gqv complete — text-anchor=middle top 补偿
 progress:
   total_phases: 1
   completed_phases: 0
@@ -46,9 +46,15 @@ Last activity: 2026-07-13 — Phase 10 execution started
 
 None
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260723-gqv | text-anchor="middle" 时对 top 加 -5 补偿 | 2026-07-23 | d91da53 | [260723-gqv-text-json-top-svg-text-text-anchor-middl](./quick/260723-gqv-text-json-top-svg-text-text-anchor-middl/) |
+
 ---
 
-*State last updated: 2026-07-13 after Milestone v1.6 complete*
+*State last updated: 2026-07-23 after Quick Task 260723-gqv complete*
 
 ## Session
 
