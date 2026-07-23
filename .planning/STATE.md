@@ -25,7 +25,20 @@ Plan: Not started
 Status: Ready to plan
 Last activity: 2026-07-23 — Phase 11 complete, transitioned to Phase 12
 
+## Project Reference
+
+See: `.planning/PROJECT.md` (updated 2026-07-23)
+
+**Core value:** Accurately convert SVG visual elements to PowerPoint JSON with correct coordinates, transforms, and styles.
+**Current focus:** Phase 12 — Font Preprocess
+
 ## Accumulated Context
+
+### Decisions (Phase 11)
+
+- **TEXT-WHPASS-01:** Valid positive finite SVG text width/height values activate the passthrough fast path and skip resvg-js measurement.
+- **TEXT-WHPASS-02:** Passthrough width uses `parsedWidth * scaleX + TEXT_WIDTH_SAFETY_MARGIN`; height uses `parsedHeight * scaleY`.
+- **TEXT-WHPASS-03:** Missing, invalid, non-positive, or non-finite dimensions preserve the original measurement/fallback path.
 
 ### Decisions (v1.6)
 
@@ -41,9 +54,11 @@ Last activity: 2026-07-23 — Phase 11 complete, transitioned to Phase 12
 - **USE-02:** Use resvg-js to render external SVG to PNG, convert to base64 image element
 - **USE-03:** Relative paths resolved based on main SVG file location via svgFilePath parameter
 
-### Blockers
+### Blockers/Concerns
 
-None
+- ⚠️ [Phase 11] Full-suite gate has 15 stable pre-existing failures across gradient, image-outline, path-merge, shadow, and shape-rx; an intermittent text-anchor failure also reproduces on baseline.
+- ⚠️ [Phase 11] Code review WR-01 records possible small `textTop` deltas between heuristic and measured ascent; accepted as non-blocking by phase verification.
+- ⚠️ [Phase 11] Security T11-03 tracks theoretical post-scale numeric overflow as low severity, below the `high` blocking threshold.
 
 ### Quick Tasks Completed
 
@@ -60,3 +75,4 @@ None
 
 **Last session:** 2026-07-23T07:15:05.827Z
 **Stopped at:** Phase 11 complete — ready to plan Phase 12
+**Resume file:** None
