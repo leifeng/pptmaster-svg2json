@@ -564,6 +564,79 @@ function convertToSvgElement(node: any, parentTag: string = '', gradientRegistry
   }
 }
 
+function convertOrderedToSvgElement(
+  orderedNode: any,
+  parentTag: string = '',
+  gradientRegistry?: Map<string, GradientDef>,
+  filterRegistry?: Map<string, FilterDef>,
+  patternRegistry?: Map<string, PatternDef>,
+): SvgElement {
+  const rawTagName = Object.keys(orderedNode).find(key => key !== ':@' && key !== '#text') || parentTag
+  const tagName = rawTagName.toLowerCase().split(':').pop() || ''
+  const attributeSource = orderedNode[':@'] || {}
+
+  const attrs: SvgAttrs = {}
+  for (const key of Object.keys(attributeSource)) {
+    if (key.startsWith('@_')) {
+      attrs[key.substring(2)] = attributeSource[key]
+    }
+  }
+
+  if (attributeSource['xlink:href']) attrs['xlink:href'] = attributeSource['xlink:href']
+  if (attributeSource.href) attrs.href = attributeSource.href
+
+  if (gradientRegistry) {
+    resolveFillReference(attrs, gradientRegistry)
+    resolveStrokeReference(attrs, gradientRegistry)
+  }
+  if (filterRegistry) {
+    resolveFilterReference(attrs, filterRegistry)
+  }
+  if (patternRegistry) {
+    resolvePatternReference(attrs, patternRegistry)
+  }
+
+  const orderedContent = Array.isArray(orderedNode[rawTagName]) ? orderedNode[rawTagName] : []
+  const childTags = new Set([
+    'rect', 'circle', 'ellipse', 'path', 'polygon', 'polyline', 'line', 'text', 'tspan',
+    'image', 'g', 'defs', 'linearGradient', 'radialGradient', 'stop',
+  ].map(tag => tag.toLowerCase()))
+  const preservesMixedText = tagName === 'text' || tagName === 'tspan'
+  const hasElementChildren = orderedContent.some((entry: any) => {
+    const childTag = Object.keys(entry).find(key => key !== ':@' && key !== '#text')
+    return childTag !== undefined && childTags.has(childTag.toLowerCase().split(':').pop() || '')
+  })
+
+  const children: SvgElement[] = []
+  let text = ''
+
+  for (const entry of orderedContent) {
+    if (Object.prototype.hasOwnProperty.call(entry, '#text')) {
+      if (!preservesMixedText) continue
+      const content = typeof entry['#text'] === 'string' ? entry['#text'] : String(entry['#text'])
+      if (hasElementChildren) {
+        children.push({ type: 'text', attrs: {}, children: [], text: content })
+      } else {
+        text += content
+      }
+      continue
+    }
+
+    const childTag = Object.keys(entry).find(key => key !== ':@' && key !== '#text')
+    const normalizedChildTag = childTag?.toLowerCase().split(':').pop() || ''
+    if (childTag && childTags.has(normalizedChildTag)) {
+      children.push(convertOrderedToSvgElement(entry, childTag, gradientRegistry, filterRegistry, patternRegistry))
+    }
+  }
+
+  return {
+    type: tagName,
+    attrs,
+    children,
+    text: text || undefined,
+  }
+}
+
 /**
  * 调整路径坐标，使其相对于 viewBox 原点
  * 图标 SVG 的 viewBox 通常是 0 0 24 24，但路径内容可能从 (4, 6) 等位置开始
@@ -721,10 +794,27 @@ export function parseSvg(xmlString: string, svgFilePath?: string): SvgParseResul
       ].includes(name),
   })
 
+  const orderedParser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: '@_',
+    parseAttributeValue: true,
+    parseTagValue: false,
+    // Mixed SVG text requires both node order and authored whitespace.
+    preserveOrder: true,
+    trimValues: false,
+  })
+
   const result = (() => {
     const start = performance.now()
     const r = parser.parse(xmlString)
     logEnd('[解析] XML解析', Math.round(performance.now() - start))
+    return r
+  })()
+
+  const orderedResult = (() => {
+    const start = performance.now()
+    const r = orderedParser.parse(xmlString)
+    logEnd('[解析] XML有序文本解析', Math.round(performance.now() - start))
     return r
   })()
 
@@ -769,11 +859,20 @@ export function parseSvg(xmlString: string, svgFilePath?: string): SvgParseResul
   const patternRegistry = new Map<string, PatternDef>()
   ;(() => { const start = performance.now(); collectPatternDefs(svgRoot, patternRegistry); logEnd('[解析] collectPatternDefs', Math.round(performance.now() - start)) })()
 
-  // Build clean element tree from svg root with gradient and filter registries for resolving references
+  // Build the element tree from the preserveOrder view so mixed text/tspan content
+  // remains in document order. The regular parse result above is still used by
+  // definition collectors because they rely on its grouped object shape.
+  const orderedRoot = Array.isArray(orderedResult)
+    ? orderedResult.find((entry: any) => entry?.svg !== undefined || entry?.['svg:svg'] !== undefined)
+    : undefined
+  if (!orderedRoot) {
+    throw new Error('Invalid SVG: no ordered svg root element found')
+  }
+
   const root = (() => {
     const start = performance.now()
-    const r = convertToSvgElement(svgRoot, 'svg', gradientRegistry, filterRegistry, patternRegistry)
-    logEnd('[解析] convertToSvgElement (构建AST)', Math.round(performance.now() - start))
+    const r = convertOrderedToSvgElement(orderedRoot, 'svg', gradientRegistry, filterRegistry, patternRegistry)
+    logEnd('[解析] convertOrderedToSvgElement (构建AST)', Math.round(performance.now() - start))
     return r
   })()
   root.attrs = rootAttrs
