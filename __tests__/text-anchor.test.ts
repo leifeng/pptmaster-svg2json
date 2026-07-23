@@ -28,3 +28,29 @@ describe('text-anchor → text-align (TEXT-01)', () => {
     expect(result?.content).not.toContain('text-align')
   })
 })
+
+describe('text-anchor="middle" → top offset (TEXT-02)', () => {
+  it('text-anchor="middle" 时 top 比无 text-anchor 的 top 小 5（画布像素）', async () => {
+    const baseline = await makeText({ x: '100', y: '200' }) as { top: number } | null
+    const middle = await makeText({ 'text-anchor': 'middle', x: '100', y: '200' }) as { top: number } | null
+    expect(baseline).not.toBeNull()
+    expect(middle).not.toBeNull()
+    expect(middle!.top).toBeCloseTo(baseline!.top - 5, 5)
+  })
+
+  it('text-anchor="start" 不应用 top 偏移', async () => {
+    const baseline = await makeText({ x: '100', y: '200' }) as { top: number } | null
+    const start = await makeText({ 'text-anchor': 'start', x: '100', y: '200' }) as { top: number } | null
+    expect(baseline).not.toBeNull()
+    expect(start).not.toBeNull()
+    expect(start!.top).toBeCloseTo(baseline!.top, 5)
+  })
+
+  it('text-anchor="end" 不应用 top 偏移', async () => {
+    const baseline = await makeText({ x: '100', y: '200' }) as { top: number } | null
+    const end = await makeText({ 'text-anchor': 'end', x: '100', y: '200' }) as { top: number } | null
+    expect(baseline).not.toBeNull()
+    expect(end).not.toBeNull()
+    expect(end!.top).toBeCloseTo(baseline!.top, 5)
+  })
+})

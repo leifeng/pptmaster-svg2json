@@ -1645,12 +1645,19 @@ export async function transformElement(
       let textHeight: number
       let textTop: number
 
+      // 当 SVG <text text-anchor="middle"> 时，对转换后的 PPTElement.top 加一个常量补偿，
+      // 解决 middle 对齐文本视觉位置偏下的问题。单位：画布像素。默认 -5。
+      const TEXT_ANCHOR_MIDDLE_TOP_OFFSET = -5
+
       try {
         const textAnchorAttr = element.attrs['text-anchor']
         const xAttr = element.attrs['x'] ? Number(element.attrs['x']) : undefined
         const measurementInput: TextMeasurementInput = {
           content,
-          fontFamily,
+          // 修复 text-in-circle-vertical-position-v3.md：测量字体必须与 PPTist 渲染字体一致。
+          // SVG 原字体（Georgia/Arial 等）只是浏览器里的视觉，PPTist 实际渲染用思源，
+          // 用原字体测量会导致 bbox 尺寸和 ascent 跟实际渲染不匹配，圆形内数字错位。
+          fontFamily: 'Source Han Sans CN Regular',
           fontSize,
           fontWeight: isBold ? 'bold' : 'normal',
           fontStyle: isItalic ? 'italic' : 'normal',
@@ -1664,20 +1671,27 @@ export async function transformElement(
         const TEXT_WIDTH_SAFETY_MARGIN = 25
         textWidth = measured.width * scaleX + TEXT_WIDTH_SAFETY_MARGIN
         textHeight = measured.height * scaleY
-        // SVG text y is baseline; convert to top by subtracting ascent distance
-        // FIX: Use fixed 0.8 ascent ratio instead of measured.y (which varies by glyph shape)
-        // This ensures same y coordinate → same textTop regardless of content
-        const ASCENT_RATIO = 0.8
-        textTop = transformed.top - fontSize * ASCENT_RATIO * scaleY
+        // SVG text y is baseline; convert to top by subtracting the ascent measured with
+        // the target render font (思源). Using a fixed 0.8 ratio mismatched fonts whose
+        // actual ascent ratio differs (Georgia 16 = 0.54, Arial 13 = 0.72, 思源 = 0.76).
+        const measuredAscent = fontSize - measured.y
+        textTop = transformed.top - measuredAscent * scaleY
       } catch {
-        // D-35: MEAS-06 fallback: heuristic estimate when resvg-js measurement fails
+        // D-35: MEAS-06 fallback: heuristic estimate when resvg-js measurement fails.
+        // 思源的实际 ascent ratio 是 0.764，0.8 只是历史上用的近似值；用 0.764 跟实际更接近。
         textWidth = fontSize * content.length * 0.6
         textHeight = scaledFontSize
-        // Fallback: SVG y is baseline, convert to top using heuristic (ascent ≈ 0.8 * fontSize)
-        // Note: transformed.top is already scaled, so subtract scaled ascent directly
-        textTop = transformed.top - fontSize * 0.8 * scaleY
+        // Fallback: SVG y is baseline, convert to top using 思源 heuristic ascent ratio.
+        // Note: transformed.top is already scaled, so subtract scaled ascent directly.
+        const FALLBACK_ASCENT_RATIO = 0.764
+        textTop = transformed.top - fontSize * FALLBACK_ASCENT_RATIO * scaleY
       }
 
+      // text-anchor="middle" 时对 top 加常量补偿以修正视觉对齐
+      // 单行分支直接使用 textTop；多行分支通过 baseTop 传给每个 tspan，偏移自动传播
+      if (element.attrs['text-anchor'] === 'middle') {
+        textTop += TEXT_ANCHOR_MIDDLE_TOP_OFFSET
+      }
 
       // X轴: 考虑 text-anchor 调整 left
       // SVG text x 对于 middle/end 是参考点，需要偏移
