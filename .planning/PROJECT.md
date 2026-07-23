@@ -28,17 +28,13 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 - ✓ **S/s T/t bezier reflection** — correct smooth quadratic/cubic bezier control point calculation
 - ✓ **clipPath preprocessing** — coordinate expansion before transform pipeline
 - ✓ **baseline-shift pixel scaling** — absolute pixel values scaled by scaleY
-- ✓ **TEXT-WHPASS-01** — valid SVG `<text width height>` skips resvg-js measurement
-- ✓ **TEXT-WHPASS-02** — passthrough dimensions scale via `scaleX` / `scaleY` with `TEXT_WIDTH_SAFETY_MARGIN`
-- ✓ **TEXT-WHPASS-03** — missing, invalid, non-positive, or non-finite dimensions preserve the measurement/fallback path
+- ✓ **TEXT-WHPASS-01/02/03** — SVG text width/height passthrough fast path
+- ✓ **PATH-MERGE-01~05** — path merge decision tree and implementation
+- ✓ **FONT-PREPROCESS-01~04** — font preprocessor normalizes all fonts to Source Han Sans CN Regular
 
 ### Active
 
-- [ ] **PATH-MERGE-01** — 决策树判断逻辑：当 `<g>` 子元素全为 `<path>` 时，按决策树判断是否合并
-- [ ] **PATH-MERGE-02** — 提取 `<g>` 内所有 path 的公共样式属性
-- [ ] **PATH-MERGE-03** — 检测 path 之间的重叠填充区域
-- [ ] **PATH-MERGE-04** — 处理 `fill-rule="evenodd"` 特殊镂空效果
-- [ ] **PATH-MERGE-05** — 合并后的 path 输出正确坐标和样式
+(None — v1.7 complete, next milestone not yet planned)
 
 ### Out of Scope
 
@@ -52,9 +48,9 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 
 ## Context
 
-**Existing library** — svg-to-pptel v1.6, published as npm package.
+**Existing library** — svg-to-pptel v1.7, published as npm package.
 
-**Current state** — Phase 11 complete: SVG text width/height passthrough is implemented and verified; Phase 12 font preprocessing is ready to plan.
+**Current state** — v1.7 milestone complete. All phases (10-12) shipped. Ready for next milestone planning.
 
 **Target canvas** — 1000×562.5 (16:9 aspect ratio).
 
@@ -77,6 +73,9 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 | Parent transform composition | Pass parent transform to mapCoordinates without AST mutation | ✓ Complete |
 | clipPath via AST preprocessing | Expand clipPath definitions before transform pipeline | ✓ Complete |
 | Pixel baseline-shift scaling | Scale pixel values by scaleY (e.g., -5px → -3.90625) | ✓ Complete |
+| PATH-MERGE decision tree | MergeDecision enum for merge/no-merge/cautious-merge | ✓ Complete |
+| Text Width/Height Passthrough | Skip resvg-js when valid width/height attributes present | ✓ Complete |
+| Font Preprocessing | Normalize all fonts to Source Han Sans CN Regular | ✓ Complete |
 
 ## Evolution
 
@@ -90,20 +89,24 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: v1.7 — Path 合并优化
+## Current Milestone: v1.7 — Complete
 
-**Goal:** 当 `<g>` 标签的子元素全部为 `<path>` 时，按照决策树判断是否合并为单一 path 以减少输出元素数量。
+**Status:** SHIPPED 2026-07-23
 
-**Target features:**
-- 实现决策树判断逻辑（共享样式属性 → 语义/交互/可访问性 → fill="none"/无重叠 → fill-rule 检查）
-- 提取 `<g>` 内所有 path 的公共样式属性
-- 检测 path 之间的重叠填充区域
-- 处理 `fill-rule="evenodd"` 特殊镂空效果
-- 合并后的 path 输出正确坐标和样式
+All planned features delivered:
+- PATH-MERGE decision tree and implementation (Phases 10)
+- TEXT-WHPASS SVG text attribute passthrough (Phase 11)
+- FONT-PREPROCESS font normalization (Phase 12)
 
 ---
 
 ## Previous Milestones
+
+### v1.7 — Path 合并优化 (2026-07-23)
+
+- PATH-MERGE decision tree for `<g>` path merging
+- TEXT-WHPASS SVG text width/height passthrough
+- FONT-PREPROCESS font normalization to Source Han Sans CN
 
 ### v1.6 — SVG Converter Refactor (2026-07-13)
 
@@ -139,4 +142,4 @@ Research confirmed all target PPTist schema properties already implemented or de
 
 ---
 
-*Last updated: 2026-07-23 after Phase 11 completion*
+*Last updated: 2026-07-23 after v1.7 milestone completion*
