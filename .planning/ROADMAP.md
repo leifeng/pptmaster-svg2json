@@ -55,7 +55,7 @@
 3. 非字体属性（`font-size`、`fill` 等）保持不变
 4. 现有测试全部通过
 
-**Status:** Planned
+**Status:** Complete (2026-07-23)
 
 ---
 
@@ -69,7 +69,7 @@
 | Phase 9 | v1.6 | Complete | 2026-07-13 |
 | Phase 10 | v1.7 | Planned | — |
 | Phase 11 | v1.7 | Complete | 2026-07-23 |
-| Phase 12 | v1.7 | Planned | — |
+| Phase 12 | v1.7 | Complete | 2026-07-23 |
 
 ---
 
