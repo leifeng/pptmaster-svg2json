@@ -40,7 +40,7 @@
 2. 缩放后 `width = parsedWidth * scaleX + TEXT_WIDTH_SAFETY_MARGIN`、`height = parsedHeight * scaleY`
 3. 仅 `width` 或仅 `height` 或非数字 / 负值 / 零 时，回退到原测量路径
 
-**Status:** Planning
+**Status:** Complete (2026-07-23)
 
 ---
 
@@ -68,9 +68,9 @@
 | Phase 8 | v1.5 | Complete | 2026-07-10 |
 | Phase 9 | v1.6 | Complete | 2026-07-13 |
 | Phase 10 | v1.7 | Planned | — |
-| Phase 11 | v1.7 | Planning | — |
+| Phase 11 | v1.7 | Complete | 2026-07-23 |
 | Phase 12 | v1.7 | Planned | — |
 
 ---
 
-*Roadmap updated: 2026-07-23 after Phase 11 removed*
+*Roadmap updated: 2026-07-23 after Phase 11 completion*

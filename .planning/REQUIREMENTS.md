@@ -122,9 +122,9 @@
 
 ### Text Width/Height Passthrough (TEXT-WHPASS)
 
-- [ ] **TEXT-WHPASS-01**: SVG `<text>` 同时声明有效 `width` 和 `height` 时，`transformElement` 跳过 `measureTextElement`
-- [ ] **TEXT-WHPASS-02**: 直通尺寸按画布缩放输出：`width = parsedWidth * scaleX + TEXT_WIDTH_SAFETY_MARGIN`、`height = parsedHeight * scaleY`
-- [ ] **TEXT-WHPASS-03**: 任一尺寸缺失、非数字、非正数或非有限数时，保留原有文本测量与 fallback 路径
+- [x] **TEXT-WHPASS-01**: SVG `<text>` 同时声明有效 `width` 和 `height` 时，`transformElement` 跳过 `measureTextElement`
+- [x] **TEXT-WHPASS-02**: 直通尺寸按画布缩放输出：`width = parsedWidth * scaleX + TEXT_WIDTH_SAFETY_MARGIN`、`height = parsedHeight * scaleY`
+- [x] **TEXT-WHPASS-03**: 任一尺寸缺失、非数字、非正数或非有限数时，保留原有文本测量与 fallback 路径
 
 ## v2 Requirements (deferred)
 
@@ -205,9 +205,9 @@
 | PATH-MERGE-03 | — | Pending |
 | PATH-MERGE-04 | — | Pending |
 | PATH-MERGE-05 | — | Pending |
-| TEXT-WHPASS-01 | Phase 11 | Pending |
-| TEXT-WHPASS-02 | Phase 11 | Pending |
-| TEXT-WHPASS-03 | Phase 11 | Pending |
+| TEXT-WHPASS-01 | Phase 11 | Complete |
+| TEXT-WHPASS-02 | Phase 11 | Complete |
+| TEXT-WHPASS-03 | Phase 11 | Complete |
 
 **Coverage:**
 
