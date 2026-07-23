@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Path 合并优化
-current_phase: 10
-current_phase_name: path-merge
-status: executing
+current_phase: 11
+current_phase_name: text-width-height-passthrough
+status: planning
 stopped_at: Milestone v1.6 complete — ready for next milestone
 last_updated: "2026-07-23T04:36:00.000Z"
 last_activity: 2026-07-23

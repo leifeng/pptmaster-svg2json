@@ -28,6 +28,22 @@
 
 ---
 
+## Phase 11: Text Width/Height Passthrough — SVG text 属性直通
+
+**Goal:** SVG `<text>` 同时声明 `width` 和 `height` 时，跳过 resvg-js 测量，直接使用属性值（按 scaleX/scaleY 缩放）作为 PPTTextElement 的 width/height
+
+**Requirements:** TEXT-WHPASS-01, TEXT-WHPASS-02, TEXT-WHPASS-03
+
+**Success Criteria:**
+
+1. `<text width="..." height="...">` 同时声明时，`transformElement` 不调用 `measureTextElement`
+2. 缩放后 `width = parsedWidth * scaleX + TEXT_WIDTH_SAFETY_MARGIN`、`height = parsedHeight * scaleY`
+3. 仅 `width` 或仅 `height` 或非数字 / 负值 / 零 时，回退到原测量路径
+
+**Status:** Planning
+
+---
+
 ## Phase 12: Font Preprocess — 统一字体为 Source Han Sans CN Regular
 
 **Goal:** 在 SVG 被解析转换之前，将文件中所有字体替换为 "Source Han Sans CN Regular"
@@ -52,6 +68,7 @@
 | Phase 8 | v1.5 | Complete | 2026-07-10 |
 | Phase 9 | v1.6 | Complete | 2026-07-13 |
 | Phase 10 | v1.7 | Planned | — |
+| Phase 11 | v1.7 | Planning | — |
 | Phase 12 | v1.7 | Planned | — |
 
 ---
