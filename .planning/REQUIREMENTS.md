@@ -120,6 +120,12 @@
   - 合并后的 path 使用公共样式属性
   - 输出元素数量减少
 
+### Text Width/Height Passthrough (TEXT-WHPASS)
+
+- [ ] **TEXT-WHPASS-01**: SVG `<text>` 同时声明有效 `width` 和 `height` 时，`transformElement` 跳过 `measureTextElement`
+- [ ] **TEXT-WHPASS-02**: 直通尺寸按画布缩放输出：`width = parsedWidth * scaleX + TEXT_WIDTH_SAFETY_MARGIN`、`height = parsedHeight * scaleY`
+- [ ] **TEXT-WHPASS-03**: 任一尺寸缺失、非数字、非正数或非有限数时，保留原有文本测量与 fallback 路径
+
 ## v2 Requirements (deferred)
 
 - Full path command support (C/Q/A/S/T/Z) in bounding box calculation — currently only M/L/H/V parsed
@@ -199,17 +205,20 @@
 | PATH-MERGE-03 | — | Pending |
 | PATH-MERGE-04 | — | Pending |
 | PATH-MERGE-05 | — | Pending |
+| TEXT-WHPASS-01 | Phase 11 | Pending |
+| TEXT-WHPASS-02 | Phase 11 | Pending |
+| TEXT-WHPASS-03 | Phase 11 | Pending |
 
 **Coverage:**
 
-- v1.7 requirements: 5 total (PATH-MERGE-01 ~ PATH-MERGE-05)
+- v1.7 requirements: 8 total (PATH-MERGE-01 ~ PATH-MERGE-05, TEXT-WHPASS-01 ~ TEXT-WHPASS-03)
 - v1.4 requirements: 7 total
 - v1.3 requirements: 11 total
 - v1.2 requirements: 26 total
 - v1.1 requirements: 3 total
-- Mapped to phases: 47
+- Mapped to phases: 50
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-27*
-*Last updated: 2026-07-13 after v1.7 path merge requirements*
+*Last updated: 2026-07-23 after Phase 11 requirement traceability sync*

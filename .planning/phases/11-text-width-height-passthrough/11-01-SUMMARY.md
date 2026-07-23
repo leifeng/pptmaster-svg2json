@@ -38,7 +38,10 @@ patterns-established:
   - "Text dimension fast paths must remain local to the text case and must not alter fixedHeight or multiline handling."
   - "Fallback-path tests should mock measureTextElement and assert both invocation count and output dimensions."
 
-requirements-completed: []
+requirements-completed:
+  - TEXT-WHPASS-01
+  - TEXT-WHPASS-02
+  - TEXT-WHPASS-03
 
 # Coverage metadata
 coverage:
@@ -121,7 +124,8 @@ The summary is committed separately after self-check completion.
 
 ## Issues Encountered
 
-- `npx vitest run` still reports one unrelated pre-existing failure in `__tests__/path-merge.test.ts` (`createMergedShapeElement > handles nested g transform with translate and scale`): actual `result.left` is `50.520833333333336` versus the test expectation near `58.33`. The test and implementation are outside this plan and are recorded in `deferred-items.md` rather than changed.
+- 编排器在干净 worktree 中按相同顺序执行 `npm run build` 与全量 `npm test`：合并后为 198 passed / 15 failed，父提交 `6047c64` 基线为 193 passed / 同样 15 failed，失败集合完全一致（gradient 2、image-outline 1、path-merge 1、shadow 7、shape-rx 4）。因此 Phase 11 引入回归数为 0。
+- 独立验证器另观察到 1 个 `text-anchor` 失败，并在父提交基线复现同一失败；该结果属于既有的运行顺序/环境波动，不归因于 Phase 11。完整记录见 `deferred-items.md`。
 - No authentication gates or package installation issues occurred.
 
 ## Verification
@@ -130,7 +134,7 @@ The summary is committed separately after self-check completion.
 - `npx vitest run src/text-measurer.test.ts` — passed, 24 tests.
 - `npm run build` — passed.
 - `npx vitest run __tests__/text-width-height-passthrough.test.ts src/text-measurer.test.ts` — passed, 29 tests.
-- Full `npx vitest run` — one unrelated path-merge failure documented above.
+- Full `npm test` gate — 15 stable pre-existing failures reproduced identically on merged HEAD and parent baseline; an independent verifier also observed one baseline-reproducible `text-anchor` fluctuation. Phase 11 introduced 0 regressions.
 
 ## User Setup Required
 
