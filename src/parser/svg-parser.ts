@@ -774,6 +774,13 @@ export function parseSvg(xmlString: string, svgFilePath?: string): SvgParseResul
     parseAttributeValue: true,
     parseTagValue: false,
     trimValues: true,
+    // D-text-ncr: enable NCR (&#x2208; etc.) decoding.
+    // htmlEntities: true makes EntityDecoder.numericAllowed = true so
+    // &#NNN; / &#xHH; references resolve to the actual Unicode character.
+    // The 5 XML predefined entities (&lt; &gt; &amp; &quot; &apos;) are still
+    // resolved because EntityDecoder always merges DEFAULT_XML_ENTITIES into
+    // its base map (see @nodable/entities/src/EntityDecoder.js:213).
+    htmlEntities: true,
     isArray: (name) =>
       [
         'rect',
@@ -802,6 +809,9 @@ export function parseSvg(xmlString: string, svgFilePath?: string): SvgParseResul
     // Mixed SVG text requires both node order and authored whitespace.
     preserveOrder: true,
     trimValues: false,
+    // D-text-ncr: also enable NCR decoding for the ordered parser (used to
+    // build the element tree in document order so text/tspan mixing survives).
+    htmlEntities: true,
   })
 
   const result = (() => {
