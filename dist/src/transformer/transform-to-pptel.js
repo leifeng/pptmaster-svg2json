@@ -14,6 +14,7 @@ const text_measurer_1 = require("../text-measurer");
 const path_utils_1 = require("../utils/path-utils");
 const path_merge_1 = require("../merger/path-merge");
 const utils_1 = require("../utils");
+const constants_1 = require("../constants");
 /**
  * 转换 icon 元素（有 data-icon-width/height 属性的 path）
  * icon 的位置和尺寸已经在 autoEmbedIcons 中处理过
@@ -115,145 +116,6 @@ function parseDashArray(dash) {
     return 'dashed';
 }
 /**
- * Named CSS colors map to hex values.
- */
-const namedColors = {
-    black: '#000000',
-    silver: '#c0c0c0',
-    gray: '#808080',
-    grey: '#808080',
-    white: '#ffffff',
-    maroon: '#800000',
-    red: '#ff0000',
-    purple: '#800080',
-    fuchsia: '#ff00ff',
-    green: '#00ff00',
-    lime: '#00ff00',
-    olive: '#808000',
-    yellow: '#ffff00',
-    navy: '#000080',
-    blue: '#0000ff',
-    teal: '#008080',
-    aqua: '#00ffff',
-    orange: '#ffa500',
-    aliceblue: '#f0f8ff',
-    antiquewhite: '#faebd7',
-    aquamarine: '#7fffd4',
-    azure: '#f0ffff',
-    beige: '#f5f5dc',
-    bisque: '#ffe4c4',
-    blanchedalmond: '#ffebcd',
-    coral: '#ff7f50',
-    cornflowerblue: '#6495ed',
-    cornsilk: '#fff8dc',
-    crimson: '#dc143c',
-    cyan: '#00ffff',
-    darkblue: '#00008b',
-    darkcyan: '#008b8b',
-    darkgoldenrod: '#b8860b',
-    darkgray: '#a9a9a9',
-    darkgreen: '#006400',
-    darkkhaki: '#bdb76b',
-    darkmagenta: '#8b008b',
-    darkolivegreen: '#556b2f',
-    darkorange: '#ff8c00',
-    darkorchid: '#9932cc',
-    darkred: '#8b0000',
-    darksalmon: '#e9967a',
-    darkseagreen: '#8fbc8f',
-    darkslateblue: '#483d8b',
-    darkslategray: '#2f4f4f',
-    darkturquoise: '#00ced1',
-    darkviolet: '#9400d3',
-    deeppink: '#ff1493',
-    deepskyblue: '#00bfff',
-    dimgray: '#696969',
-    dodgerblue: '#1e90ff',
-    firebrick: '#b22222',
-    floralwhite: '#fffaf0',
-    forestgreen: '#228b22',
-    gainsboro: '#dcdcdc',
-    ghostwhite: '#f8f8ff',
-    gold: '#ffd700',
-    goldenrod: '#daa520',
-    greenyellow: '#adff2f',
-    honeydew: '#f0fff0',
-    hotpink: '#ff69b4',
-    indianred: '#cd5c5c',
-    indigo: '#4b0082',
-    ivory: '#fffff0',
-    khaki: '#f0e68c',
-    lavender: '#e6e6fa',
-    lavenderblush: '#fff0f5',
-    lemonchiffon: '#fffacd',
-    lightblue: '#add8e6',
-    lightcoral: '#f08080',
-    lightcyan: '#e0ffff',
-    lightgoldenrodyellow: '#fafad2',
-    lightgray: '#d3d3d3',
-    lightgreen: '#90ee90',
-    lightpink: '#ffb6c1',
-    lightsalmon: '#ffa07a',
-    lightseagreen: '#20b2aa',
-    lightskyblue: '#87cefa',
-    lightslategray: '#778899',
-    lightsteelblue: '#b0c4de',
-    lightyellow: '#ffffe0',
-    limegreen: '#32cd32',
-    linen: '#faf0e6',
-    magenta: '#ff00ff',
-    mediumaquamarine: '#66cdaa',
-    mediumblue: '#0000cd',
-    mediumorchid: '#ba55d3',
-    mediumpurple: '#9370db',
-    mediumseagreen: '#3cb371',
-    mediumslateblue: '#7b68ee',
-    mediumspringgreen: '#00fa9a',
-    mediumturquoise: '#48d1cc',
-    mediumvioletred: '#c71585',
-    midnightblue: '#191970',
-    mintcream: '#f5fffa',
-    mistyrose: '#ffe4e1',
-    moccasin: '#ffe4b5',
-    navajowhite: '#ffdead',
-    oldlace: '#fdf5e6',
-    olivedrab: '#6b8e23',
-    orangered: '#ff4500',
-    orchid: '#da70d6',
-    palegoldenrod: '#eee8aa',
-    palegreen: '#98fb98',
-    paleturquoise: '#afeeee',
-    palevioletred: '#db7093',
-    papayawhip: '#ffefd5',
-    peachpuff: '#ffdab9',
-    peru: '#cd853f',
-    pink: '#ffc0cb',
-    plum: '#dda0dd',
-    powderblue: '#b0e0e6',
-    rosybrown: '#bc8f8f',
-    royalblue: '#4169e1',
-    saddlebrown: '#8b4513',
-    salmon: '#fa8072',
-    sandybrown: '#f4a460',
-    seagreen: '#2e8b57',
-    seashell: '#fff5ee',
-    sienna: '#a0522d',
-    skyblue: '#87ceeb',
-    slateblue: '#6a5acd',
-    slategray: '#708090',
-    snow: '#fffafa',
-    springgreen: '#00ff7f',
-    steelblue: '#4682b4',
-    tan: '#d2b48c',
-    thistle: '#d8bfd8',
-    tomato: '#ff6347',
-    turquoise: '#40e0d0',
-    violet: '#ee82ee',
-    wheat: '#f5deb3',
-    whitesmoke: '#f5f5f5',
-    yellowgreen: '#9acd32',
-};
-/**
  * Decode common HTML entities in a string.
  */
 function decodeHtmlEntities(str) {
@@ -279,8 +141,8 @@ function colorToHex(color) {
     if (color.startsWith('#'))
         return color;
     // Named color lookup
-    if (namedColors[color.toLowerCase()])
-        return namedColors[color.toLowerCase()];
+    if (constants_1.NAMED_COLORS[color.toLowerCase()])
+        return constants_1.NAMED_COLORS[color.toLowerCase()];
     // rgb(r, g, b)
     const rgbMatch = color.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
     if (rgbMatch) {
@@ -306,8 +168,8 @@ function colorToRgba(color, opacity) {
         return `rgba(${r}, ${g}, ${b}, ${opacity})`;
     }
     // Named color lookup
-    if (namedColors[color.toLowerCase()]) {
-        const hex = namedColors[color.toLowerCase()];
+    if (constants_1.NAMED_COLORS[color.toLowerCase()]) {
+        const hex = constants_1.NAMED_COLORS[color.toLowerCase()];
         const r = parseInt(hex.slice(1, 3), 16);
         const g = parseInt(hex.slice(3, 5), 16);
         const b = parseInt(hex.slice(5, 7), 16);
@@ -399,69 +261,98 @@ function extractTextContentFromElement(element) {
  * 递归构建 Rich Text AST
  * @param element - SVG 元素
  * @param parentFontSize - 父级 font-size（用于继承）
+ * @param parentFontFamily - 父级 font-family（用于继承）
+ * @param parentFill - 父级 fill 颜色（用于继承）
+ * @param parentFontWeight - 父级 font-weight（已 resolved，'bold' 或数字，用于继承）
+ * @param parentFontStyle - 父级 font-style（已 resolved，用于继承）
+ * @param parentTextDecoration - 父级 text-decoration（已 resolved，用于继承）
  */
-function buildRichTextAST(element, parentFontSize) {
+function buildRichTextAST(element, parentFontSize, parentFontFamily, parentFill, parentFontWeight, parentFontStyle, parentTextDecoration) {
     const nodes = [];
     // 情况1：叶子节点（只有文本，没有 children）
     // 例如：<text>Hello</text> → element.text = "Hello", children = []
     if (element.text && element.children.length === 0) {
-        return [{ type: 'text', content: element.text }];
+        return [{
+                type: 'text',
+                content: element.text,
+                fontFamily: element.attrs['font-family'] ?? parentFontFamily ?? null,
+                fill: element.attrs.fill ?? parentFill ?? null,
+                // 修复 text-font-weight-loss-rootcause.md：
+                // text 元素自身的 font-style / font-weight / text-decoration 也需保留，
+                // 否则 <text font-weight="800">single line</text> 这类简单用法样式全丢。
+                fontStyle: element.attrs['font-style'] !== undefined
+                    ? String(element.attrs['font-style'])
+                    : (parentFontStyle ?? null),
+                fontWeight: element.attrs['font-weight'] !== undefined
+                    ? String(element.attrs['font-weight'])
+                    : (parentFontWeight ?? null),
+                textDecoration: element.attrs['text-decoration'] !== undefined
+                    ? String(element.attrs['text-decoration'])
+                    : (parentTextDecoration ?? null),
+            }];
     }
     // 情况2：有 children（包含 tspan 或 inline text）
-    // element.text 是所有文本内容的拼接（XML 解析器行为）
-    // children 包含 tspan 元素
+    // With preserveOrder, children contain text nodes and tspan elements in document order
+    // Each text node (type === 'text') represents text content before/after/between tspans
     //
-    // 例如：<text>own d<tspan>k</tspan> dimensions</text>
-    // element.text = "own ddimensions" (tspan 内容被排除)
-    // children[0].text = "k"
-    //
-    // 问题：element.text 不包含 tspan 文本，所以我们无法直接知道
-    // 哪些文本在 tspan 之前，哪些在 tspan 之后
-    //
-    // 解决方案：使用启发式分割
-    // 1. 收集所有 tspan 的文本内容
-    // 2. 从 element.text 中均匀分割出 N+1 个片段（假设文本在 tspan 之间均匀分布）
-    // 3. 按顺序交替添加：文本片段1、tspan1、文本片段2、tspan2...
-    // 收集所有 tspan 的文本
-    const tspanChildren = element.children.filter(c => c.type === 'tspan');
-    const tspanTexts = tspanChildren.map(c => c.text || '');
-    // 计算纯文本内容（element.text 中不包含 tspan 内容）
-    const textContent = element.text || '';
-    // 将 textContent 分割成 N+1 个片段（N = tspan 数量）
-    const textParts = splitTextForTspans(textContent, tspanTexts.length);
-    // 按顺序构建 AST：文本片段1、tspan1、文本片段2、tspan2...
-    let textPartIndex = 0;
+    // With preserveOrder:
+    // <text>Single head loses <tspan>−0.9 BLEU</tspan> vs h = 8</text>
+    // children = [
+    //   { type: 'text', text: 'Single head loses ' },
+    //   { type: 'tspan', attrs: {...}, children: [...] },
+    //   { type: 'text', text: 'vs h = 8' }
+    // ]
+    // 按顺序处理 children：文本片段1、tspan1、文本片段2、tspan2...
     for (const child of element.children) {
         if (child.type === 'tspan') {
-            // 添加此 tspan 前的文本片段
-            if (textPartIndex < textParts.length && textParts[textPartIndex]) {
-                nodes.push({ type: 'text', content: textParts[textPartIndex] });
-            }
-            textPartIndex++;
             // 添加 tspan 元素
             const explicitFontSize = child.attrs['font-size'] !== undefined
                 ? Number(child.attrs['font-size'])
                 : null;
+            const explicitFontFamily = child.attrs['font-family'] !== undefined
+                ? child.attrs['font-family']
+                : null;
+            const explicitFill = child.attrs.fill !== undefined ? child.attrs.fill : null;
+            const explicitFontStyle = child.attrs['font-style'] !== undefined
+                ? String(child.attrs['font-style'])
+                : (parentFontStyle ?? null);
+            const explicitFontWeight = child.attrs['font-weight'] !== undefined
+                ? String(child.attrs['font-weight'])
+                : (parentFontWeight ?? null);
+            const explicitTextDecoration = child.attrs['text-decoration'] !== undefined
+                ? String(child.attrs['text-decoration'])
+                : (parentTextDecoration ?? null);
             const effectiveFontSize = explicitFontSize ?? parentFontSize;
+            const effectiveFontFamily = explicitFontFamily ?? parentFontFamily ?? null;
+            const effectiveFill = explicitFill ?? parentFill ?? null;
             const baselineShift = child.attrs['baseline-shift'];
             const tag = baselineShift === 'sub' ? 'sub' :
                 baselineShift === 'super' ? 'sup' : 'span';
-            const childNodes = buildRichTextAST(child, effectiveFontSize);
+            const childNodes = buildRichTextAST(child, effectiveFontSize, effectiveFontFamily, effectiveFill, explicitFontWeight, explicitFontStyle, explicitTextDecoration);
             nodes.push({
                 type: 'element',
                 tag,
                 fontSize: explicitFontSize,
+                fill: explicitFill,
+                fontFamily: explicitFontFamily,
+                fontStyle: explicitFontStyle,
+                fontWeight: explicitFontWeight,
+                textDecoration: explicitTextDecoration,
                 children: childNodes,
             });
         }
         else if (child.type === 'text' && child.text) {
-            // inline text 片段（不应该出现在有 tspan 的 text 元素中）
-            nodes.push({ type: 'text', content: child.text });
+            // inline text 片段 - 直接添加，不需要启发式分割
+            nodes.push({
+                type: 'text',
+                content: child.text,
+                fontFamily: parentFontFamily ?? null,
+                fill: parentFill ?? null,
+                fontStyle: parentFontStyle ?? null,
+                fontWeight: parentFontWeight ?? null,
+                textDecoration: parentTextDecoration ?? null,
+            });
         }
-    }
-    // 添加最后一个文本片段（如果有任何剩余）
-    if (textPartIndex < textParts.length && textParts[textPartIndex]) {
-        nodes.push({ type: 'text', content: textParts[textPartIndex] });
     }
     return nodes;
 }
@@ -478,18 +369,99 @@ function splitTextForTspans(textContent, numTspans) {
     const parts = [];
     if (numParts === 2) {
         // 简单情况：分成两部分
-        // 在最后空白处分割（如果存在），否则在中间分割
-        const lastSpaceIndex = textContent.lastIndexOf(' ');
-        if (lastSpaceIndex > textContent.length / 3) {
-            // 在最后空白处分割，确保前一部分不要太短
-            parts.push(textContent.substring(0, lastSpaceIndex).trim());
-            parts.push(textContent.substring(lastSpaceIndex + 1).trim());
+        // 核心策略：
+        // 1. 如果文本以完整句子结尾，说明 tspan 内容在句子之后，在最后一个句子边界分割
+        // 2. 如果文本有多个句子，tspan 可能在第一个句子之后，在前 1/4 到 1/3 范围找句子边界
+        // 3. 否则使用启发式在中间位置分割
+        const textLen = textContent.length;
+        // 找所有句子结束位置（句号/问号/感叹号 + 空格）
+        const sentenceBreaks = [];
+        for (let i = 0; i < textLen - 1; i++) {
+            if ((textContent[i] === '.' || textContent[i] === '?' || textContent[i] === '!') && textContent[i + 1] === ' ') {
+                sentenceBreaks.push(i + 1); // 分割点在标点后的空格位置
+            }
+        }
+        // 策略1：文本以完整句子结尾（句号后面是 tspan 内容）
+        // 直接在最后一个句子结束后分割
+        if (sentenceBreaks.length > 0 && /[.!?]\s*$/.test(textContent.trim())) {
+            const splitIndex = sentenceBreaks[sentenceBreaks.length - 1];
+            if (splitIndex > 0 && splitIndex < textLen) {
+                parts.push(textContent.substring(0, splitIndex).trim());
+                parts.push(textContent.substring(splitIndex + 1).trim());
+                return parts;
+            }
+        }
+        // 策略2：有多个句子边界，在前 1/4 位置附近找句子边界
+        // 这处理 tspan 出现在第一个句子之后的情况
+        if (sentenceBreaks.length > 1) {
+            const earlyPoint = Math.floor(textLen / 4);
+            // 找 earlyPoint 之后最近的句子边界
+            let bestSplitIndex = -1;
+            for (const brk of sentenceBreaks) {
+                if (brk > earlyPoint) {
+                    bestSplitIndex = brk;
+                    break;
+                }
+            }
+            // 如果没找到，用第一个句子边界
+            if (bestSplitIndex === -1) {
+                bestSplitIndex = sentenceBreaks[0];
+            }
+            if (bestSplitIndex > 0 && bestSplitIndex < textLen) {
+                parts.push(textContent.substring(0, bestSplitIndex).trim());
+                parts.push(textContent.substring(bestSplitIndex + 1).trim());
+                return parts;
+            }
+        }
+        // 策略3：只有一个句子边界且文本不以句子结尾
+        // 说明 tspan 在句子中间，找前 1/3 位置的分号/逗号
+        if (sentenceBreaks.length === 1) {
+            const splitAt = sentenceBreaks[0];
+            const earlyPoint = Math.floor(splitAt / 3);
+            // 向前找分号（更可能的句子内分割点）
+            let found = -1;
+            for (let i = earlyPoint; i < splitAt; i++) {
+                if (textContent[i] === ';' && textContent[i + 1] === ' ') {
+                    found = i + 1;
+                    break;
+                }
+            }
+            // 如果没找到分号，找逗号
+            if (found === -1) {
+                for (let i = earlyPoint; i < splitAt; i++) {
+                    if (textContent[i] === ',' && textContent[i + 1] === ' ') {
+                        found = i + 1;
+                        break;
+                    }
+                }
+            }
+            if (found > 0) {
+                parts.push(textContent.substring(0, found).trim());
+                parts.push(textContent.substring(found + 1).trim());
+                return parts;
+            }
+        }
+        // 策略4：最后的回退策略 - 在文本前 1/5 位置找空白分割
+        const earlyPoint = Math.floor(textLen / 5);
+        let splitIndex = earlyPoint;
+        // 向前找空白
+        while (splitIndex > 0 && textContent[splitIndex] !== ' ') {
+            splitIndex--;
+        }
+        // 如果向前太远（到位置 0），向后找
+        if (splitIndex <= 0) {
+            splitIndex = earlyPoint;
+            while (splitIndex < textLen && textContent[splitIndex] !== ' ') {
+                splitIndex++;
+            }
+        }
+        if (splitIndex > 0 && splitIndex < textLen) {
+            parts.push(textContent.substring(0, splitIndex).trim());
+            parts.push(textContent.substring(splitIndex + 1).trim());
         }
         else {
-            // 没有合适的空白，在中间分割
-            const midIndex = Math.floor(textContent.length / 2);
-            parts.push(textContent.substring(0, midIndex).trim());
-            parts.push(textContent.substring(midIndex).trim());
+            parts.push(textContent.substring(0, Math.floor(textLen / 2)).trim());
+            parts.push(textContent.substring(Math.floor(textLen / 2)).trim());
         }
         return parts;
     }
@@ -518,40 +490,139 @@ function splitTextForTspans(textContent, numTspans) {
     return parts;
 }
 /**
+ * 构造 span/sub/sup 的内联样式
+ * 注意：不输出 font-family，由 PPTist 默认字体处理
+ */
+function buildSpanStyle(opts) {
+    let style = 'font-size: ' + opts.fontSize + 'px';
+    // font-family 故意省略：富文本统一继承 PPTist 默认字体
+    if (opts.fill) {
+        style += '; color: ' + opts.fill;
+    }
+    if (opts.fontStyle && opts.fontStyle !== 'normal') {
+        style += '; font-style: ' + opts.fontStyle;
+    }
+    if (opts.fontWeight && opts.fontWeight !== 'normal' && opts.fontWeight !== 400) {
+        style += '; font-weight: ' + opts.fontWeight;
+    }
+    if (opts.textDecoration && opts.textDecoration !== 'none') {
+        style += '; text-decoration: ' + opts.textDecoration;
+    }
+    return style;
+}
+/**
  * 将 Rich Text AST 序列化为 HTML
  * @param nodes - AST 节点数组
  * @param parentFontSize - 父级 font-size（已缩放，用于继承）
  * @param scaleY - 缩放比例
  * @param parentTag - 父级标签（用于判断是否需要为 TextNode 生成 span）
+ * @param parentFill - 父级 fill 颜色
+ * @param parentFontFamily - 父级 font-family
+ * @param parentFontStyle - 父级 font-style
+ * @param parentFontWeight - 父级 font-weight
+ * @param parentTextDecoration - 父级 text-decoration
  */
-function serializeRichText(nodes, parentFontSize, scaleY, parentTag = null) {
+function serializeRichText(nodes, parentFontSize, scaleY, parentTag = null, parentFill = null, parentFontFamily = null, parentFontStyle = null, parentFontWeight = null, parentTextDecoration = null) {
     let html = '';
     for (const node of nodes) {
         if (node.type === 'text') {
-            // 始终用 span 包裹文本，确保每个文本片段都有明确的字体大小
-            html += `<span style="font-size: ${parentFontSize}px">${escapeHtml(node.content)}</span>`;
+            // 修复 text-font-weight-loss-rootcause.md：
+            // text 节点也需读取自身 font-style / font-weight / text-decoration，
+            // 与父级对比，决定是否需要 wrap <strong>/<em>/<u> 让 PPTist 富文本编辑器识别。
+            const effectiveFill = node.fill !== undefined && node.fill !== null ? node.fill : parentFill;
+            const effectiveFontStyle = node.fontStyle !== undefined && node.fontStyle !== null ? node.fontStyle : parentFontStyle;
+            const effectiveFontWeight = node.fontWeight !== undefined && node.fontWeight !== null ? node.fontWeight : parentFontWeight;
+            const effectiveTextDecoration = node.textDecoration !== undefined && node.textDecoration !== null ? node.textDecoration : parentTextDecoration;
+            // PPTist 的 strong mark parse 规则（prosemirror-schema-basic/src/schema-basic.ts:138-149）：
+            //   {style: 'font-weight', getAttrs: (value) => /^(bold(er)?|[5-9]\d{2,})$/.test(value) && null}
+            // 因此 500/600/700/800/900/bold/bolder 都视作 bold；用 <strong> 包裹保证 PPTist 切到 strong mark。
+            const isBoldLike = (v) => {
+                if (v === 'bold' || v === 'bolder')
+                    return true;
+                if (typeof v === 'string')
+                    return /^[5-9]\d{2}$/.test(v);
+                if (typeof v === 'number')
+                    return v >= 500;
+                return false;
+            };
+            const needStrong = isBoldLike(effectiveFontWeight) && !isBoldLike(parentFontWeight);
+            const needEm = (effectiveFontStyle === 'italic' || effectiveFontStyle === 'oblique')
+                && parentFontStyle !== 'italic' && parentFontStyle !== 'oblique';
+            const needUnderline = effectiveTextDecoration && /underline/.test(String(effectiveTextDecoration))
+                && !(parentTextDecoration && /underline/.test(String(parentTextDecoration)));
+            // 当父级没有 span 包装时我们需要创建 span
+            // 或者当文本片段的样式与父级不同时也需要创建 span
+            // 注意：font-family 不再作为 needSpan 条件（统一忽略）
+            const needSpan = parentTag !== 'span' || (effectiveFill !== parentFill ||
+                effectiveFontStyle !== parentFontStyle ||
+                effectiveFontWeight !== parentFontWeight ||
+                effectiveTextDecoration !== parentTextDecoration);
+            let inner;
+            if (!needSpan) {
+                inner = escapeHtml(node.content);
+            }
+            else {
+                const spanStyle = buildSpanStyle({
+                    fontSize: parentFontSize,
+                    fill: effectiveFill,
+                    fontStyle: effectiveFontStyle,
+                    fontWeight: effectiveFontWeight,
+                    textDecoration: effectiveTextDecoration,
+                });
+                inner = '<span style="' + spanStyle + '">' + escapeHtml(node.content) + '</span>';
+            }
+            if (needUnderline)
+                inner = '<u>' + inner + '</u>';
+            if (needEm)
+                inner = '<em>' + inner + '</em>';
+            if (needStrong)
+                inner = '<strong>' + inner + '</strong>';
+            html += inner;
         }
         else {
             // ElementNode: 子级如果无 fontSize 继承父级，否则应用 scaleY 缩放
             const effectiveFontSize = node.fontSize !== null
                 ? node.fontSize * scaleY
                 : parentFontSize; // 继承父级（已缩放）
-            const needSpan = node.tag === 'span' && Math.abs(effectiveFontSize - parentFontSize) > 0.01;
+            const effectiveFill = node.fill !== null ? node.fill : parentFill;
+            const effectiveFontStyle = node.fontStyle ?? parentFontStyle;
+            const effectiveFontWeight = node.fontWeight ?? parentFontWeight;
+            const effectiveTextDecoration = node.textDecoration ?? parentTextDecoration;
+            // 注意：font-family 不再作为 needSpan 条件（统一忽略）
+            const needSpan = node.tag === 'span' && (Math.abs(effectiveFontSize - parentFontSize) > 0.01 ||
+                effectiveFill !== parentFill ||
+                effectiveFontStyle !== parentFontStyle ||
+                effectiveFontWeight !== parentFontWeight ||
+                effectiveTextDecoration !== parentTextDecoration);
             if (node.tag === 'span') {
-                // span: 只有 font-size 与父级不同时才需要 span 包装
+                // span: 样式与父级不同时才需要 span 包装
                 if (needSpan) {
-                    html += `<span style="font-size: ${effectiveFontSize}px">`;
+                    const spanStyle = buildSpanStyle({
+                        fontSize: effectiveFontSize,
+                        fill: effectiveFill,
+                        fontStyle: effectiveFontStyle,
+                        fontWeight: effectiveFontWeight,
+                        textDecoration: effectiveTextDecoration,
+                    });
+                    html += '<span style="' + spanStyle + '">';
                 }
-                html += serializeRichText(node.children, effectiveFontSize, scaleY, node.tag);
+                html += serializeRichText(node.children, effectiveFontSize, scaleY, node.tag, effectiveFill, parentFontFamily, effectiveFontStyle, effectiveFontWeight, effectiveTextDecoration);
                 if (needSpan) {
                     html += '</span>';
                 }
             }
             else {
-                // sub/sup: 总是需要标签包裹，但子元素如果是 inline text 不需要额外 span
-                html += `<${node.tag} style="font-size: ${effectiveFontSize}px">`;
-                html += serializeRichText(node.children, effectiveFontSize, scaleY, node.tag);
-                html += `</${node.tag}>`;
+                // sub/sup: 总是需要标签包裹
+                const spanStyle = buildSpanStyle({
+                    fontSize: effectiveFontSize,
+                    fill: effectiveFill,
+                    fontStyle: effectiveFontStyle,
+                    fontWeight: effectiveFontWeight,
+                    textDecoration: effectiveTextDecoration,
+                });
+                html += '<' + node.tag + ' style="' + spanStyle + '">';
+                html += serializeRichText(node.children, effectiveFontSize, scaleY, node.tag, effectiveFill, parentFontFamily, effectiveFontStyle, effectiveFontWeight, effectiveTextDecoration);
+                html += '</' + node.tag + '>';
             }
         }
     }
@@ -587,13 +658,25 @@ function escapeHtml(str) {
  * @param element - SVG 元素
  * @param parentFontSize - 父级原始 font-size（未缩放）
  * @param scaleY - 缩放比例
+ * @param parentFontFamily - 父级 font-family
+ * @param parentFontWeight - 父级 font-weight（已 resolved，如 'bold'/'600'/'normal'）
+ * @param parentFontStyle - 父级 font-style（已 resolved，如 'italic'/'normal'）
+ * @param parentTextDecoration - 父级 text-decoration（已 resolved）
  * Returns both the HTML content string and plain text for measurement.
  */
-function buildTextContentFromElement(element, parentFontSize, scaleY) {
+function buildTextContentFromElement(element, parentFontSize, scaleY, parentFontFamily, parentFontWeight, parentFontStyle, parentTextDecoration) {
     // 父级 fontSize 需要缩放
     const scaledParentFontSize = parentFontSize * scaleY;
-    const nodes = buildRichTextAST(element, parentFontSize);
-    const html = serializeRichText(nodes, scaledParentFontSize, scaleY);
+    // 从 element 获取父级 fill 颜色
+    const parentFill = element.attrs.fill || null;
+    // 如果没有显式传入 parentFontFamily，从 element 获取
+    const effectiveParentFontFamily = parentFontFamily ?? element.attrs['font-family'] ?? null;
+    // 父级 font-weight/style/decoration 取调用方传入（调用方负责基于 text 元素自身属性 resolve）
+    const effectiveParentFontWeight = parentFontWeight ?? null;
+    const effectiveParentFontStyle = parentFontStyle ?? null;
+    const effectiveParentTextDecoration = parentTextDecoration ?? null;
+    const nodes = buildRichTextAST(element, parentFontSize, effectiveParentFontFamily, parentFill, effectiveParentFontWeight, effectiveParentFontStyle, effectiveParentTextDecoration);
+    const html = serializeRichText(nodes, scaledParentFontSize, scaleY, null, parentFill, effectiveParentFontFamily, effectiveParentFontStyle, effectiveParentFontWeight, effectiveParentTextDecoration);
     const text = extractPlainText(nodes);
     return { html, text };
 }
@@ -618,9 +701,10 @@ function hasLineBreakTspans(element) {
  * Extract tspan elements with calculated positions for multiline text.
  * Position calculation based on parent text x/y plus each tspan's x and dy.
  */
-function extractTspansWithPosition(element, baseLeft, baseTop, baseFontSize, scaleX = 1, scaleY = 1, parentSvgX) {
+function extractTspansWithPosition(element, baseLeft, baseTop, baseFontSize, scaleX = 1, scaleY = 1, parentSvgX, baseFontFamily, parentFontWeight, parentFontStyle, parentTextDecoration) {
     const results = [];
     const fontSize = parseFloat(String(element.attrs['font-size'] || baseFontSize));
+    const fontFamily = element.attrs['font-family'] || baseFontFamily;
     // The parent's x in SVG coordinates (before transform)
     const parentX = parentSvgX ?? 0;
     // Process tspan children
@@ -630,12 +714,16 @@ function extractTspansWithPosition(element, baseLeft, baseTop, baseFontSize, sca
         const text = element.text || '';
         const scaledFontSize = fontSize * scaleY;
         if (text) {
+            // 修复 text-font-weight-loss-rootcause.md：复用 buildTextContentFromElement 而非手拼 span，
+            // 这样 element 自身的 font-weight/font-style/text-decoration 等样式都会被纳入 AST 并被序列化输出
+            //（之前手拼路径会全部丢失，参见 .planning/debug/text-font-weight-loss-rootcause.md）。
+            const { html: tspanHtml, text: tspanText } = buildTextContentFromElement(element, fontSize, scaleY, fontFamily, parentFontWeight, parentFontStyle, parentTextDecoration);
             results.push({
                 left: baseLeft,
                 top: baseTop,
                 fontSize,
-                content: text,
-                htmlContent: `<span style="font-size: ${scaledFontSize}px">${text}</span>`,
+                content: tspanText || text,
+                htmlContent: tspanHtml,
             });
         }
         return results;
@@ -660,7 +748,10 @@ function extractTspansWithPosition(element, baseLeft, baseTop, baseFontSize, sca
             : fontSize;
         const scaledFontSize = tspanFontSize * scaleY;
         // Build HTML content for this tspan (preserve baseline-shift styling)
-        const { html: tspanHtml, text: tspanText } = buildTextContentFromElement(tspan, tspanFontSize, scaleY);
+        // Pass parent's fontFamily/fontWeight/fontStyle/decoration so tspan can inherit them.
+        // text-font-weight-loss-rootcause.md：父级 isBold 信息从此处传递，避免 transformTextElement 与
+        // serializeRichText 重复包 <strong>。
+        const { html: tspanHtml, text: tspanText } = buildTextContentFromElement(tspan, tspanFontSize, scaleY, fontFamily, parentFontWeight, parentFontStyle, parentTextDecoration);
         // Update position based on dy (relative to previous line in SVG coordinate space)
         // Note: In SVG, dy is the displacement from the previous line's baseline position
         // dy="0" means same baseline as previous line
@@ -937,7 +1028,12 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
             const viewBoxH = transformed.height / Math.abs(scaleY); // = original_bbox.height
             const finalWidth = viewBoxW * Math.abs(groupScaleX) * Math.abs(scaleX);
             const finalHeight = viewBoxH * Math.abs(groupScaleY) * Math.abs(scaleY);
-            const pathD = (0, path_utils_1.toAbsolutePath)(d);
+            // Offset path coordinates so it starts from (0, 0) relative to its bounding box.
+            // This ensures the path draws from the container's top-left corner.
+            const absolutePathD = (0, path_utils_1.toAbsolutePath)(d);
+            const offsetX = transformed.left / scaleX; // = original bbox.left
+            const offsetY = transformed.top / scaleY; // = original bbox.top
+            const pathD = (0, path_utils_1.offsetPathCoords)(absolutePathD, offsetX, offsetY);
             const result = {
                 id,
                 type: 'shape',
@@ -1117,15 +1213,19 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
             const y1 = Number(element.attrs.y1) || 0;
             const x2 = Number(element.attrs.x2) || 0;
             const y2 = Number(element.attrs.y2) || 0;
-            // For lines WITHOUT transform: start/end are [0,0] to [width,0] relative to bounding box
+            // For lines WITHOUT transform: start/end are relative to bounding box origin
+            // Use actual coordinate differences (x2-x1, y2-y1) which works for any line orientation
             // For lines WITH transform: need to compute relative positions using transform offsets
             let startRelX, startRelY, endRelX, endRelY;
             if ((transform.translateX || 0) === 0 && (transform.translateY || 0) === 0 && (transform.scaleX || 1) === 1 && (transform.scaleY || 1) === 1) {
-                // No transform - simple relative coordinates
-                startRelX = 0;
-                startRelY = 0;
-                endRelX = width;
-                endRelY = 0;
+                // No transform - compute from actual coordinates
+                // Note: coords.left = min(x1,x2), coords.top = min(y1,y2) via mapCoordinates
+                // So (x1 - coords.left) = horizontal offset from bounding box origin
+                // (y1 - coords.top) = vertical offset from bounding box origin
+                startRelX = (x1 - coords.left) * scaleX;
+                startRelY = (y1 - coords.top) * scaleY;
+                endRelX = (x2 - coords.left) * scaleX;
+                endRelY = (y2 - coords.top) * scaleY;
             }
             else {
                 // With transform - compute relative positions from transformed coordinates
@@ -1156,8 +1256,14 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
             const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'));
             result.width = strokeWidth || 1;
             // D-19: stroke color/opacity handling
-            const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity']);
-            result.color = color;
+            // D-??: stroke="url(#id)" resolved to gradient at parse time
+            if (element.attrs.gradient) {
+                result.gradient = element.attrs.gradient;
+            }
+            else {
+                const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity']);
+                result.color = color;
+            }
             // D-23: groupId propagation from parent g element
             if (groupId) {
                 result.groupId = groupId;
@@ -1165,8 +1271,14 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
             return result;
         }
         case 'text': {
-            const transformed = (0, apply_transform_1.applyTransform)(left, top, width, height, transform);
-            const { rotate } = transformed;
+            // 修复 text-rotation-not-processed.md：text 分支不再依赖 applyTransform(...).rotate，
+            // 因为 applyTransform 在 transform.rotateCX/rotateCY 存在时把 rotate 重置为 0 并把 bbox
+            // UL/LR "藏进" 坐标里，这会导致 SVG 文本旋转信息在 PPTTextElement 中被完全丢失。
+            // 这里采用与 rect/circle/ellipse 不同的策略：
+            //   1. 在未旋转坐标系里计算 textLeft/textTop/textWidth/textHeight（含 text-anchor 偏移 + 基线补偿）
+            //   2. 当 transform.rotateCX/rotateCY 存在时，对最终的 UL/LR 应用 applyRotateWithCenter，
+            //      得到旋转后 bbox 的 AABB
+            //   3. 显式写 rotate: transform.rotateDeg ?? 0 让 PPTist 实际旋转渲染文本
             // Force Microsoft YaHei for all text (width calculation and output)
             const fontFamily = element.attrs['font-family'] || 'Microsoft YaHei';
             const fontSize = Number(String(element.attrs["font-size"] || "16")) || 16;
@@ -1176,58 +1288,122 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
             const fillOpacity = element.attrs['fill-opacity'];
             const hasRgba = fillOpacity && parseFloat(String(fillOpacity)) < 1;
             const fontWeight = element.attrs['font-weight'];
-            const isBold = fontWeight === 'bold' || fontWeight === '600' || fontWeight === '700';
+            // 修复 text-font-weight-loss-rootcause.md：
+            // 顶层 <strong>/<em> 包裹需要覆盖 PPTist prosemirror-schema-basic strong mark 的全部解析范围
+            // (bold/bolder/500-900)，否则 font-weight="800" 等数字值在 SVG 顶层 text 上仍然丢失。
+            // 注意：svg-parser 配 parseAttributeValue:true 会把 "800" 解析为 number 800（不是字符串 "800"），
+            // 需要 String() 归一化再做严格相等比较。
+            const fontWeightStr = String(fontWeight ?? '');
+            const isBold = fontWeightStr === 'bold' || fontWeightStr === 'bolder' ||
+                fontWeightStr === '500' || fontWeightStr === '600' || fontWeightStr === '700' ||
+                fontWeightStr === '800' || fontWeightStr === '900';
             const fontStyle = element.attrs['font-style'];
-            const isItalic = fontStyle === 'italic';
-            // D-??: Build content HTML with baseline-shift support (sup/sub tags)
+            const isItalic = fontStyle === 'italic' || fontStyle === 'oblique';
+            // 修复 text-font-weight-loss-rootcause.md：单行路径（无 tspan 或 inline text 子节点）下，
+            // TextNode 自身已带 font-weight/style/decoration，serializeRichText 会基于 effectiveFontWeight !== null
+            // 决定是否包 <strong>/<em>/<u>。这里不传 parent，让 TextNode 独立判断（避免与外层 isBold 重复包）。
+            const textDecorationAttr = element.attrs['text-decoration'];
+            const effectiveParentFontWeight = isBold ? (fontWeight && String(fontWeight)) : 'normal';
+            const effectiveParentFontStyle = isItalic ? (fontStyle && String(fontStyle)) : 'normal';
+            const effectiveParentTextDecoration = textDecorationAttr && /underline/.test(String(textDecorationAttr))
+                ? String(textDecorationAttr)
+                : 'none';
             const { html: contentHtml, text: content } = buildTextContentFromElement(element, fontSize, scaleY);
             // Measure text using resvg-js with fallback to heuristic
             let textWidth;
             let textHeight;
             let textTop;
-            try {
-                const textAnchorAttr = element.attrs['text-anchor'];
-                const xAttr = element.attrs['x'] ? Number(element.attrs['x']) : undefined;
-                const measurementInput = {
-                    content,
-                    fontFamily,
-                    fontSize,
-                    fontWeight: isBold ? 'bold' : 'normal',
-                    fontStyle: isItalic ? 'italic' : 'normal',
-                    letterSpacing,
-                    fill: fillColor,
-                    textAnchor: textAnchorAttr,
-                    x: xAttr,
-                };
-                const measured = await (0, text_measurer_1.measureTextElement)(measurementInput);
-                // Add 25px safety margin to prevent text wrapping due to measurement discrepancy
-                const TEXT_WIDTH_SAFETY_MARGIN = 25;
-                textWidth = measured.width * scaleX + TEXT_WIDTH_SAFETY_MARGIN;
-                textHeight = measured.height * scaleY;
-                // SVG text y is baseline; convert to top by subtracting ascent distance
-                // FIX: Use fixed 0.8 ascent ratio instead of measured.y (which varies by glyph shape)
-                // This ensures same y coordinate → same textTop regardless of content
-                const ASCENT_RATIO = 0.8;
-                textTop = transformed.top - fontSize * ASCENT_RATIO * scaleY;
+            // Phase 11: 直通 SVG text 自带的 width / height 属性，跳过 resvg-js 测量
+            // 仅当 width 和 height 都解析为正数时生效；其他情况继续走测量路径
+            const rawTextWidth = element.attrs.width;
+            const rawTextHeight = element.attrs.height;
+            const parsedTextWidth = rawTextWidth !== undefined ? parseFloat(String(rawTextWidth)) : NaN;
+            const parsedTextHeight = rawTextHeight !== undefined ? parseFloat(String(rawTextHeight)) : NaN;
+            const usePassthrough = Number.isFinite(parsedTextWidth) && parsedTextWidth > 0
+                && Number.isFinite(parsedTextHeight) && parsedTextHeight > 0;
+            if (usePassthrough) {
+                textWidth = parsedTextWidth * scaleX + constants_1.TEXT_WIDTH_SAFETY_MARGIN;
+                textHeight = parsedTextHeight * scaleY;
+                // 没有 measured.y，使用 FALLBACK_ASCENT_RATIO 与 catch 块保持一致
+                textTop = top - fontSize * constants_1.FALLBACK_ASCENT_RATIO * scaleY;
             }
-            catch {
-                // D-35: MEAS-06 fallback: heuristic estimate when resvg-js measurement fails
-                textWidth = fontSize * content.length * 0.6;
-                textHeight = scaledFontSize;
-                // Fallback: SVG y is baseline, convert to top using heuristic (ascent ≈ 0.8 * fontSize)
-                // Note: transformed.top is already scaled, so subtract scaled ascent directly
-                textTop = transformed.top - fontSize * 0.8 * scaleY;
+            else {
+                try {
+                    const textAnchorAttr = element.attrs['text-anchor'];
+                    const xAttr = element.attrs['x'] ? Number(element.attrs['x']) : undefined;
+                    const measurementInput = {
+                        content,
+                        // 修复 text-in-circle-vertical-position-v3.md：测量字体必须与 PPTist 渲染字体一致。
+                        // SVG 原字体（Georgia/Arial 等）只是浏览器里的视觉，PPTist 实际渲染用思源，
+                        // 用原字体测量会导致 bbox 尺寸和 ascent 跟实际渲染不匹配，圆形内数字错位。
+                        fontFamily: 'Source Han Sans CN Regular',
+                        fontSize,
+                        fontWeight: isBold ? 'bold' : 'normal',
+                        fontStyle: isItalic ? 'italic' : 'normal',
+                        letterSpacing,
+                        fill: fillColor,
+                        textAnchor: textAnchorAttr,
+                        x: xAttr,
+                    };
+                    const measured = await (0, text_measurer_1.measureTextElement)(measurementInput);
+                    // Add 25px safety margin to prevent text wrapping due to measurement discrepancy
+                    textWidth = measured.width * scaleX + constants_1.TEXT_WIDTH_SAFETY_MARGIN;
+                    textHeight = measured.height * scaleY;
+                    // SVG text y is baseline; convert to top by subtracting the ascent measured with
+                    // the target render font (思源). Using a fixed 0.8 ratio mismatched fonts whose
+                    // actual ascent ratio differs (Georgia 16 = 0.54, Arial 13 = 0.72, 思源 = 0.76).
+                    const measuredAscent = fontSize - measured.y;
+                    textTop = top - measuredAscent * scaleY;
+                }
+                catch {
+                    // D-35: MEAS-06 fallback: heuristic estimate when resvg-js measurement fails.
+                    // 思源的实际 ascent ratio 是 0.764，0.8 只是历史上用的近似值；用 0.764 跟实际更接近。
+                    textWidth = fontSize * content.length * 0.6;
+                    textHeight = scaledFontSize;
+                    // Fallback: SVG y is baseline, convert to top using 思源 heuristic ascent ratio.
+                    // Note: top is already scaled, so subtract scaled ascent directly.
+                    textTop = top - fontSize * constants_1.FALLBACK_ASCENT_RATIO * scaleY;
+                }
+            }
+            // text-anchor="middle" 时对 top 加常量补偿以修正视觉对齐
+            // 单行分支直接使用 textTop；多行分支通过 baseTop 传给每个 tspan，偏移自动传播
+            if (element.attrs['text-anchor'] === 'middle') {
+                textTop += constants_1.TEXT_ANCHOR_MIDDLE_TOP_OFFSET;
             }
             // X轴: 考虑 text-anchor 调整 left
             // SVG text x 对于 middle/end 是参考点，需要偏移
+            // 修复 text-rotation-not-processed.md：在未旋转坐标系里做 text-anchor 偏移，
+            // 因为后续要保持 bbox 自然宽高，不能用 transformed.left（已旋转）做偏移。
             const textAnchorForLeft = element.attrs['text-anchor'];
-            let textLeft = transformed.left;
+            let textLeft = left;
             if (textAnchorForLeft === 'middle') {
-                textLeft = transformed.left - textWidth / 2;
+                textLeft = left - textWidth / 2;
             }
             else if (textAnchorForLeft === 'end') {
-                textLeft = transformed.left - textWidth;
+                textLeft = left - textWidth;
             }
+            // 修复 text-rotation-not-processed.md（已 reopen，2026-08-05 16:30）：
+            // 之前用 applyRotateWithCenter 对 bbox UL/LR 旋转并取 AABB，但 PPTist 的 rotate 语义
+            // 是"bbox 不动 + 整体绕元素中心旋转"，AABB 方案让 width/height 被对调，长字符串塞不进
+            // 窄 bbox 导致视觉上仍像水平铺开。正确做法：
+            //   1. 保持 textWidth/textHeight 为未旋转尺寸（自然文本宽高）
+            //   2. 当 transform.rotateCX/rotateCY 存在时，把 bbox 平移到"bbox 中心 = 旋转中心 (SVG→canvas 缩放后)"
+            //      这样 PPTist 以 bbox 中心为枢轴旋转元素，自然等价于 SVG 绕 (rotateCX, rotateCY) 旋转
+            //   3. rotate 字段照旧透传 transform.rotateDeg，让 PPTist 真正做视觉旋转
+            if (transform.rotateCX !== undefined && transform.rotateCY !== undefined) {
+                const scaledCX = transform.rotateCX * scaleX;
+                const scaledCY = transform.rotateCY * scaleY;
+                const bboxCenterX = textLeft + textWidth / 2;
+                const bboxCenterY = textTop + textHeight / 2;
+                const offsetX = scaledCX - bboxCenterX;
+                const offsetY = scaledCY - bboxCenterY;
+                textLeft += offsetX;
+                textTop += offsetY;
+            }
+            // 修复 text-rotation-not-processed.md：直接把 transform.rotateDeg 透传到 PPTTextElement。
+            // PPTist 期望 rotate 字段语义是"整体绕元素中心旋转"；bbox 已经把中心对齐到 SVG 旋转中心，
+            // 因此 PPTist 旋转后文字会绕 SVG 旋转中心显示，与 SVG 视觉一致。
+            const finalRotate = transform.rotateDeg ?? 0;
             // D-09: text-anchor → text-align on <p> style
             const textAnchor = element.attrs['text-anchor'];
             let textAlign = '';
@@ -1248,11 +1424,13 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
             // This handles simple text elements without tspan children
             const hasHtmlTags = contentHtml.includes('<');
             const innerSpan = hasHtmlTags ? contentHtml : `<span style="${spanStyle}">${contentHtml}</span>`;
-            // ProseMirror marks order: strong > em > fontsize > fontname > forecolor > backcolor > underline > strikethrough
+            // 修复 text-font-weight-loss-rootcause.md：顶层包 <strong>/<em>/<u>，但仅当 innerSpan 还没有相关 mark 时
+            // （避免 <strong><strong>...</strong></strong> 嵌套）。空 text 元素（没有子节点、没 inline text）这种情况
+            // innerSpan 不含 <strong>，仍需要顶层包裹以保留顶层 font-weight/font-style 样式。
             let weightedContent = innerSpan;
-            if (isItalic)
+            if (isItalic && !innerSpan.includes('<em>'))
                 weightedContent = `<em>${weightedContent}</em>`;
-            if (isBold)
+            if (isBold && !innerSpan.includes('<strong>'))
                 weightedContent = `<strong>${weightedContent}</strong>`;
             const richContent = `<p${pStyle ? ` style="${pStyle}"` : ''}>${weightedContent}</p>`;
             // D-07: writing-mode vertical-rl/vertical-lr → vertical: true
@@ -1262,7 +1440,7 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
             const fixedHeight = !!element.attrs.height;
             // D-26: inset=[0,0,0,0] to avoid 10px default padding causing coordinate offset
             const baseResult = {
-                rotate,
+                rotate: finalRotate,
                 defaultFontName: 'Source Han Sans CN Regular',
                 defaultColor: colorToHex(fillColor) || '#000000',
                 lineHeight: 1,
@@ -1282,13 +1460,14 @@ async function transformElement(element, viewBox, index, targetCanvas = [1000, 5
                 // Multiline text: extract each tspan as separate text element
                 // Pass parent text's SVG x coordinate so tspan positions can be calculated correctly
                 const parentSvgX = parseFloat(String(element.attrs['x'] || '0'));
-                const tspanElements = extractTspansWithPosition(element, textLeft, textTop, fontSize, scaleX, scaleY, parentSvgX);
+                const tspanElements = extractTspansWithPosition(element, textLeft, textTop, fontSize, scaleX, scaleY, parentSvgX, fontFamily, effectiveParentFontWeight, effectiveParentFontStyle, effectiveParentTextDecoration);
                 const results = tspanElements.map((tspan, idx) => {
-                    // Apply text-level strong/em styles to each line's content
+                    // 修复 text-font-weight-loss-rootcause.md：multiline 路径同样需要保留顶层 <strong>/<em>，
+                    // 但仅当 lineContent 不含相应 mark 时才包（避免嵌套）。
                     let lineContent = tspan.htmlContent;
-                    if (isItalic)
+                    if (isItalic && !lineContent.includes('<em>'))
                         lineContent = `<em>${lineContent}</em>`;
-                    if (isBold)
+                    if (isBold && !lineContent.includes('<strong>'))
                         lineContent = `<strong>${lineContent}</strong>`;
                     const tspanRichContent = `<p${pStyle ? ` style="${pStyle}"` : ''}>${lineContent}</p>`;
                     const result = {
@@ -1423,7 +1602,8 @@ async function transformToPPTElement(ast, targetCanvas = [1000, 562.5]) {
         // Accumulate parent transform: child's transform is composed with parent's
         const effectiveTransform = composeTransforms(parentTransform, element.attrs.transform);
         // D-38: Accumulate inherited visual attributes from parent g elements
-        // Inheritable attributes: fill, stroke, stroke-width, fill-opacity, stroke-opacity
+        // Inheritable attributes: fill, stroke, stroke-width, fill-opacity, stroke-opacity,
+        // text-anchor, font-family
         const effectiveInheritedAttrs = inheritedAttrs ? { ...inheritedAttrs } : {};
         if (isG) {
             // g element's fill/stroke attributes are inherited by its children
@@ -1437,6 +1617,16 @@ async function transformToPPTElement(ast, targetCanvas = [1000, 562.5]) {
                 effectiveInheritedAttrs['fill-opacity'] = String(element.attrs['fill-opacity']);
             if (element.attrs['stroke-opacity'] !== undefined)
                 effectiveInheritedAttrs['stroke-opacity'] = String(element.attrs['stroke-opacity']);
+            // D-?? (cover-tags-text-anchor-middle): SVG text-anchor and font-family
+            // are inheritable per SVG spec; without propagation, child <text> without
+            // its own text-anchor / font-family loses the parent's value and the
+            // middle-anchor left offset (transformed.left - textWidth/2) is skipped.
+            if (element.attrs['text-anchor'] !== undefined) {
+                effectiveInheritedAttrs['text-anchor'] = String(element.attrs['text-anchor']);
+            }
+            if (element.attrs['font-family'] !== undefined) {
+                effectiveInheritedAttrs['font-family'] = String(element.attrs['font-family']);
+            }
         }
         // D-29: Check if this is a group with all-path children for potential merge
         if (isG) {
@@ -1506,6 +1696,15 @@ async function transformToPPTElement(ast, targetCanvas = [1000, 562.5]) {
                     }
                     if (child.attrs['stroke-opacity'] === undefined && effectiveInheritedAttrs['stroke-opacity'] !== undefined) {
                         mergedAttrs['stroke-opacity'] = effectiveInheritedAttrs['stroke-opacity'];
+                    }
+                    // D-?? (cover-tags-text-anchor-middle): inherit text-anchor and font-family
+                    // from parent g so that middle-anchor left offset and font selection
+                    // are honored on child <text>.
+                    if (child.attrs['text-anchor'] === undefined && effectiveInheritedAttrs['text-anchor'] !== undefined) {
+                        mergedAttrs['text-anchor'] = effectiveInheritedAttrs['text-anchor'];
+                    }
+                    if (child.attrs['font-family'] === undefined && effectiveInheritedAttrs['font-family'] !== undefined) {
+                        mergedAttrs['font-family'] = effectiveInheritedAttrs['font-family'];
                     }
                     // REF-01: Pass effectiveTransform to mapCoordinates instead of mutating child.attrs.transform
                     // D-38: Use mergedAttrs instead of child.attrs for fill/stroke inheritance

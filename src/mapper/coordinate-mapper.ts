@@ -20,7 +20,8 @@ export function parseGradientTransform(transform: string | undefined): number {
   if (!transform) return 0
 
   // rotate(N) or rotate(N, cx, cy) — extract degrees directly
-  const rotateMatch = transform.match(/rotate\(\s*([\d.-]+)(?:[,\s]+([\d.-]+),?\s*([\d.-]+))?\s*\)/)
+  // 修复 text-rotation-not-processed.md：rotate 值支持负数（[-]?[\d.]+）。
+  const rotateMatch = transform.match(/rotate\(\s*(-?[\d.-]+)(?:[,\s]+(-?[\d.-]+),?\s*(-?[\d.-]+))?\s*\)/)
   if (rotateMatch) {
     return parseFloat(rotateMatch[1])
   }
@@ -98,7 +99,10 @@ export function parseTransform(transform: string | undefined): TransformResult {
   }
 
   // Match last rotate command (only one rotation is meaningful)
-  const rotateMatches = [...transform.matchAll(/rotate\(\s*([\d.]+)(?:[,\s]+([\d.]+),?\s*([\d.]+))?\s*\)/g)]
+  // 修复 text-rotation-not-processed.md：rotate 值支持负数和小数（之前 [\\d.]+ 不允许 -，
+  // 导致 "rotate(-90, 18, 355)" 的 rotateDeg=0、rotateCX/rotateCY=undefined）。
+  // 与 translate/scale 的字符类保持一致：[-+]?\d*\.?\d+
+  const rotateMatches = [...transform.matchAll(/rotate\(\s*(-?[\d.]+)(?:[,\s]+(-?[\d.]+),?\s*(-?[\d.]+))?\s*\)/g)]
   if (rotateMatches.length > 0) {
     const lastMatch = rotateMatches[rotateMatches.length - 1]
     result.rotateDeg = parseFloat(lastMatch[1])

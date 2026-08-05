@@ -1472,8 +1472,14 @@ export async function transformElement(
     }
 
     case 'text': {
-      const transformed = applyTransform(left, top, width, height, transform)
-      const { rotate } = transformed
+      // 修复 text-rotation-not-processed.md：text 分支不再依赖 applyTransform(...).rotate，
+      // 因为 applyTransform 在 transform.rotateCX/rotateCY 存在时把 rotate 重置为 0 并把 bbox
+      // UL/LR "藏进" 坐标里，这会导致 SVG 文本旋转信息在 PPTTextElement 中被完全丢失。
+      // 这里采用与 rect/circle/ellipse 不同的策略：
+      //   1. 在未旋转坐标系里计算 textLeft/textTop/textWidth/textHeight（含 text-anchor 偏移 + 基线补偿）
+      //   2. 当 transform.rotateCX/rotateCY 存在时，对最终的 UL/LR 应用 applyRotateWithCenter，
+      //      得到旋转后 bbox 的 AABB
+      //   3. 显式写 rotate: transform.rotateDeg ?? 0 让 PPTist 实际旋转渲染文本
       // Force Microsoft YaHei for all text (width calculation and output)
       const fontFamily = element.attrs['font-family'] || 'Microsoft YaHei'
       const fontSize = Number(String(element.attrs["font-size"] || "16")) || 16
@@ -1523,7 +1529,7 @@ export async function transformElement(
         textWidth = parsedTextWidth * scaleX + TEXT_WIDTH_SAFETY_MARGIN
         textHeight = parsedTextHeight * scaleY
         // 没有 measured.y，使用 FALLBACK_ASCENT_RATIO 与 catch 块保持一致
-        textTop = transformed.top - fontSize * FALLBACK_ASCENT_RATIO * scaleY
+        textTop = top - fontSize * FALLBACK_ASCENT_RATIO * scaleY
       } else {
         try {
           const textAnchorAttr = element.attrs['text-anchor']
@@ -1550,15 +1556,15 @@ export async function transformElement(
           // the target render font (思源). Using a fixed 0.8 ratio mismatched fonts whose
           // actual ascent ratio differs (Georgia 16 = 0.54, Arial 13 = 0.72, 思源 = 0.76).
           const measuredAscent = fontSize - measured.y
-          textTop = transformed.top - measuredAscent * scaleY
+          textTop = top - measuredAscent * scaleY
         } catch {
           // D-35: MEAS-06 fallback: heuristic estimate when resvg-js measurement fails.
           // 思源的实际 ascent ratio 是 0.764，0.8 只是历史上用的近似值；用 0.764 跟实际更接近。
           textWidth = fontSize * content.length * 0.6
           textHeight = scaledFontSize
           // Fallback: SVG y is baseline, convert to top using 思源 heuristic ascent ratio.
-          // Note: transformed.top is already scaled, so subtract scaled ascent directly.
-          textTop = transformed.top - fontSize * FALLBACK_ASCENT_RATIO * scaleY
+          // Note: top is already scaled, so subtract scaled ascent directly.
+          textTop = top - fontSize * FALLBACK_ASCENT_RATIO * scaleY
         }
       }
 
@@ -1570,13 +1576,39 @@ export async function transformElement(
 
       // X轴: 考虑 text-anchor 调整 left
       // SVG text x 对于 middle/end 是参考点，需要偏移
+      // 修复 text-rotation-not-processed.md：在未旋转坐标系里做 text-anchor 偏移，
+      // 因为后续要保持 bbox 自然宽高，不能用 transformed.left（已旋转）做偏移。
       const textAnchorForLeft = element.attrs['text-anchor']
-      let textLeft = transformed.left
+      let textLeft = left
       if (textAnchorForLeft === 'middle') {
-        textLeft = transformed.left - textWidth / 2
+        textLeft = left - textWidth / 2
       } else if (textAnchorForLeft === 'end') {
-        textLeft = transformed.left - textWidth
+        textLeft = left - textWidth
       }
+
+      // 修复 text-rotation-not-processed.md（已 reopen，2026-08-05 16:30）：
+      // 之前用 applyRotateWithCenter 对 bbox UL/LR 旋转并取 AABB，但 PPTist 的 rotate 语义
+      // 是"bbox 不动 + 整体绕元素中心旋转"，AABB 方案让 width/height 被对调，长字符串塞不进
+      // 窄 bbox 导致视觉上仍像水平铺开。正确做法：
+      //   1. 保持 textWidth/textHeight 为未旋转尺寸（自然文本宽高）
+      //   2. 当 transform.rotateCX/rotateCY 存在时，把 bbox 平移到"bbox 中心 = 旋转中心 (SVG→canvas 缩放后)"
+      //      这样 PPTist 以 bbox 中心为枢轴旋转元素，自然等价于 SVG 绕 (rotateCX, rotateCY) 旋转
+      //   3. rotate 字段照旧透传 transform.rotateDeg，让 PPTist 真正做视觉旋转
+      if (transform.rotateCX !== undefined && transform.rotateCY !== undefined) {
+        const scaledCX = transform.rotateCX * scaleX
+        const scaledCY = transform.rotateCY * scaleY
+        const bboxCenterX = textLeft + textWidth / 2
+        const bboxCenterY = textTop + textHeight / 2
+        const offsetX = scaledCX - bboxCenterX
+        const offsetY = scaledCY - bboxCenterY
+        textLeft += offsetX
+        textTop += offsetY
+      }
+
+      // 修复 text-rotation-not-processed.md：直接把 transform.rotateDeg 透传到 PPTTextElement。
+      // PPTist 期望 rotate 字段语义是"整体绕元素中心旋转"；bbox 已经把中心对齐到 SVG 旋转中心，
+      // 因此 PPTist 旋转后文字会绕 SVG 旋转中心显示，与 SVG 视觉一致。
+      const finalRotate = transform.rotateDeg ?? 0
 
       // D-09: text-anchor → text-align on <p> style
       const textAnchor = element.attrs['text-anchor']
@@ -1614,7 +1646,7 @@ export async function transformElement(
 
       // D-26: inset=[0,0,0,0] to avoid 10px default padding causing coordinate offset
       const baseResult = {
-        rotate,
+        rotate: finalRotate,
         defaultFontName: 'Source Han Sans CN Regular',
         defaultColor: colorToHex(fillColor) || '#000000',
         lineHeight: 1,
@@ -1790,7 +1822,7 @@ export async function transformToPPTElement(
     viewBox: [number, number, number, number],
     currentGroupId?: string,
     parentTransform?: string,
-    inheritedAttrs?: { fill?: string; stroke?: string; 'stroke-width'?: string; 'fill-opacity'?: string; 'stroke-opacity'?: string },
+    inheritedAttrs?: { fill?: string; stroke?: string; 'stroke-width'?: string; 'fill-opacity'?: string; 'stroke-opacity'?: string; 'text-anchor'?: string; 'font-family'?: string },
   ) {
     const tag = element.type.toLowerCase()
 
@@ -1804,7 +1836,8 @@ export async function transformToPPTElement(
     const effectiveTransform = composeTransforms(parentTransform, element.attrs.transform)
 
     // D-38: Accumulate inherited visual attributes from parent g elements
-    // Inheritable attributes: fill, stroke, stroke-width, fill-opacity, stroke-opacity
+    // Inheritable attributes: fill, stroke, stroke-width, fill-opacity, stroke-opacity,
+    // text-anchor, font-family
     const effectiveInheritedAttrs: typeof inheritedAttrs = inheritedAttrs ? { ...inheritedAttrs } : {}
     if (isG) {
       // g element's fill/stroke attributes are inherited by its children
@@ -1813,6 +1846,16 @@ export async function transformToPPTElement(
       if (element.attrs['stroke-width'] !== undefined) effectiveInheritedAttrs['stroke-width'] = element.attrs['stroke-width']
       if (element.attrs['fill-opacity'] !== undefined) effectiveInheritedAttrs['fill-opacity'] = String(element.attrs['fill-opacity'])
       if (element.attrs['stroke-opacity'] !== undefined) effectiveInheritedAttrs['stroke-opacity'] = String(element.attrs['stroke-opacity'])
+      // D-?? (cover-tags-text-anchor-middle): SVG text-anchor and font-family
+      // are inheritable per SVG spec; without propagation, child <text> without
+      // its own text-anchor / font-family loses the parent's value and the
+      // middle-anchor left offset (transformed.left - textWidth/2) is skipped.
+      if (element.attrs['text-anchor'] !== undefined) {
+        effectiveInheritedAttrs['text-anchor'] = String(element.attrs['text-anchor'])
+      }
+      if (element.attrs['font-family'] !== undefined) {
+        effectiveInheritedAttrs['font-family'] = String(element.attrs['font-family'])
+      }
     }
 
     // D-29: Check if this is a group with all-path children for potential merge
@@ -1892,6 +1935,15 @@ export async function transformToPPTElement(
           }
           if (child.attrs['stroke-opacity'] === undefined && effectiveInheritedAttrs['stroke-opacity'] !== undefined) {
             mergedAttrs['stroke-opacity'] = effectiveInheritedAttrs['stroke-opacity']
+          }
+          // D-?? (cover-tags-text-anchor-middle): inherit text-anchor and font-family
+          // from parent g so that middle-anchor left offset and font selection
+          // are honored on child <text>.
+          if (child.attrs['text-anchor'] === undefined && effectiveInheritedAttrs['text-anchor'] !== undefined) {
+            mergedAttrs['text-anchor'] = effectiveInheritedAttrs['text-anchor']
+          }
+          if (child.attrs['font-family'] === undefined && effectiveInheritedAttrs['font-family'] !== undefined) {
+            mergedAttrs['font-family'] = effectiveInheritedAttrs['font-family']
           }
 
           // REF-01: Pass effectiveTransform to mapCoordinates instead of mutating child.attrs.transform
