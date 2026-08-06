@@ -131,8 +131,3 @@ main().catch((err) => {
   console.error(pc.red(`Fatal error: ${String(err)}`))
   process.exit(1)
 })
-
-export { run }
-function run(args: string[] = process.argv) {
-  cli.parse(args)
-}
