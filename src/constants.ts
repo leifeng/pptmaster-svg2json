@@ -53,7 +53,7 @@ export const TEXT_WIDTH_SAFETY_MARGIN = 25
 export const FALLBACK_ASCENT_RATIO = 0.764
 
 /** SVG `<text text-anchor="middle">` 转 PPTElement 时对 top 加的补偿（画布像素，默认 -10） */
-export const TEXT_ANCHOR_MIDDLE_TOP_OFFSET = -4
+export const TEXT_ANCHOR_MIDDLE_TOP_OFFSET = 0
 
 // =============================================================================
 // 命名颜色映射 (CSS named color → hex)
