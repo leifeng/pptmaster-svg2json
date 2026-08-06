@@ -3,6 +3,7 @@ import pc from 'picocolors'
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
 import { join, extname } from 'path'
 import { convert } from './index'
+import { verifyFontLoaded } from './font-validator'
 
 const cli = cac('svg2json')
 
@@ -64,6 +65,17 @@ async function processFile(filePath: string): Promise<{ success: boolean; output
 }
 
 async function main() {
+  // D-01: font validation gate — must run before any directory check,
+  // file read, or convert() call. A missing or invalid font must never
+  // reach the resvg-js measurement pipeline (where it would silently
+  // fall back to a built-in font and break width alignment with PPTist).
+  const v = verifyFontLoaded()
+  if (!v.ok) {
+    const detail = v.error ?? 'unknown font validation error'
+    console.error(pc.red(`Error: ${detail}`))
+    process.exit(1)
+  }
+
   // Error if --output used with directory input
   if (options.output && isDirectory(input)) {
     console.error(pc.red('Error: --output cannot be used with directory input (single file holds one result)'))
