@@ -1,7 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import * as fs from 'fs'
 import { resolve } from 'path'
-import { FONT_FILE, FONT_OPTIONS } from './constants'
+
+// Mock 'fs' so we can deterministically drive the file-existence branch
+// without touching real filesystem state. Other fs functions stay real via
+// importActual so we don't break unrelated helpers.
+vi.mock('fs', async () => {
+  const actual = await vi.importActual<typeof import('fs')>('fs')
+  return {
+    ...actual,
+    existsSync: vi.fn(),
+  }
+})
 
 // Mock the native Resvg class so we can drive failure branches without
 // depending on the actual @resvg/resvg-js WASM runtime in unit tests.
@@ -9,8 +18,10 @@ vi.mock('@resvg/resvg-js', () => ({
   Resvg: vi.fn(),
 }))
 
+import { existsSync } from 'fs'
 import { Resvg } from '@resvg/resvg-js'
-// Implementation under test — loaded after the mock so it picks it up.
+import { FONT_FILE, FONT_OPTIONS } from './constants'
+// Implementation under test — loaded after mocks so it picks them up.
 import { verifyFontLoaded } from './font-validator'
 
 const realFontPath = resolve(FONT_FILE)
@@ -18,6 +29,7 @@ const realFontPath = resolve(FONT_FILE)
 describe('verifyFontLoaded', () => {
   beforeEach(() => {
     vi.mocked(Resvg).mockReset()
+    vi.mocked(existsSync).mockReset()
   })
 
   afterEach(() => {
@@ -26,6 +38,7 @@ describe('verifyFontLoaded', () => {
 
   describe('success path (real font file + Resvg ok)', () => {
     it('returns { ok: true } with no error when the real font file is present and Resvg constructs', () => {
+      vi.mocked(existsSync).mockReturnValue(true)
       vi.mocked(Resvg).mockImplementation(() => ({}) as unknown as InstanceType<typeof Resvg>)
       const result = verifyFontLoaded()
       expect(result.ok).toBe(true)
@@ -33,6 +46,7 @@ describe('verifyFontLoaded', () => {
     })
 
     it('uses FONT_OPTIONS (with the configured fontFiles) when constructing Resvg', () => {
+      vi.mocked(existsSync).mockReturnValue(true)
       const ctor = vi
         .mocked(Resvg)
         .mockImplementation(() => ({}) as unknown as InstanceType<typeof Resvg>)
@@ -45,7 +59,7 @@ describe('verifyFontLoaded', () => {
 
   describe('font file missing', () => {
     it('returns { ok: false } with a non-throwing error', () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+      vi.mocked(existsSync).mockReturnValue(false)
       let result: ReturnType<typeof verifyFontLoaded> | undefined
       expect(() => {
         result = verifyFontLoaded()
@@ -56,21 +70,21 @@ describe('verifyFontLoaded', () => {
     })
 
     it('error message contains the absolute font path', () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+      vi.mocked(existsSync).mockReturnValue(false)
       const { error } = verifyFontLoaded()
       expect(error).toBeDefined()
       expect(error).toContain(realFontPath)
     })
 
     it('error message indicates the file is missing/找不到/缺失', () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+      vi.mocked(existsSync).mockReturnValue(false)
       const { error } = verifyFontLoaded()
       expect(error).toBeDefined()
       expect(error).toMatch(/missing|not found|缺失|不存在/i)
     })
 
     it('error message includes a build hint (npm run build)', () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+      vi.mocked(existsSync).mockReturnValue(false)
       const { error } = verifyFontLoaded()
       expect(error).toBeDefined()
       expect(error).toContain('npm run build')
@@ -80,7 +94,7 @@ describe('verifyFontLoaded', () => {
       const ctor = vi
         .mocked(Resvg)
         .mockImplementation(() => ({}) as unknown as InstanceType<typeof Resvg>)
-      vi.spyOn(fs, 'existsSync').mockReturnValue(false)
+      vi.mocked(existsSync).mockReturnValue(false)
       verifyFontLoaded()
       expect(ctor).not.toHaveBeenCalled()
     })
@@ -88,7 +102,7 @@ describe('verifyFontLoaded', () => {
 
   describe('Resvg construction failure', () => {
     it('returns { ok: false } when the Resvg constructor throws', () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+      vi.mocked(existsSync).mockReturnValue(true)
       const cause = new Error('Failed to load font file: invalid TTF')
       vi.mocked(Resvg).mockImplementation(() => {
         throw cause
@@ -99,7 +113,7 @@ describe('verifyFontLoaded', () => {
     })
 
     it('preserves the underlying failure cause in the error message', () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+      vi.mocked(existsSync).mockReturnValue(true)
       const causeMsg = 'native font load failed: bad glyph table'
       vi.mocked(Resvg).mockImplementation(() => {
         throw new Error(causeMsg)
@@ -110,7 +124,7 @@ describe('verifyFontLoaded', () => {
     })
 
     it('still mentions the absolute font path when Resvg construction fails', () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+      vi.mocked(existsSync).mockReturnValue(true)
       vi.mocked(Resvg).mockImplementation(() => {
         throw new Error('boom')
       })
@@ -120,7 +134,7 @@ describe('verifyFontLoaded', () => {
     })
 
     it('does not throw to the caller when Resvg construction fails', () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true)
+      vi.mocked(existsSync).mockReturnValue(true)
       vi.mocked(Resvg).mockImplementation(() => {
         throw new Error('boom')
       })
