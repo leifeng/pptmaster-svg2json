@@ -92,3 +92,55 @@ describe('text-anchor="middle" → top offset (TEXT-02)', () => {
     expect(end!.top).toBeCloseTo(baseline!.top, 5)
   })
 })
+
+describe('multiline tspan 的 text-align 应跟随 text-anchor（回归：afada37 曾写死 center）', () => {
+  async function makeMultiline(textAnchor?: string) {
+    const attrs: Record<string, string> = { 'font-size': '11', x: '0', y: '0' }
+    if (textAnchor) attrs['text-anchor'] = textAnchor
+    const el: SvgElement = {
+      type: 'text',
+      attrs,
+      children: [
+        { type: 'tspan', attrs: { x: '0', dy: '0' }, children: [], text: 'L1', sourceIndex: 0 },
+        { type: 'tspan', attrs: { x: '0', dy: '12' }, children: [], text: 'L2', sourceIndex: 1 },
+      ],
+      sourceIndex: 0,
+    }
+    const result = await transformElement(el, [0, 0, 1000, 562.5], 0, [1000, 562.5])
+    return result as unknown as { content: string }[]
+  }
+
+  it('text-anchor="start" 时每行 <p> 应为 text-align: left，不得为 center', async () => {
+    const lines = await makeMultiline('start')
+    expect(lines.length).toBe(2)
+    for (const line of lines) {
+      expect(line.content).toContain('text-align: left')
+      expect(line.content).not.toContain('text-align: center')
+    }
+  })
+
+  it('text-anchor="end" 时每行 <p> 应为 text-align: right，不得为 center', async () => {
+    const lines = await makeMultiline('end')
+    expect(lines.length).toBe(2)
+    for (const line of lines) {
+      expect(line.content).toContain('text-align: right')
+      expect(line.content).not.toContain('text-align: center')
+    }
+  })
+
+  it('text-anchor="middle" 时每行 <p> 应为 text-align: center', async () => {
+    const lines = await makeMultiline('middle')
+    expect(lines.length).toBe(2)
+    for (const line of lines) {
+      expect(line.content).toContain('text-align: center')
+    }
+  })
+
+  it('无 text-anchor 时每行 <p> 不应带 text-align', async () => {
+    const lines = await makeMultiline()
+    expect(lines.length).toBe(2)
+    for (const line of lines) {
+      expect(line.content).not.toContain('text-align')
+    }
+  })
+})

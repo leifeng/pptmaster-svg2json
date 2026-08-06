@@ -1699,7 +1699,7 @@ export async function transformElement(
           // 当前实现中父文本与子 tspan 共享 fontSize（除非 tspan 显式覆盖），所以这里也用父文本的 scaledFontSize，
           // 与父 <p> 的 font-size 一致，避免在 multiline 分支重新引入同样的视觉顶端偏移。
           const tspanPStyle = [`font-size: ${scaledFontSize}px`]
-          if (pStyle.includes('text-align')) tspanPStyle.push('text-align: center')
+          if (textAlign) tspanPStyle.push(`text-align: ${textAlign}`)
           const tspanRichContent = `<p style="${tspanPStyle.join('; ')}">${lineContent}</p>`
           const result: PPTTextElement = {
             id: idx === 0 ? id : `${id}-line-${idx}`,
