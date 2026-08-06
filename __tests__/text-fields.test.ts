@@ -60,3 +60,40 @@ describe('text-fields (TEXT-03, TEXT-04, TEXT-05, TEXT-07, TEXT-08, TEXT-09)', (
     expect(result?.content).not.toMatch(/rgba?\(/)
   })
 })
+
+describe('p font-size (small-font-top-offset)', () => {
+  it('single-line <p> has font-size matching scaledFontSize (覆盖 PPTist .ProseMirror-static 默认 16px)', async () => {
+    const result = await makeText({ 'font-size': '11', x: '0', y: '0' }) as { content: string } | null
+    expect(result).not.toBeNull()
+    // SVG fontSize=11, viewBox=0 0 1000 562.5 → scaleY=562.5/562.5=1.0 (because targetCanvas=1000x562.5)
+    // scaledFontSize = 11 * 1 = 11
+    expect(result!.content).toMatch(/^<p style="font-size: 11px/)
+  })
+
+  it('multiline <p> (per tspan) has font-size matching scaledFontSize', async () => {
+    const el: SvgElement = {
+      type: 'text',
+      attrs: { 'font-size': '11', x: '0', y: '0' },
+      children: [
+        { type: 'tspan', attrs: { x: '0', dy: '0' }, children: [], text: 'L1', sourceIndex: 0 },
+        { type: 'tspan', attrs: { x: '0', dy: '12' }, children: [], text: 'L2', sourceIndex: 1 },
+      ],
+      sourceIndex: 0,
+    }
+    const result = await transformElement(el, [0, 0, 1000, 562.5], 0, [1000, 562.5]) as { content: string }[] | null
+    expect(result).not.toBeNull()
+    expect(Array.isArray(result)).toBe(true)
+    expect((result as unknown as { content: string }[]).length).toBe(2)
+    for (const r of (result as unknown as { content: string }[])) {
+      expect(r.content).toMatch(/^<p style="font-size: 11px/)
+    }
+  })
+
+  it('不同 SVG fontSize 时 <p> 的 font-size 与 scaledFontSize 一致', async () => {
+    // For SVG with target canvas 1000x562.5 (same ratio), scaleY = 1
+    const r11 = await makeText({ 'font-size': '11', x: '0', y: '0' }) as { content: string } | null
+    const r60 = await makeText({ 'font-size': '60', x: '0', y: '0' }) as { content: string } | null
+    expect(r11!.content).toContain('font-size: 11px')
+    expect(r60!.content).toContain('font-size: 60px')
+  })
+})

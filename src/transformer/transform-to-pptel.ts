@@ -1616,7 +1616,14 @@ export async function transformElement(
       if (textAnchor === 'start') textAlign = 'left'
       else if (textAnchor === 'end') textAlign = 'right'
       else if (textAnchor === 'middle') textAlign = 'center'
-      const pStyle = textAlign ? `text-align: ${textAlign}` : ''
+      // 修复 small-font-top-offset.md：PPTist .ProseMirror-static CSS 默认 font-size: 16px；
+      // 若不显式覆盖，<p> 继承 16px，使 line-box 高度=16px、baseline=12.8px from top，
+      // 而 span 用 scaledFontSize（如 8.59px），span 视觉顶端按 baseline 对齐后下移 ~5.9px（远大于小字号本身的 ascent）。
+      // 在 <p> 上显式写 font-size: scaledFontSize，让 <p> 的 line-box 与 span 字体一致，
+      // baseline 位置匹配 span ascent，视觉顶端 = JSON top（即 bbox top，无偏移）。
+      const pStyleParts: string[] = [`font-size: ${scaledFontSize}px`]
+      if (textAlign) pStyleParts.push(`text-align: ${textAlign}`)
+      const pStyle = pStyleParts.join('; ')
 
       // Use scaledFontSize for outer content span (matches the visual scale from viewBox→canvas)
       let spanStyle = `font-size: ${scaledFontSize}px`
@@ -1635,7 +1642,7 @@ export async function transformElement(
       let weightedContent = innerSpan
       if (isItalic && !innerSpan.includes('<em>')) weightedContent = `<em>${weightedContent}</em>`
       if (isBold && !innerSpan.includes('<strong>')) weightedContent = `<strong>${weightedContent}</strong>`
-      const richContent = `<p${pStyle ? ` style="${pStyle}"` : ''}>${weightedContent}</p>`
+      const richContent = `<p style="${pStyle}">${weightedContent}</p>`
 
       // D-07: writing-mode vertical-rl/vertical-lr → vertical: true
       const writingMode = element.attrs['writing-mode']
@@ -1688,7 +1695,12 @@ export async function transformElement(
           let lineContent = tspan.htmlContent
           if (isItalic && !lineContent.includes('<em>')) lineContent = `<em>${lineContent}</em>`
           if (isBold && !lineContent.includes('<strong>')) lineContent = `<strong>${lineContent}</strong>`
-          const tspanRichContent = `<p${pStyle ? ` style="${pStyle}"` : ''}>${lineContent}</p>`
+          // 修复 small-font-top-offset.md：每个 tspan 的 <p> 用各自 scaledFontSize（继承自父文本的 scaledFontSize）。
+          // 当前实现中父文本与子 tspan 共享 fontSize（除非 tspan 显式覆盖），所以这里也用父文本的 scaledFontSize，
+          // 与父 <p> 的 font-size 一致，避免在 multiline 分支重新引入同样的视觉顶端偏移。
+          const tspanPStyle = [`font-size: ${scaledFontSize}px`]
+          if (pStyle.includes('text-align')) tspanPStyle.push('text-align: center')
+          const tspanRichContent = `<p style="${tspanPStyle.join('; ')}">${lineContent}</p>`
           const result: PPTTextElement = {
             id: idx === 0 ? id : `${id}-line-${idx}`,
             type: 'text',
