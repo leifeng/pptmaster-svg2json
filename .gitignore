@@ -7,3 +7,10 @@
 /dist
 /templates
 /release
+
+# 构建产物 / 打包
+*.7z
+
+# 运行时残留（Git Bash on Windows）
+*.stackdump
+gui-sock-*
