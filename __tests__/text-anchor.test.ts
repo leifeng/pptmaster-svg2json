@@ -65,12 +65,15 @@ describe('text-anchor → text-align (TEXT-01)', () => {
 })
 
 describe('text-anchor="middle" → top offset (TEXT-02)', () => {
-  it('text-anchor="middle" 时 top 比无 text-anchor 的 top 小 10（画布像素）', async () => {
+  it('text-anchor="middle" 不应用 top 偏移（TEXT_ANCHOR_MIDDLE_TOP_OFFSET = 0）', async () => {
     const baseline = await makeText({ x: '100', y: '200' }) as { top: number } | null
     const middle = await makeText({ 'text-anchor': 'middle', x: '100', y: '200' }) as { top: number } | null
     expect(baseline).not.toBeNull()
     expect(middle).not.toBeNull()
-    expect(middle!.top).toBeCloseTo(baseline!.top - 10, 5)
+    // 早期版本对 middle 的 top 加过常量补偿（-10、后调为 -4），实测均不正确：
+    // top 的基线换算（top - measuredAscent * scaleY）本身已经准确，
+    // 额外补偿反而引入偏移。现常量为 0，middle 与无 text-anchor 的 top 应完全一致。
+    expect(middle!.top).toBeCloseTo(baseline!.top, 5)
   })
 
   it('text-anchor="start" 不应用 top 偏移', async () => {

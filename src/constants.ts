@@ -52,7 +52,13 @@ export const TEXT_WIDTH_SAFETY_MARGIN = 25
 /** 思源字体的 ascent 比率，用于 resvg-js 测量失败的 fallback */
 export const FALLBACK_ASCENT_RATIO = 0.764
 
-/** SVG `<text text-anchor="middle">` 转 PPTElement 时对 top 加的补偿（画布像素，默认 -10） */
+/**
+ * SVG `<text text-anchor="middle">` 转 PPTElement 时对 top 加的补偿（画布像素）。
+ *
+ * 当前为 0：top 的基线换算（top - measuredAscent * scaleY）本身已经准确，
+ * 早期版本尝试过 -10、-4 的常量补偿，实测均会引入偏移，故取消。
+ * 保留该常量作为可调旋钮，若将来发现特定字体/场景需要补偿可在此调整。
+ */
 export const TEXT_ANCHOR_MIDDLE_TOP_OFFSET = 0
 
 // =============================================================================
