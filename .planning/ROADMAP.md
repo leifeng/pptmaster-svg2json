@@ -21,6 +21,23 @@
 | Phase 10 | v1.7 | Complete | 2026-07-13 |
 | Phase 11 | v1.7 | Complete | 2026-07-23 |
 | Phase 12 | v1.7 | Complete | 2026-07-23 |
+| Phase 13 | v1.8 | Pending | — |
+
+---
+
+## v1.8 — CLI 字体验证
+
+- [ ] **Phase 13: CLI Font Validation** — Verify resvg-js 字体在 CLI 启动时被正确引入；引入失败立即报错退出（红色错误信息 + exit 1），避免 resvg fallback 到内置字体导致测量宽度与 PPTist 渲染不一致
+
+### Phase 13: CLI Font Validation
+
+**Goal:** CLI 启动时验证 Source Han Sans CN Regular 字体文件已正确加载到 resvg-js；若字体缺失或加载失败，输出红色错误信息并以 exit 1 退出，防止后续测量使用 resvg 内置 fallback 字体导致宽度偏差。
+
+**Requirements:** TBD
+
+**Depends on:** Phase 12 (FONT_FILE 常量)
+
+**Plans:** TBD
 
 ---
 
