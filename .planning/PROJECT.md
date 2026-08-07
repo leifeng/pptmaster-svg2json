@@ -35,7 +35,11 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 
 ### Active
 
-(None — v1.8 complete, next milestone not yet planned)
+- [ ] **MULTILINE-01:** 所有 tspan 内容合并到同一个 PPTTextElement (不再拆为多个 text 元素) — v1.9
+- [ ] **MULTILINE-02:** 换行 tspan (有 `dy`≠0 或 `x` 属性) → 独立 `<p>` 段落 — v1.9
+- [ ] **INLINE-03:** inline tspan (无换行属性) → 与父内容在同一 `<p>` 内 (回归锁定) — v1.9
+- [ ] **DETECTION-04:** `hasLineBreakTspans` 同时检测 `dy` (≠0) 与 `x` 属性 — v1.9
+- [ ] **TEST-05:** 测试覆盖单/多/inline/混合场景,锁定 PPTTextElement 单实例不变性 — v1.9
 
 ### Out of Scope
 
@@ -93,7 +97,19 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: v1.8 — Complete
+## Current Milestone: v1.9 — Text 段落合并
+
+**Goal:** SVG `<text>` 元素内含 `<tspan>` 时,所有内容在转 json 后必须合并为单个 PPTTextElement;换行 tspan 用 `<p>` 分隔,inline tspan 在同一 `<p>` 内。符合 PPTist 多段落规范 (`<p>` 段落分隔 + `paragraphSpace` 间距)。
+
+**Target features:**
+- 多行 tspan (有 `dy`≠0 或 `x` 属性) → 合并到同一个 PPTTextElement,内含 N 个 `<p>` 段落
+- inline tspan (无换行属性) → 与父内容在同一 `<p>` 内
+- `hasLineBreakTspans` 检测覆盖 `dy` 与 `x` 两种换行触发条件
+- 测试套件覆盖单/多/inline/混合四种组合场景
+
+---
+
+## Previous Milestone: v1.8 — Complete
 
 **Status:** SHIPPED 2026-08-07
 
