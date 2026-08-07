@@ -68,11 +68,20 @@
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| TEXT-01 | TBD | Pending |
-| TEXT-02 | TBD | Pending |
-| TEXT-03 | TBD | Pending |
-| TEXT-04 | TBD | Pending |
-| TEXT-05 | TBD | Pending |
-| TEXT-06 | TBD | Pending |
-| TEXT-07 | TBD | Pending |
-| TEST-01..08 | TBD | Pending |
+| TEXT-01 | Phase 14 | Pending |
+| TEXT-02 | Phase 14 | Pending |
+| TEXT-03 | Phase 14 | Pending |
+| TEXT-04 | Phase 14 | Pending |
+| TEXT-05 | Phase 14 | Pending |
+| TEXT-06 | Phase 14 | Pending |
+| TEXT-07 | Phase 14 | Pending |
+| TEST-01 | Phase 15 | Pending |
+| TEST-02 | Phase 15 | Pending |
+| TEST-03 | Phase 15 | Pending |
+| TEST-04 | Phase 15 | Pending |
+| TEST-05 | Phase 15 | Pending |
+| TEST-06 | Phase 15 | Pending |
+| TEST-07 | Phase 15 | Pending |
+| TEST-08 | Phase 15 | Pending |
+
+**Coverage:** 15/15 v1.9 requirements mapped (TEXT-01..07 + TEST-01..08).
