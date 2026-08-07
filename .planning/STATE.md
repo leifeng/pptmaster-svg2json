@@ -1,28 +1,70 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.8
-milestone_name: CLI 字体验证
-current_phase: 13
-current_phase_name: CLI Font Validation
-status: complete
-stopped_at: Phase 13 plan 13-02 executed and verified
-last_updated: "2026-08-06T17:26:00.000Z"
-last_activity: 2026-08-06
-last_activity_desc: Phase 13 plan 13-02 executed (G1+G2+G3 gap closure) — 24 tests green, baseline 15 pre-existing failures unchanged
+milestone_name: — CLI 字体验证
+current_phase: 8
+status: Awaiting next milestone
+stopped_at: Phase 12 context gathered
+last_updated: "2026-08-07T01:31:35.292Z"
+last_activity: 2026-08-07
+last_activity_desc: Milestone v1.8 completed and archived
 progress:
   total_phases: 1
   completed_phases: 1
   total_plans: 2
   completed_plans: 2
+  percent: 100
+current_phase_name: CLI Font Validation
 ---
+
+## Deferred Items
+
+Items acknowledged and deferred at v1.8 milestone close on 2026-08-07:
+
+| Category | Item | Status |
+|----------|------|--------|
+| debug | cover-tags-text-anchor-middle | unknown |
+| debug | foreignobject-svg-offset | investigating |
+| debug | g-fill-stroke-inheritance | investigating |
+| debug | icon2-single-path-scale | investigating |
+| debug | knowledge-base | unknown |
+| debug | line-height-not-scaled | unknown |
+| debug | nested-g-path-merge-top-offset | fixed |
+| debug | path-header-coord-bug | unknown |
+| debug | polygon-defs-background | investigating |
+| debug | pptist-rich-text-spec | investigating |
+| debug | rect-bg-gradient-display | investigating |
+| debug | resvg-pkg-native-module | investigating |
+| debug | svg-filter-rendering-bug | investigating |
+| debug | svg-rect-text-vertical-alignment | diagnosed |
+| debug | svg-tspan-attention-loss | awaiting_human_verify |
+| debug | svg-use-fill-attribute | diagnosed |
+| debug | svg-w-crossplatform | unknown |
+| debug | text-in-circle-vertical-position | unknown |
+| debug | text-in-circle-vertical-position-v2 | unknown |
+| debug | text-in-circle-vertical-position-v3 | unknown |
+| debug | text-tspan-color-and-order-bug | awaiting_human_verify |
+| debug | text-tspan-content-splitting-bug | investigating |
+| debug | text-tspan-fontsize-nesting | investigating |
+| debug | text-tspan-mixed-content-loss | awaiting_human_verify |
+| debug | text-width-comparison | investigating |
+| debug | text-y-coordinate-textTop-bug | investigating |
+| debug | ts-build-errors | unknown |
+| debug | tspan-baseline-shift-pptist | in_progress |
+| verification_gap | Phase 13: 13-VERIFICATION.md | gaps_found (closed by 13-02 plan) |
+
+**Total deferred**: 29 items (28 debug sessions + 1 verification gap)
+
+**Rationale**: v1.8 里程碑目标(CLI 字体验证)已 SHIPPED 且 24 tests green。剩余 28 个 debug session 跨越 v1.1–v1.7 阶段,与 v1.8 范围无直接依赖关系;Phase 13 verification gaps 已在 13-02 plan (commit aedb0e7) 中通过 magic-bytes pre-flight + 真实 subprocess exit-code 捕获修复。下一里程碑 (/gsd-new-milestone) 可挑选高优先级 item 继续推进。
 
 # Project State
 
 ## Current Position
 
-Milestone: v1.8 — CLI 字体验证 (planned 2026-08-06)
-Status: Ready to execute
-Last activity: 2026-08-06 — Phase 13 plan verified, 1 plan (13-01) ready to execute
+Phase: Milestone v1.8 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-08-07 — Milestone v1.8 completed and archived
 
 ## Project Reference
 
@@ -75,3 +117,7 @@ See: `.planning/PROJECT.md` (updated 2026-07-23)
 **Last session:** 2026-07-23T07:37:50.153Z
 **Stopped at:** Phase 12 context gathered
 **Resume file:** .planning/phases/12-font-preprocess/12-CONTEXT.md
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

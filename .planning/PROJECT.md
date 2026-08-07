@@ -28,13 +28,14 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 - ✓ **S/s T/t bezier reflection** — correct smooth quadratic/cubic bezier control point calculation
 - ✓ **clipPath preprocessing** — coordinate expansion before transform pipeline
 - ✓ **baseline-shift pixel scaling** — absolute pixel values scaled by scaleY
-- ✓ **TEXT-WHPASS-01/02/03** — SVG text width/height passthrough fast path
-- ✓ **PATH-MERGE-01~05** — path merge decision tree and implementation
-- ✓ **FONT-PREPROCESS-01~04** — font preprocessor normalizes all fonts to Source Han Sans CN Regular
+- ✓ **TEXT-WHPASS-01/02/03** — SVG text width/height passthrough fast path — v1.7
+- ✓ **PATH-MERGE-01~05** — path merge decision tree and implementation — v1.7
+- ✓ **FONT-PREPROCESS-01~04** — font preprocessor normalizes all fonts to Source Han Sans CN Regular — v1.7
+- ✓ **FONT-VALIDATION-01~03** — CLI startup font validation with three-layer defense (existsSync + magic-bytes + getBBox) — v1.8
 
 ### Active
 
-(None — v1.7 complete, next milestone not yet planned)
+(None — v1.8 complete, next milestone not yet planned)
 
 ### Out of Scope
 
@@ -48,9 +49,9 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 
 ## Context
 
-**Existing library** — svg-to-pptel v1.7, published as npm package.
+**Existing library** — svg-to-pptel v1.8, published as npm package.
 
-**Current state** — v1.7 milestone complete. All phases (10-12) shipped. Ready for next milestone planning.
+**Current state** — v1.8 milestone SHIPPED 2026-08-07. Phase 13 (CLI Font Validation) completed with 24 tests green, plus 15 pre-existing failures in gradient / image-outline / path-merge / shadow / shape-rx suites (documented, accepted, deferred to future milestones).
 
 **Target canvas** — 1000×562.5 (16:9 aspect ratio).
 
@@ -61,6 +62,7 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 - **Target canvas**: 1000×562.5 — hard-coded, not configurable
 - **TypeScript**: Strict mode, compiled to CommonJS
 - **Dependencies**: fast-xml-parser, cac, picocolors, uuid, @resvg/resvg-js
+- **Fonts**: Source Han Sans CN Regular (single font, validated at CLI startup)
 
 ## Key Decisions
 
@@ -76,6 +78,8 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 | PATH-MERGE decision tree | MergeDecision enum for merge/no-merge/cautious-merge | ✓ Complete |
 | Text Width/Height Passthrough | Skip resvg-js when valid width/height attributes present | ✓ Complete |
 | Font Preprocessing | Normalize all fonts to Source Han Sans CN Regular | ✓ Complete |
+| Three-layer font validation | existsSync + TTF magic-bytes + Resvg getBBox non-zero — empirical reproduction shows resvg-js@2.6.2 doesn't throw on missing fonts, only getBBox signals | ✓ Complete (v1.8) |
+| Real subprocess exit-code tests | Direct catch on err.status / err.stderr — execFileSync.lastStatus does not exist | ✓ Complete (v1.8) |
 
 ## Evolution
 
@@ -89,14 +93,16 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: v1.7 — Complete
+## Current Milestone: v1.8 — Complete
 
-**Status:** SHIPPED 2026-07-23
+**Status:** SHIPPED 2026-08-07
 
 All planned features delivered:
-- PATH-MERGE decision tree and implementation (Phases 10)
-- TEXT-WHPASS SVG text attribute passthrough (Phase 11)
-- FONT-PREPROCESS font normalization (Phase 12)
+- **FONT-VALIDATION-01:** Three-layer defense (existsSync + TTF/OTF magic-bytes + Resvg getBBox non-zero) — captures all realistic font load failure modes including the previously-undetected corrupt-but-present case
+- **FONT-VALIDATION-02:** CLI startup gate — synchronous `verifyFontLoaded()` runs as first statement of `main()`, missing/unloadable font aborts with red error and exit 1
+- **FONT-VALIDATION-03:** Real subprocess exit-code tests — `runCli()` helper replaces broken IIFE pattern, 5 it() cases (4 fail + 1 success) drive the built `dist/src/cli.js`
+
+**Closeout type:** `override_closeout` — 29 items acknowledged as deferred (28 debug sessions across v1.1–v1.7 + 1 Phase 13 verification gap already closed by 13-02). See STATE.md Deferred Items section.
 
 ---
 
@@ -142,4 +148,4 @@ Research confirmed all target PPTist schema properties already implemented or de
 
 ---
 
-*Last updated: 2026-07-23 after v1.7 milestone completion*
+*Last updated: 2026-08-07 after v1.8 milestone completion (closeout_type: override_closeout)*
