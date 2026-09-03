@@ -53,6 +53,23 @@ export const TEXT_WIDTH_SAFETY_MARGIN = 25
 export const FALLBACK_ASCENT_RATIO = 0.764
 
 /**
+ * px → pt 转换系数（72 / 96 = 0.75）。
+ *
+ * 修复 react-p-tag-fontsize-pt-unit.md：目标消费方 Vue PPTist（`code/PPTist`）的
+ * useImport 解析 inline style 中的 font-size 仅匹配 pt 单位
+ * （regex `/font-size\s*:\s*(\d+(?:\.\d+)?)\s*pt/gi`，默认 18pt），且
+ * PPTTextElement.defaultFontSize 字段也是 pt 单位。React svg2json 此前输出 px 单位，
+ * 导致 PPTist 导入时被忽略、回退默认 18pt。
+ *
+ * 1pt = 96/72 px ≈ 1.333 px，故 px → pt 需乘以 72/96 = 0.75。
+ * 转换后视觉尺寸保持不变（CSS 渲染 pt 时按 96/72 系数转回 px）。
+ *
+ * 注意：仅适用于 `<p>` / `<span>` 内联 style 与 PPTTextElement.defaultFontSize 字段，
+ * 几何尺寸（left/top/width/height）仍用 px。
+ */
+export const PX_TO_PT_RATIO = 72 / 96
+
+/**
  * SVG `<text text-anchor="middle">` 转 PPTElement 时对 top 加的补偿（画布像素）。
  *
  * 当前为 0：top 的基线换算（top - measuredAscent * scaleY）本身已经准确，

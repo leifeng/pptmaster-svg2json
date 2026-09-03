@@ -66,8 +66,9 @@ describe('p font-size (small-font-top-offset)', () => {
     const result = await makeText({ 'font-size': '11', x: '0', y: '0' }) as { content: string } | null
     expect(result).not.toBeNull()
     // SVG fontSize=11, viewBox=0 0 1000 562.5 → scaleY=562.5/562.5=1.0 (because targetCanvas=1000x562.5)
-    // scaledFontSize = 11 * 1 = 11
-    expect(result!.content).toMatch(/^<p style="font-size: 11px/)
+    // scaledFontSize = 11 * 1 = 11px → 11 * PX_TO_PT_RATIO(0.75) = 8.25pt
+    // 修复 react-p-tag-fontsize-pt-unit.md：单位改用 pt，对接 Vue PPTist useImport regex。
+    expect(result!.content).toMatch(/^<p style="font-size: 8.25pt/)
   })
 
   it('multiline <p> (per tspan) has font-size matching scaledFontSize', async () => {
@@ -85,7 +86,7 @@ describe('p font-size (small-font-top-offset)', () => {
     expect(Array.isArray(result)).toBe(true)
     expect((result as unknown as { content: string }[]).length).toBe(2)
     for (const r of (result as unknown as { content: string }[])) {
-      expect(r.content).toMatch(/^<p style="font-size: 11px/)
+      expect(r.content).toMatch(/^<p style="font-size: 8.25pt/)
     }
   })
 
@@ -93,7 +94,8 @@ describe('p font-size (small-font-top-offset)', () => {
     // For SVG with target canvas 1000x562.5 (same ratio), scaleY = 1
     const r11 = await makeText({ 'font-size': '11', x: '0', y: '0' }) as { content: string } | null
     const r60 = await makeText({ 'font-size': '60', x: '0', y: '0' }) as { content: string } | null
-    expect(r11!.content).toContain('font-size: 11px')
-    expect(r60!.content).toContain('font-size: 60px')
+    // 修复 react-p-tag-fontsize-pt-unit.md：单位改用 pt
+    expect(r11!.content).toContain('font-size: 8.25pt')
+    expect(r60!.content).toContain('font-size: 45pt')
   })
 })
