@@ -13,7 +13,6 @@ import {
   TEXT_ANCHOR_MIDDLE_TOP_OFFSET,
   TEXT_WIDTH_SAFETY_MARGIN,
   FALLBACK_ASCENT_RATIO,
-  PX_TO_PT_RATIO,
 } from '../constants'
 
 
@@ -577,11 +576,7 @@ function buildSpanStyle(opts: {
   fontWeight?: string | number | null
   textDecoration?: string | null
 }): string {
-  // 修复 react-p-tag-fontsize-pt-unit.md：Vue PPTist 仅识别 pt 单位的 font-size。
-  // opts.fontSize 是 px 数值，乘以 PX_TO_PT_RATIO（72/96 = 0.75）转 pt。
-  // CSS 渲染 pt 时会按 96/72 转回 px，视觉尺寸不变，但 PPTist prosemirror schema
-  // 能正确识别 fontsize 字段，避免回退 18pt 默认值。
-  let style = 'font-size: ' + (opts.fontSize * PX_TO_PT_RATIO) + 'pt'
+  let style = 'font-size: ' + opts.fontSize + 'px'
   // font-family 故意省略：富文本统一继承 PPTist 默认字体
   if (opts.fill) {
     style += '; color: ' + opts.fill
@@ -836,7 +831,7 @@ function buildTextContentFromElement(
  * SVG 中 tspan 的 `x` 仅是绝对横坐标，也常用于内联重置（首 tspan 用 x 与父 text 同
  * x 作为显式起点，无换行意图）。真正的换行标志是垂直位移：
  *   - `dy`：相对垂直位移（最常见，multiline 标准做法）
- *   - `y`：绝对 y 改变（罕见但 SVG 合法）
+ *   - `y`：绝对 y 改变（罕见但合法）
  *
  * 仅检查 `x` 会把内联 tspan（如 `<tspan x="166">A</tspan><tspan>B</tspan>`，
  * x 仅为显式起点）误判为换行，导致同一个 `<text>` 被拆成多个 text 元素，
@@ -1640,15 +1635,12 @@ export async function transformElement(
       // 而 span 用 scaledFontSize（如 8.59px），span 视觉顶端按 baseline 对齐后下移 ~5.9px（远大于小字号本身的 ascent）。
       // 在 <p> 上显式写 font-size: scaledFontSize，让 <p> 的 line-box 与 span 字体一致，
       // baseline 位置匹配 span ascent，视觉顶端 = JSON top（即 bbox top，无偏移）。
-      // 修复 react-p-tag-fontsize-pt-unit.md：单位改用 pt（× PX_TO_PT_RATIO）以匹配 Vue PPTist 解析规则；
-      // CSS pt→px 系数 96/72 正好是 PX_TO_PT_RATIO 的倒数，<p>/<span> 同步缩放，line-box 对齐仍成立。
-      const pStyleParts: string[] = [`font-size: ${scaledFontSize * PX_TO_PT_RATIO}pt`]
+      const pStyleParts: string[] = [`font-size: ${scaledFontSize}px`]
       if (textAlign) pStyleParts.push(`text-align: ${textAlign}`)
       const pStyle = pStyleParts.join('; ')
 
       // Use scaledFontSize for outer content span (matches the visual scale from viewBox→canvas)
-      // 修复 react-p-tag-fontsize-pt-unit.md：单位与 <p> 一致用 pt。
-      let spanStyle = `font-size: ${scaledFontSize * PX_TO_PT_RATIO}pt`
+      let spanStyle = `font-size: ${scaledFontSize}px`
       if (hasRgba) {
         const rgbaColor = colorToRgba(fillColor, parseFloat(String(fillOpacity)))
         spanStyle += `; color: ${rgbaColor}`
@@ -1720,8 +1712,7 @@ export async function transformElement(
           // 修复 small-font-top-offset.md：每个 tspan 的 <p> 用各自 scaledFontSize（继承自父文本的 scaledFontSize）。
           // 当前实现中父文本与子 tspan 共享 fontSize（除非 tspan 显式覆盖），所以这里也用父文本的 scaledFontSize，
           // 与父 <p> 的 font-size 一致，避免在 multiline 分支重新引入同样的视觉顶端偏移。
-          // 修复 react-p-tag-fontsize-pt-unit.md：单位改用 pt，与 single-line 分支保持一致。
-          const tspanPStyle = [`font-size: ${scaledFontSize * PX_TO_PT_RATIO}pt`]
+          const tspanPStyle = [`font-size: ${scaledFontSize}px`]
           if (textAlign) tspanPStyle.push(`text-align: ${textAlign}`)
           const tspanRichContent = `<p style="${tspanPStyle.join('; ')}">${lineContent}</p>`
           const result: PPTTextElement = {
@@ -1731,9 +1722,7 @@ export async function transformElement(
             top: tspan.top,
             width: textWidth,
             height: tspan.fontSize * 1.2,
-            // 修复 react-p-tag-fontsize-pt-unit.md：Vue PPTist useImport 解析 defaultFontSize
-            // 字段为 pt 单位（见 code/PPTist/src/hooks/useImport.ts:212），此处输出 px → pt。
-            defaultFontSize: tspan.fontSize * scaleY * PX_TO_PT_RATIO,
+            defaultFontSize: tspan.fontSize * scaleY,
             content: tspanRichContent,
             ...baseResult,
           }
@@ -1753,8 +1742,7 @@ export async function transformElement(
           top: textTop,
           width: textWidth,
           height: textHeight,
-          // 修复 react-p-tag-fontsize-pt-unit.md：Vue PPTist defaultFontSize 字段期望 pt 单位。
-          defaultFontSize: scaledFontSize * PX_TO_PT_RATIO,
+          defaultFontSize: scaledFontSize,
           content: richContent,
           ...baseResult,
         }
