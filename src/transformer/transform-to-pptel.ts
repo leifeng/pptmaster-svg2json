@@ -824,13 +824,27 @@ function buildTextContentFromElement(
 }
 
 /**
- * Check if element has tspan children with x attribute (indicating multiline text).
- * Rule: 有 x = 换行（多行文本），无 x = 同行连续排列（公式/上下标）
+ * Check if element has tspan children with explicit line-break attributes
+ * (indicating multiline text).
+ *
+ * 修复 text-tspan-multi-overlap.md：原规则 "有 x = 换行" 过于宽松。
+ * SVG 中 tspan 的 `x` 仅是绝对横坐标，也常用于内联重置（首 tspan 用 x 与父 text 同
+ * x 作为显式起点，无换行意图）。真正的换行标志是垂直位移：
+ *   - `dy`：相对垂直位移（最常见，multiline 标准做法）
+ *   - `y`：绝对 y 改变（罕见但合法）
+ *
+ * 仅检查 `x` 会把内联 tspan（如 `<tspan x="166">A</tspan><tspan>B</tspan>`，
+ * x 仅为显式起点）误判为换行，导致同一个 `<text>` 被拆成多个 text 元素，
+ * 共享 left/top 渲染重叠。
+ *
+ * 现有 multiline 测试（text-anchor.test.ts、text-font-weight-coverage.test.ts、
+ * text-fields.test.ts）都同时使用 `x` + `dy` 表示换行；改为检查 dy/y 后仍能识别。
  */
 function hasLineBreakTspans(element: SvgElement): boolean {
   for (const child of element.children) {
     if (child.type === 'tspan') {
-      if (child.attrs['x'] !== undefined) {
+      // dy 或 y 出现即视为换行；x 仅是横坐标，不能作为换行依据
+      if (child.attrs['dy'] !== undefined || child.attrs['y'] !== undefined) {
         return true
       }
       if (hasLineBreakTspans(child)) {
