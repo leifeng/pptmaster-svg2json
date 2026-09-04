@@ -1548,8 +1548,13 @@ export async function transformElement(
         try {
           const textAnchorAttr = element.attrs['text-anchor']
           const xAttr = element.attrs['x'] ? Number(element.attrs['x']) : undefined
+          // 修复 tspan-dy-multiline-y-too-large.md：剥掉 SVG 缩进噪声，
+          // 避免 buildMeasurementSvg 触发 multi-line 分支（dy="1em"），
+          // 导致 bbox.y 漂移 fontSize、measuredAscent 变负、textTop 多加 fontSize*scaleY。
+          // 仅影响测量路径，保留正文中间真实换行不影响 xml:space="preserve" 语义。
+          const measurementContent = content.replace(/^\s+|\s+$/g, '')
           const measurementInput: TextMeasurementInput = {
-            content,
+            content: measurementContent,
             // 修复 text-in-circle-vertical-position-v3.md：测量字体必须与 PPTist 渲染字体一致。
             // SVG 原字体（Georgia/Arial 等）只是浏览器里的视觉，PPTist 实际渲染用思源，
             // 用原字体测量会导致 bbox 尺寸和 ascent 跟实际渲染不匹配，圆形内数字错位。
