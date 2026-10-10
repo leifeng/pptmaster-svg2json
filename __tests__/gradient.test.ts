@@ -215,6 +215,47 @@ describe('GRAD-04: gradientTransform rotation extraction', () => {
   })
 })
 
+describe('GRAD-05: numeric stop offset coercion (regression for 01_cover.svg)', () => {
+  it('parses linearGradient stops where offset is a bare number string (e.g. "0", "1")', () => {
+    // Mirrors exampels/svg_output/01_cover.svg:4-5 — `<stop offset="0" .../>` and `<stop offset="1" .../>`.
+    // With parseAttributeValue:true, fast-xml-parser coerces these to JS numbers,
+    // which used to break `.endsWith('%')` and throw "offset.endsWith is not a function".
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <defs>
+        <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#0F2C4A"/>
+          <stop offset="1" stop-color="#1F4E79"/>
+        </linearGradient>
+      </defs>
+      <rect width="100" height="100" fill="url(#bgGrad)"/>
+    </svg>`
+    const result = parseSvg(svg)
+    const rect = result.root.children.find(e => e.type === 'rect')
+    expect(rect?.attrs.gradient).toBeDefined()
+    expect(rect?.attrs.gradient?.type).toBe('linear')
+    expect(rect?.attrs.gradient?.colors).toHaveLength(2)
+    expect(rect?.attrs.gradient?.colors[0].pos).toBe(0)
+    expect(rect?.attrs.gradient?.colors[1].pos).toBe(1)
+  })
+
+  it('parses radialGradient stops where offset is a bare fractional number ("0.5")', () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <defs>
+        <radialGradient id="halfGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0" stop-color="#ff0000"/>
+          <stop offset="0.5" stop-color="#00ff00"/>
+          <stop offset="1" stop-color="#0000ff"/>
+        </radialGradient>
+      </defs>
+      <rect width="100" height="100" fill="url(#halfGrad)"/>
+    </svg>`
+    const result = parseSvg(svg)
+    const rect = result.root.children.find(e => e.type === 'rect')
+    expect(rect?.attrs.gradient?.colors).toHaveLength(3)
+    expect(rect?.attrs.gradient?.colors[1].pos).toBe(0.5)
+  })
+})
+
 describe('transform-to-pptel: attrs.gradient output', () => {
   it('outputs attrs.gradient as PPTShapeElement.gradient field', async () => {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">

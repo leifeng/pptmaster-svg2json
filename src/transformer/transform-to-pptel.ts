@@ -21,6 +21,22 @@ import type { PPTElement, PPTTextElement, PPTShapeElement, PPTLineElement, PPTIm
 export type { PPTElement }
 
 /**
+ * Scale the `pos` field of a gradient's stops by a factor.
+ * Used at the AST→PPTElement boundary to convert from SVG 0-1 normalized pos
+ * to PPTist schema's 0-100 range.
+ */
+function scaleGradientPos(
+  grad: PPTShapeElement['gradient'],
+  factor: number,
+): PPTShapeElement['gradient'] {
+  if (!grad) return grad
+  return {
+    ...grad,
+    colors: grad.colors.map(c => ({ pos: c.pos * factor, color: c.color })),
+  }
+}
+
+/**
  * 转换 icon 元素（有 data-icon-width/height 属性的 path）
  * icon 的位置和尺寸已经在 autoEmbedIcons 中处理过
  */
@@ -69,7 +85,7 @@ function transformIconElement(
   }
 
   if (element.attrs.gradient) {
-    result.gradient = element.attrs.gradient
+    result.gradient = scaleGradientPos(element.attrs.gradient as any, 100)
     // @ts-expect-error - fill may not exist on result
     delete result.fill
   } else if (!isFillNone) {
@@ -1056,7 +1072,7 @@ export async function transformElement(
       }
       // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
       if (element.attrs.gradient) {
-        result.gradient = element.attrs.gradient
+        result.gradient = scaleGradientPos(element.attrs.gradient as any, 100)
         // @ts-expect-error - fill may not exist on result
         delete result.fill
       } else {
@@ -1112,7 +1128,7 @@ export async function transformElement(
       }
       // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
       if (element.attrs.gradient) {
-        result.gradient = element.attrs.gradient
+        result.gradient = scaleGradientPos(element.attrs.gradient as any, 100)
       } else if (element.attrs.fill && element.attrs.fill !== 'none') {
         // FIX: fill="none" means no fill, keep fill as 'none'
         const fillOpacity = element.attrs['fill-opacity']
@@ -1184,7 +1200,7 @@ export async function transformElement(
       }
       // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
       if (element.attrs.gradient) {
-        result.gradient = element.attrs.gradient
+        result.gradient = scaleGradientPos(element.attrs.gradient as any, 100)
         // @ts-expect-error - fill may not exist on result
         delete result.fill
       } else {
@@ -1272,7 +1288,7 @@ export async function transformElement(
       }
       // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
       if (element.attrs.gradient) {
-        result.gradient = element.attrs.gradient
+        result.gradient = scaleGradientPos(element.attrs.gradient as any, 100)
         // @ts-expect-error - fill may not exist on result
         delete result.fill
       } else if (!isFillNone) {
@@ -1336,7 +1352,7 @@ export async function transformElement(
       }
       // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
       if (element.attrs.gradient) {
-        result.gradient = element.attrs.gradient
+        result.gradient = scaleGradientPos(element.attrs.gradient as any, 100)
         // @ts-expect-error - fill may not exist on result
         delete result.fill
       } else {
@@ -1392,7 +1408,7 @@ export async function transformElement(
       }
       // D-15: attrs.gradient resolved at parse time — output as PPTShapeElement.gradient
       if (element.attrs.gradient) {
-        result.gradient = element.attrs.gradient
+        result.gradient = scaleGradientPos(element.attrs.gradient as any, 100)
         // @ts-expect-error - fill may not exist on result
         delete result.fill
       } else {
@@ -1473,7 +1489,7 @@ export async function transformElement(
       // D-19: stroke color/opacity handling
       // D-??: stroke="url(#id)" resolved to gradient at parse time
       if (element.attrs.gradient) {
-        result.gradient = element.attrs.gradient
+        result.gradient = scaleGradientPos(element.attrs.gradient as any, 100)
       } else {
         const { color, opacity } = parseStrokeColor(element.attrs.stroke, element.attrs['stroke-opacity'])
         result.color = color

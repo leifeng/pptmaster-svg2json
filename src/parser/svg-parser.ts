@@ -92,7 +92,8 @@ function collectGradientDefs(xmlNode: any, registry: Map<string, GradientDef>): 
           const stopArr = Array.isArray(stops) ? stops : [stops]
           for (const stop of stopArr) {
             if (!stop) continue
-            const offset = stop['@_offset'] || '0%'
+            const rawOffset = stop['@_offset']
+            const offset = rawOffset === undefined || rawOffset === null ? '0%' : String(rawOffset)
             const stopColor = stop['@_stop-color'] || '#000000'
             const stopOpacityAttr = stop['@_stop-opacity']
             const stopOpacity = stopOpacityAttr !== undefined ? parseFloat(stopOpacityAttr) : 1
@@ -130,7 +131,8 @@ function collectGradientDefs(xmlNode: any, registry: Map<string, GradientDef>): 
           const stopArr = Array.isArray(stops) ? stops : [stops]
           for (const stop of stopArr) {
             if (!stop) continue
-            const offset = stop['@_offset'] || '0%'
+            const rawOffset = stop['@_offset']
+            const offset = rawOffset === undefined || rawOffset === null ? '0%' : String(rawOffset)
             const stopColor = stop['@_stop-color'] || '#000000'
             const stopOpacityAttr = stop['@_stop-opacity']
             const stopOpacity = stopOpacityAttr !== undefined ? parseFloat(stopOpacityAttr) : 1
@@ -296,10 +298,10 @@ function resolveFillReference(attrs: SvgAttrs, registry: Map<string, GradientDef
       if (hasFillOpacity) {
         // Multiply gradient stop alpha by element's fill-opacity
         const colorWithOpacity = applyFillOpacityToColor(c.color, fillOpacity)
-        return { pos: c.pos * 100, color: colorWithOpacity }
+        return { pos: c.pos, color: colorWithOpacity }
       } else {
         // Keep original gradient color (with its stop opacity)
-        return { pos: c.pos * 100, color: c.color }
+        return { pos: c.pos, color: c.color }
       }
     }),
     rotate,
@@ -339,7 +341,7 @@ function resolveStrokeReference(attrs: SvgAttrs, registry: Map<string, GradientD
   const gradient = {
     type: gradientDef.type,
     colors: gradientDef.colors.map(c => {
-      return { pos: c.pos * 100, color: c.color }
+      return { pos: c.pos, color: c.color }
     }),
     rotate,
   }
