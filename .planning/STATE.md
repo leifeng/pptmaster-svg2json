@@ -1,123 +1,77 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.8
-milestone_name: — CLI 字体验证
-current_phase: 8
-status: Awaiting next milestone
-stopped_at: Phase 12 context gathered
-last_updated: "2026-08-07T01:31:35.292Z"
-last_activity: 2026-08-07
-last_activity_desc: Milestone v1.8 completed and archived
+milestone: v1.9
+milestone_name: PPTist Animation Sidecar injection_phase Injection
+_phase: 1
+status: Awaiting /gsd-plan-phase 14
+stopped_at: Milestone kickoff complete, planning pending
+last_updated: "2026-10-14"
+last_activity: 2026-10-14
+last_activity_desc: v1.9 milestone kickoff — PROJECT/REQUIREMENTS/ROADMAP updated, Phase 14 registered
 progress:
   total_phases: 1
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 100
-current_phase_name: CLI Font Validation
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
+current_phase_name: pptist-animation-from-sidecar
 ---
 
 ## Deferred Items
 
-Items acknowledged and deferred at v1.8 milestone close on 2026-08-07:
+(空 — v1.9 为新特性，暂无继承项)
 
-| Category | Item | Status |
-|----------|------|--------|
-| debug | cover-tags-text-anchor-middle | unknown |
-| debug | foreignobject-svg-offset | investigating |
-| debug | g-fill-stroke-inheritance | investigating |
-| debug | icon2-single-path-scale | investigating |
-| debug | knowledge-base | unknown |
-| debug | line-height-not-scaled | unknown |
-| debug | nested-g-path-merge-top-offset | fixed |
-| debug | path-header-coord-bug | unknown |
-| debug | polygon-defs-background | investigating |
-| debug | pptist-rich-text-spec | investigating |
-| debug | rect-bg-gradient-display | investigating |
-| debug | resvg-pkg-native-module | investigating |
-| debug | svg-filter-rendering-bug | investigating |
-| debug | svg-rect-text-vertical-alignment | diagnosed |
-| debug | svg-tspan-attention-loss | awaiting_human_verify |
-| debug | svg-use-fill-attribute | diagnosed |
-| debug | svg-w-crossplatform | unknown |
-| debug | text-in-circle-vertical-position | unknown |
-| debug | text-in-circle-vertical-position-v2 | unknown |
-| debug | text-in-circle-vertical-position-v3 | unknown |
-| debug | text-tspan-color-and-order-bug | awaiting_human_verify |
-| debug | text-tspan-content-splitting-bug | investigating |
-| debug | text-tspan-fontsize-nesting | investigating |
-| debug | text-tspan-mixed-content-loss | awaiting_human_verify |
-| debug | text-width-comparison | investigating |
-| debug | text-y-coordinate-textTop-bug | investigating |
-| debug | ts-build-errors | unknown |
-| debug | tspan-baseline-shift-pptist | in_progress |
-| verification_gap | Phase 13: 13-VERIFICATION.md | gaps_found (closed by 13-02 plan) |
-
-**Total deferred**: 29 items (28 debug sessions + 1 verification gap)
-
-**Rationale**: v1.8 里程碑目标(CLI 字体验证)已 SHIPPED 且 24 tests green。剩余 28 个 debug session 跨越 v1.1–v1.7 阶段,与 v1.8 范围无直接依赖关系;Phase 13 verification gaps 已在 13-02 plan (commit aedb0e7) 中通过 magic-bytes pre-flight + 真实 subprocess exit-code 捕获修复。下一里程碑 (/gsd-new-milestone) 可挑选高优先级 item 继续推进。
-
-# Project State
+## Project State
 
 ## Current Position
 
-Phase: Milestone v1.8 complete
+Phase: v1.9 kickoff complete, awaiting planning
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-08-07 — Milestone v1.8 completed and archived
+Status: Awaiting /gsd-plan-phase 14
+Last activity: 2026-10-14 — v1.9 milestone kickoff, Phase 14 registered in ROADMAP
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-07-23)
+See: `.planning/PROJECT.md` (updated 2026-10-14)
 
 **Core value:** Accurately convert SVG visual elements to PowerPoint JSON with correct coordinates, transforms, and styles.
-**Current focus:** Phase 13 — CLI Font Validation
+**Current focus:** Phase 14 — pptist-animation-from-sidecar
 
 ## Accumulated Context
 
-### Decisions (Phase 11)
+### Decisions (v1.9 kickoff)
 
-- **TEXT-WHPASS-01:** Valid positive finite SVG text width/height values activate the passthrough fast path and skip resvg-js measurement.
-- **TEXT-WHPASS-02:** Passthrough width uses `parsedWidth * scaleX + TEXT_WIDTH_SAFETY_MARGIN`; height uses `parsedHeight * scaleY`.
-- **TEXT-WHPASS-03:** Missing, invalid, non-positive, or non-finite dimensions preserve the original measurement/fallback path.
+- **ANIM-DEC-01**: PPTAnimation 扩展 `extensions?: Record<string, any>` 字段 — 三方未映射字段全量保留到 extensions，JSON 无损
+- **ANIM-DEC-02**: id 命名 `<group_id>__<nanoid(8)>` — 双下划线分隔避开 PPTist nanoid(10) 冲突；跨 g 唯一
+- **ANIM-DEC-03**: 父目录布局 `<parent>/svg_output/*.svg` + `<parent>/animations.json`（可选）— 接受三方约定
+- **ANIM-DEC-04**: effect 映射走"能映射就映射 + 不能映射原样保留"策略；无需兜底映射表
+- **ANIM-DEC-05**: turningMode 走映射表（48→12）；未对应 fallback `fade`
+- **ANIM-DEC-06**: 转换结束打印 diagnostics 到 stderr，不进 JSON — 调试可见但不污染输出
 
-### Decisions (v1.6)
+### Decisions (v1.8 inherited)
 
-- **REF-01:** Fix <g> nested transform accumulation — pass parent transform to mapCoordinates
-- **REF-02:** Fix S/s, T/t command reflection calculation in toAbsolutePath
-- **REF-03:** Handle clipPath/mask recursive expansion and coordinate scaling
-- **REF-04:** Scale baseline-shift absolute values (e.g., "-5" → "-3.90625")
-- **REF-05:** Modularize path utilities — extract to src/utils/path-utils.ts
-
-### Decisions (v1.5)
-
-- **USE-01:** Extract autoEmbedIcons to independent module src/svg-use-handler.ts
-- **USE-02:** Use resvg-js to render external SVG to PNG, convert to base64 image element
-- **USE-03:** Relative paths resolved based on main SVG file location via svgFilePath parameter
+- **FONT-VALIDATION-01**: Three-layer font validation defense (existsSync + magic-bytes + getBBox)
+- **FONT-VALIDATION-02**: CLI startup gate synchronous
+- **FONT-VALIDATION-03**: Real subprocess exit-code tests
 
 ### Blockers/Concerns
 
-- ⚠️ [Phase 11] Full-suite gate has 15 stable pre-existing failures across gradient, image-outline, path-merge, shadow, and shape-rx; an intermittent text-anchor failure also reproduces on baseline.
-- ⚠️ [Phase 11] Code review WR-01 records possible small `textTop` deltas between heuristic and measured ascent; accepted as non-blocking by phase verification.
-- ⚠️ [Phase 11] Security T11-03 tracks theoretical post-scale numeric overflow as low severity, below the `high` blocking threshold.
+(None — v1.9 kickoff clean)
 
 ### Quick Tasks Completed
 
-| # | Description | Date | Commit | Directory |
-|---|-------------|------|--------|-----------|
-| 260723-gqv | text-anchor="middle" 时对 top 加 -5 补偿 | 2026-07-23 | d91da53 | [260723-gqv-text-json-top-svg-text-text-anchor-middl](./quick/260723-gqv-text-json-top-svg-text-text-anchor-middl/) |
-| 260723-he6 | 集中所有命名常量到 src/constants.ts | 2026-07-23 | bbecb99 | [260723-he6-constants-to-single-file](./quick/260723-he6-constants-to-single-file/) |
+(继承自 v1.8 state — 暂无 v1.9 quick tasks)
 
 ---
 
-*State last updated: 2026-07-23 after Phase 11 complete*
+*State last updated: 2026-10-14 after v1.9 milestone kickoff*
 
 ## Session
 
-**Last session:** 2026-07-23T07:37:50.153Z
-**Stopped at:** Phase 12 context gathered
-**Resume file:** .planning/phases/12-font-preprocess/12-CONTEXT.md
+**Last session:** 2026-10-14
+**Stopped at:** v1.9 kickoff complete
+**Resume file:** `.planning/REQUIREMENTS.md` (Phase 14 REQ-IDs)
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Run `/gsd-plan-phase 14` to start planning Phase 14
