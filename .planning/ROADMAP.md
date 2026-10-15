@@ -93,7 +93,7 @@
 | Phase 11 | v1.7 | Complete | 2026-07-23 |
 | Phase 12 | v1.7 | Complete | 2026-07-23 |
 | Phase 13 | v1.8 | Complete | 2026-08-06 |
-| Phase 14 | v1.9 | Pending | — |
+| Phase 14 | v1.9 | Complete | 2026-10-15 |
 
 ---
 
