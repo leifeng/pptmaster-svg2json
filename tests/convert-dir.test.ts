@@ -117,9 +117,17 @@ describe('Plan 14-03 — convertDir() programmatic tests (ANIM-CLI-01/02/03)', (
       const s = result.slides.find((sl: any) => sl.id === 'slide_foo')
       expect(s).toBeDefined()
       expect(s.animations).toBeDefined()
-      expect(s.animations.length).toBe(1)
-      expect(s.animations[0].effect).toBe('fadeIn')
-      expect(s.animations[0].duration).toBe(500)
+      // N→N coverage: card-foo group has 2 child elements (rect + text), so the
+      // single sidecar row produces 2 PPTAnimations — one per matching PPTElement.
+      expect(s.animations.length).toBe(2)
+      expect(s.animations.every((a: any) => a.effect === 'fadeIn')).toBe(true)
+      expect(s.animations.every((a: any) => a.duration === 500)).toBe(true)
+      // Every emitted elId must resolve to a slide element, and the two
+      // animations must target distinct elements (N-to-N, not 1-to-1).
+      const elIds = s.animations.map((a: any) => a.elId)
+      expect(new Set(elIds).size).toBe(2)
+      const elementIds = new Set(s.elements.map((e: any) => e.id))
+      for (const eid of elIds) expect(elementIds.has(eid)).toBe(true)
       expect(s.turningMode).toBe('fade')
     })
 
@@ -134,8 +142,11 @@ describe('Plan 14-03 — convertDir() programmatic tests (ANIM-CLI-01/02/03)', (
       const s = result.slides.find((sl: any) => sl.id === 'slide_baz')
       expect(s).toBeDefined()
       expect(s.animations).toBeDefined()
-      expect(s.animations.length).toBe(1)
-      expect(s.animations[0].effect).toBe('zoomIn')
+      // N→N coverage: card-baz group has 2 child elements → 2 PPTAnimations.
+      expect(s.animations.length).toBe(2)
+      expect(s.animations.every((a: any) => a.effect === 'zoomIn')).toBe(true)
+      const elIds = s.animations.map((a: any) => a.elId)
+      expect(new Set(elIds).size).toBe(2)
       expect(s.turningMode).toBe('fade') // from defaults.transition.effect
     })
 
@@ -153,12 +164,15 @@ describe('Plan 14-03 — convertDir() programmatic tests (ANIM-CLI-01/02/03)', (
       }
     })
 
-    it('diagnostics: animationsInjected + slidesWithAnimation match expectations', () => {
-      expect(result.diagnostics.animationsInjected).toBe(2)
+    it('diagnostics: animationsInjected + slidesWithAnimation + elementsCovered match expectations', () => {
+      // N→N coverage: 2 slides × 2 elements/group × 1 row/group = 4 animations
+      expect(result.diagnostics.animationsInjected).toBe(4)
       expect(result.diagnostics.slidesWithAnimation).toBe(2)
-      // foo: explicit duration=0.5 (0 sub), no trigger → 1 sub
-      // baz: no duration (1 sub), no trigger (1 sub) → 2 subs
-      // Total: 3 substitutions
+      expect(result.diagnostics.elementsCovered).toBe(4)
+      // defaultsApplied is PER-ROW, not per-element:
+      //   foo row: explicit duration=0.5 (0 sub), no trigger → 1 sub
+      //   baz row: no duration (1 sub), no trigger (1 sub) → 2 subs
+      //   Total: 3 substitutions
       expect(result.diagnostics.defaultsApplied).toBe(3)
     })
 

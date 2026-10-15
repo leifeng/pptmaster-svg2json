@@ -57,6 +57,7 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
         unmappedEffects: 0,
         elIdNotFoundWarnings: [],
         defaultsApplied: 0,
+        elementsCovered: 0,
       })
     })
   })
@@ -214,10 +215,15 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
       expect(opts.diagnostics.elIdNotFoundWarnings[0]).toContain('card-temperature')
     })
 
-    it('uses the FIRST matching PPTElement by groupId when multiple exist', () => {
+    it('emits ONE PPTAnimation per matching PPTElement (N→N group coverage)', () => {
+      // Changed intent post-Wave 2 ship (see .planning/debug/anim-elid-coverage.md):
+      // groups[gid] now produces one PPTAnimation per matching PPTElement so every
+      // element under the SVG <g id="gid"> gets the same effect. Previously only the
+      // first match received an animation (D-08's original "first-match-wins").
       const slide = makeSlide([
         makeShape('card-temp__first', 'card-temperature'),
         makeShape('card-temp__second', 'card-temperature'),
+        makeShape('card-temp__third', 'card-temperature'),
       ])
       const sidecar = makeSidecar({
         '03_overview': {
@@ -232,7 +238,80 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
         diagnostics: emptyInjectorDiagnostics(),
       }
       const result = injectAnimations(slide, opts)
-      expect(result.animations![0].elId).toBe('card-temp__first')
+      expect(result.animations!.length).toBe(3)
+      expect(result.animations!.map((a) => a.elId)).toEqual([
+        'card-temp__first',
+        'card-temp__second',
+        'card-temp__third',
+      ])
+      // Every emitted animation shares the row's effect/trigger/duration
+      expect(result.animations!.every((a) => a.effect === 'fadeIn')).toBe(true)
+      expect(opts.diagnostics.animationsInjected).toBe(3)
+      expect(opts.diagnostics.elementsCovered).toBe(3)
+      // 1 row × 1 missing field (no trigger shape on sidecar; trigger comes from defaults)
+      // → row-level defaultsApplied counts per-row, not per-element.
+      expect(opts.diagnostics.defaultsApplied).toBe(2)
+    })
+
+    it('reverse-asserts every PPTElement with matching groupId has at least one animation', () => {
+      // Pins the N→N coverage contract: post-path-merge, the count of emitted
+      // PPTAnimations for a group must equal the count of matching PPTElements.
+      const slide = makeSlide([
+        makeShape('el1', 'g1'),
+        makeShape('el2', 'g1'),
+        makeShape('el3', 'g1'),
+        makeShape('el4', 'g2'),
+      ])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: { effect: 'entrance_wipe' },
+            g2: { effect: 'entrance_fade' },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations!.length).toBe(4)
+      const elementIdsByGroup = new Map<string, string[]>()
+      for (const e of slide.elements) {
+        const gid = (e as { groupId?: string }).groupId!
+        const arr = elementIdsByGroup.get(gid) ?? []
+        arr.push((e as { id: string }).id)
+        elementIdsByGroup.set(gid, arr)
+      }
+      for (const [gid, ids] of elementIdsByGroup) {
+        const elIds = result.animations!
+          .filter((a) => ids.includes(a.elId))
+          .map((a) => a.elId)
+        expect(new Set(elIds)).toEqual(new Set(ids))
+      }
+    })
+
+    it('path-merge behavior is preserved: 1 merged PPTShapeElement → 1 animation', () => {
+      // Backward-compat check: a group whose children were path-merged into a single
+      // PPTShapeElement still produces exactly 1 PPTAnimation (1 candidate).
+      const slide = makeSlide([makeShape('card-merged__abc', 'card-temperature')])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            'card-temperature': { effect: 'entrance_zoom' },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations!.length).toBe(1)
+      expect(result.animations![0].elId).toBe('card-merged__abc')
+      expect(opts.diagnostics.elementsCovered).toBe(1)
     })
   })
 
@@ -502,6 +581,7 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
         unmappedEffects: 2,
         elIdNotFoundWarnings: [],
         defaultsApplied: 0,
+        elementsCovered: 12,
       }
       let captured = ''
       const fakeStream = {
@@ -515,6 +595,7 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
       expect(captured).toContain('12 PPTAnimation entries')
       expect(captured).toContain('24 fields preserved')
       expect(captured).toContain('2 effects fell back')
+      expect(captured).toContain('12 PPTElement × row tuples')
     })
 
     it('emits a WARN block when elIdNotFoundWarnings is non-empty', () => {
@@ -525,6 +606,7 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
         unmappedEffects: 0,
         elIdNotFoundWarnings: ['slide=s1, group=g1: no match'],
         defaultsApplied: 0,
+        elementsCovered: 1,
       }
       let captured = ''
       const fakeStream = {

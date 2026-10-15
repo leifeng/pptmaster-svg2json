@@ -2,10 +2,26 @@
  * Animation injector — Phase 14 / Plan 14-02 + Plan 14-03.
  *
  * Sidecar → Slide bridge. Translates a three-side `animations.json` entry for
- * one slide into `slide.animations[]` (one PPTAnimation per `groups[gid]` row)
- * and `slide.turningMode` (per `entry.transition.effect`). Pure-ish — returns a
- * new Slide object and accumulates diagnostics into a caller-provided object so
- * `convertDir()` can sum across slides.
+ * one slide into `slide.animations[]` (one PPTAnimation per matching
+ * `slide.elements[]` for every `groups[gid]` row — i.e. each PPTElement under a
+ * group id receives the group's effect, and `slide.turningMode` (per
+ * `entry.transition.effect`). Pure-ish — returns a new Slide object and
+ * accumulates diagnostics into a caller-provided object so `convertDir()` can
+ * sum across slides.
+ *
+ * Per-group coverage model (changed intent post-Wave 2 ship, ANIM-MAP-04
+ * originally picked first-match; user revised to "every element in the group
+ * gets the same effect" — see `.planning/debug/anim-elid-coverage.md`):
+ *   - For each `groups[gid]`, find ALL `slide.elements[]` whose `groupId === gid`.
+ *   - For each row in `groups[gid]` (legacy single-effect lifts to 1-row),
+ *     emit ONE PPTAnimation PER matching element. So a group with 4 elements
+ *     and 1 row produces 4 PPTAnimations; a path-merged group (1 merged
+ *     PPTShapeElement) produces 1 PPTAnimation — path-merge coverage is
+ *     naturally 1-to-1 and is NOT regressed by the expansion.
+ *   - `defaultsApplied` counts PER ROW (not per element) — substitution
+ *     happens once per missing field, regardless of how many candidates match.
+ *   - `elementsCovered` counts the total (row, element) tuples that emitted a
+ *     PPTAnimation, providing direct observability of N→N coverage.
  *
  * Decisions honored:
  *   D-11: Each PPTAnimation carries D-11 fields in `extensions` —
@@ -80,8 +96,21 @@ export interface InjectDiagnostics {
    * D-22 strict: when a slide lacks a sidecar entry, this counter does NOT
    * increment even when defaults are populated — the early-return prevents
    * defaults from leaking to slides absent from `sidecar.slides`.
+   *
+   * Per-row, NOT per-element: a row with N matching PPTElements still increments
+   * once (the substitution happens at row-resolution time, not at emission
+   * time). For the current exampels/202610131101001 fixture this equals
+   * `elementsCovered` because each group has 1 row.
    */
   defaultsApplied: number
+  /**
+   * Number of PPTElement × row tuples that produced a PPTAnimation. Direct
+   * observability for the N→N group-coverage model: a group with 4 elements
+   * and 1 row contributes 4 to this counter; a path-merged group with 1
+   * element contributes 1. Rows with `effect === 'none'` (Pitfall 5) do NOT
+   * contribute. Skipped groups (no matching element) do NOT contribute.
+   */
+  elementsCovered: number
 }
 
 export function emptyInjectorDiagnostics(): InjectDiagnostics {
@@ -92,6 +121,7 @@ export function emptyInjectorDiagnostics(): InjectDiagnostics {
     unmappedEffects: 0,
     elIdNotFoundWarnings: [],
     defaultsApplied: 0,
+    elementsCovered: 0,
   }
 }
 
@@ -260,7 +290,9 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
       : (row.trigger ?? effectiveAnimationDefaults?.trigger ?? 'after-previous')
 
   for (const [groupId, groupEntry] of Object.entries(entry.groups)) {
-    // Resolve elId — first PPTElement whose groupId matches (D-08 + ANIM-MAP-04).
+    // Resolve ALL PPTElements whose groupId matches (D-08 + ANIM-MAP-04 + user-intent revision).
+    // Each candidate gets its own PPTAnimation per row — N→N coverage rather than 1:1.
+    // Path-merged groups naturally stay at 1 candidate → 1 animation (no path-merge regression).
     const candidates = slide.elements.filter((el: { groupId?: string }) => el.groupId === groupId)
     if (candidates.length === 0) {
       opts.diagnostics.elIdNotFoundWarnings.push(
@@ -268,7 +300,6 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
       )
       continue
     }
-    const elId = (candidates[0] as { id: string }).id
 
     const rows = normalizeRows(groupEntry)
     for (const row of rows) {
@@ -282,6 +313,8 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
 
       // D-21 row-level defaults + D-18 trigger_shape fallback — both pass through
       // mapTrigger to collapse three-side strings to the PPTist AnimationTrigger enum.
+      // `previousOrder` is shared across all candidates for this row (same trigger
+      // semantics), then advances once per row to preserve the cross-row ordering chain.
       const trigger = mapTrigger(
         effectiveRowTrigger(row),
         row.order,
@@ -290,30 +323,42 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
       const duration = mapDuration(effectiveRowDuration(row))
 
       // ANIM-DEFAULTS-01 observability: count each row-level substitution.
+      // PER-ROW, not per-element: the substitution happens once at row-resolution
+      // time; emitting the same row to N elements must NOT inflate the count.
       if (row.duration === undefined) opts.diagnostics.defaultsApplied++
       if (row.trigger === undefined && row.trigger_shape === undefined)
         opts.diagnostics.defaultsApplied++
 
-      // D-11/12/13: extensions provenance + preserved opaque fields.
+      // D-11/12/13: extensions provenance + preserved opaque fields. Shared
+      // content across all candidate emissions for this row (same row, same
+      // fallback status). Shallow-copied per animation to keep each
+      // PPTAnimation.extensions reference independent — defensive against
+      // any future mutation in the consumer path.
       const extensions = buildExtensions(row, fallback)
-      const pptAnimationId = generatePptAnimationId()
+      const hasExtensions = Object.keys(extensions).length > 0
 
-      const animation: PPTAnimation = {
-        id: pptAnimationId,
-        elId,
-        effect,
-        type: inferredType,
-        duration,
-        trigger,
+      for (const candidate of candidates) {
+        const pptAnimationId = generatePptAnimationId()
+
+        const animation: PPTAnimation = {
+          id: pptAnimationId,
+          elId: (candidate as { id: string }).id,
+          effect,
+          type: inferredType,
+          duration,
+          trigger,
+        }
+        if (hasExtensions) animation.extensions = { ...extensions }
+
+        builtAnimations.push(animation)
+
+        opts.diagnostics.animationsInjected++
+        opts.diagnostics.elementsCovered++
+        opts.diagnostics.extensionsFieldsPreserved += Object.keys(extensions).length
+        if (fallback) opts.diagnostics.unmappedEffects++
       }
-      if (Object.keys(extensions).length > 0) animation.extensions = extensions
 
-      builtAnimations.push(animation)
       previousOrder = row.order
-
-      opts.diagnostics.animationsInjected++
-      opts.diagnostics.extensionsFieldsPreserved += Object.keys(extensions).length
-      if (fallback) opts.diagnostics.unmappedEffects++
     }
   }
 
@@ -361,7 +406,8 @@ export function printDiagnostics(
   stream.write(
     pc.cyan(
       `[animations] injected into ${d.slidesWithAnimation} slide(s), ` +
-        `${d.animationsInjected} PPTAnimation entries, ` +
+        `${d.animationsInjected} PPTAnimation entries ` +
+        `(${d.elementsCovered} PPTElement × row tuples), ` +
         `${d.extensionsFieldsPreserved} fields preserved in extensions, ` +
         `${d.unmappedEffects} effects fell back to defaults\n`,
     ),

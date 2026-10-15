@@ -274,14 +274,37 @@ describe('Plan 14-03 — E2E on exampels/202610131101001 (ANIM-DIAG-01)', () => 
     })
   })
 
-  describe('03_overview specific — group-count invariant', () => {
-    it('animations.length === groups-keys-count from sidecar', () => {
+  describe('03_overview specific — group-count invariant (N→N coverage)', () => {
+    it('animations.length === sum(elements per group) from sidecar', () => {
       if (!hasFixture || !firstRun || !sidecar) return
       const slide = firstRun.slides.find(s => s.id === '03_overview')
-      const groupsCount = Object.keys(sidecar.slides['03_overview'].groups).length
-      // Pitfall 5: rows with effect='none' are skipped; fixture has no 'none'
-      // rows in 03_overview, so animations.length should equal groupsCount.
-      expect(slide!.animations!.length).toBe(groupsCount)
+      // N→N coverage model: each PPTElement under a <g id="gid"> gets a PPTAnimation
+      // for the group's effect row. For legacy single-effect groups (1 row each)
+      // this means animations.length === sum over groups of |{elements : groupId === gid}|.
+      // For 03_overview (4 groups × 4 elements per group), the expected value is 16.
+      // Pitfall 5: rows with effect='none' are skipped; fixture has no 'none' rows
+      // in 03_overview, so no row-level subtraction.
+      const expectedAnimationsCount = Object.keys(sidecar.slides['03_overview'].groups)
+        .reduce((sum, gid) => {
+          return sum + slide!.elements.filter((e: any) => e.groupId === gid).length
+        }, 0)
+      expect(expectedAnimationsCount).toBeGreaterThan(0) // ensure pre-fix 1:1 ≠ new
+      expect(slide!.animations!.length).toBe(expectedAnimationsCount)
+    })
+
+    it('every PPTElement with groupId matching a sidecar group has at least one animation', () => {
+      if (!hasFixture || !firstRun || !sidecar) return
+      const slide = firstRun.slides.find(s => s.id === '03_overview')
+      const animatedElIds = new Set(slide!.animations!.map((a: any) => a.elId))
+      for (const [gid, groupEntry] of Object.entries(sidecar.slides['03_overview'].groups)) {
+        const groupElements = slide!.elements.filter((e: any) => e.groupId === gid)
+        for (const el of groupElements) {
+          expect(
+            animatedElIds.has((el as any).id),
+            `element ${(el as any).id} under group ${gid} must have an animation`,
+          ).toBe(true)
+        }
+      }
     })
 
     it('produces a sample of mapped animations on 03_overview', () => {
