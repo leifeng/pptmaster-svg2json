@@ -108,11 +108,13 @@
 **Goal:** 扩展动画 sidecar 处理 — `effect: "none"` 不生成动画、default 与 transition 字段扩展处理、三方字段原封不动存 extensions、三方→PPTist effect 全覆盖映射、三方 `delay + duration` 合并到 PPTist `duration`
 **Requirements:** ANIM-NONE-01/02/03, ANIM-EXTS-01/02, ANIM-MAP-EXT-01/02/03, ANIM-DELAY-01, ANIM-INHERIT-01, ANIM-CHROME-01
 **Plans:** 2 plans
+**Wave 1**
 - [ ] 15-01-PLAN.md — Mapping 53/33/53 全覆盖 + effect:none cascade + transition 'none' → 'no' + delay+duration 合并 + new counters
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 15-02-PLAN.md — `resolveEffectiveRow` 纯函数 + extensions 三字段补全 + chrome 助手 + chromeSkippedGroups counter
+
 **Reference:** `E:\git\svg2json\ELEMENT_ANIMATIONS.md`, `E:\git\svg2json\animation-adaptation-analysis.md`, `E:\git\svg2json\.planning\phases\15-animation-sidecar-extended\15-CONTEXT.md`, `E:\git\svg2json\.planning\phases\15-animation-sidecar-extended\15-RESEARCH.md`
-
-
 
 ---
 
