@@ -313,6 +313,51 @@ export const EFFECT_FALLBACK: Record<AnimationType, string> = {
 export const EFFECT_NONE_SENTINEL = '__skip__'
 
 // ---------------------------------------------------------------------------
+// Chrome-skip heuristic (D-04 — forward-compat only in Phase 15)
+// ---------------------------------------------------------------------------
+
+/**
+ * D-04 — Chrome-like group id regex. Matches the well-known chrome tokens
+ * used by slide decks to identify non-content groups (backgrounds, headers,
+ * footers, navigation chrome, page numbers, etc.).
+ *
+ * Per `ELEMENT_ANIMATIONS.md §5.2`, every chrome-id candidate is silently
+ * skipped by the animation injector unless explicitly listed in the sidecar's
+ * `slides.<id>.groups` block (user override). Phase 15 wires the helper
+ * forward-compat only — Plan 16+ bulk-scan feature should integrate the
+ * chrome-skip filter into the iteration loop.
+ *
+ * Test cases (ELEMENT_ANIMATIONS.md L541):
+ *   bg              → true   (literal)
+ *   nav             → true   (literal)
+ *   logo            → true   (literal)
+ *   watermark       → true   (literal)
+ *   pagenumber      → true   (literal)
+ *   card-header-arrow → true (matches `.*-header$`)
+ *   footer-strip    → true   (matches `.*-footer$`)
+ *   background-decor → true  (matches `.*-decor$`)
+ *   decor           → false  (`.*-decor` requires ≥1 prefix char)
+ *   card-temperature → false (semantic group, not chrome)
+ */
+export const CHROME_REGEX = /^(bg|nav|watermark|logo|pagenumber|.*-header|.*-footer|.*-decor)$/
+
+/**
+ * D-04 — Pure helper that classifies a group id as chrome. The regex is
+ * exported as `CHROME_REGEX` so other consumers can compose or inspect it.
+ *
+ * NOTE: This function is exposed but not yet wired into `injectAnimations`'s
+ * `for-of entry.groups` loop (Phase 15 forward-compat). Plan 16+ bulk-scan
+ * feature should:
+ *   1. For each group id, check `isChromeGroupId(id)`.
+ *   2. If true AND id is not in `entry.groups` (explicit override) → skip
+ *      AND increment `diagnostics.chromeSkippedGroups`.
+ *   3. Otherwise → emit per row as today.
+ */
+export function isChromeGroupId(id: string): boolean {
+  return CHROME_REGEX.test(id)
+}
+
+// ---------------------------------------------------------------------------
 // Mapping functions
 // ---------------------------------------------------------------------------
 
