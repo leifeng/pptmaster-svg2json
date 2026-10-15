@@ -15,12 +15,14 @@ import {
   EFFECT_FALLBACK,
   EFFECT_NONE_SENTINEL,
   CHROME_REGEX,
+  LEGACY_NAME_MAP,
   isChromeGroupId,
   inferAnimationType,
   mapEffect,
   mapTrigger,
   mapDuration,
   mapTransition,
+  normalizeLegacyEffect,
 } from './animation'
 
 // PPTist whitelists for runtime safety check.
@@ -132,6 +134,98 @@ describe('Plan 14-02 — mappers/animation.ts (D-14~19)', () => {
     it("'none' returns __skip__ sentinel (Pitfall 5)", () => {
       expect(mapEffect('none', 'in')).toEqual({ effect: EFFECT_NONE_SENTINEL, fallback: false })
     })
+
+    // D-LEGACY — every legacy name normalizes to entrance_* then maps to the
+    // PPTist whitelist (NOT to the fadeIn fallback). 29 cases mirroring
+    // ELEMENT_ANIMATIONS.md §4.7 lines 490-520. Without the normalize step
+    // these would all return `{ effect: 'fadeIn', fallback: true }`.
+    it("legacy 'fly' normalizes to entrance_fly → lightSpeedInLeft", () => {
+      expect(mapEffect('fly', 'in')).toEqual({ effect: 'lightSpeedInLeft', fallback: false })
+    })
+    it("legacy 'fly_left' normalizes to entrance_fly → lightSpeedInLeft", () => {
+      expect(mapEffect('fly_left', 'in')).toEqual({ effect: 'lightSpeedInLeft', fallback: false })
+    })
+    it("legacy 'fly_right' normalizes to entrance_fly → lightSpeedInLeft", () => {
+      expect(mapEffect('fly_right', 'in')).toEqual({ effect: 'lightSpeedInLeft', fallback: false })
+    })
+    it("legacy 'fly_top' normalizes to entrance_fly → lightSpeedInLeft", () => {
+      expect(mapEffect('fly_top', 'in')).toEqual({ effect: 'lightSpeedInLeft', fallback: false })
+    })
+    it("legacy 'zoom' normalizes to entrance_zoom → zoomIn", () => {
+      expect(mapEffect('zoom', 'in')).toEqual({ effect: 'zoomIn', fallback: false })
+    })
+    it("legacy 'appear' normalizes to entrance_appear → fadeIn", () => {
+      expect(mapEffect('appear', 'in')).toEqual({ effect: 'fadeIn', fallback: false })
+    })
+    it("legacy 'cut' normalizes to entrance_appear → fadeIn", () => {
+      expect(mapEffect('cut', 'in')).toEqual({ effect: 'fadeIn', fallback: false })
+    })
+    it("legacy 'fade' normalizes to entrance_fade → fadeIn", () => {
+      expect(mapEffect('fade', 'in')).toEqual({ effect: 'fadeIn', fallback: false })
+    })
+    it("legacy 'wipe' normalizes to entrance_wipe → fadeIn", () => {
+      expect(mapEffect('wipe', 'in')).toEqual({ effect: 'fadeIn', fallback: false })
+    })
+    it("legacy 'wipe_left' normalizes to entrance_wipe → fadeIn", () => {
+      expect(mapEffect('wipe_left', 'in')).toEqual({ effect: 'fadeIn', fallback: false })
+    })
+    it("legacy 'wipe_right' normalizes to entrance_wipe → fadeIn", () => {
+      expect(mapEffect('wipe_right', 'in')).toEqual({ effect: 'fadeIn', fallback: false })
+    })
+    it("legacy 'wipe_up' normalizes to entrance_wipe → fadeIn", () => {
+      expect(mapEffect('wipe_up', 'in')).toEqual({ effect: 'fadeIn', fallback: false })
+    })
+    it("legacy 'wipe_down' normalizes to entrance_wipe → fadeIn", () => {
+      expect(mapEffect('wipe_down', 'in')).toEqual({ effect: 'fadeIn', fallback: false })
+    })
+    it("legacy 'split' normalizes to entrance_split → zoomIn", () => {
+      expect(mapEffect('split', 'in')).toEqual({ effect: 'zoomIn', fallback: false })
+    })
+    it("legacy 'blinds' normalizes to entrance_blinds → fadeIn", () => {
+      expect(mapEffect('blinds', 'in')).toEqual({ effect: 'fadeIn', fallback: false })
+    })
+    it("legacy 'checkerboard' normalizes to entrance_checkerboard → fadeIn", () => {
+      expect(mapEffect('checkerboard', 'in')).toEqual({ effect: 'fadeIn', fallback: false })
+    })
+    it("legacy 'dissolve' normalizes to entrance_dissolve → fadeIn", () => {
+      expect(mapEffect('dissolve', 'in')).toEqual({ effect: 'fadeIn', fallback: false })
+    })
+    it("legacy 'random_bars' normalizes to entrance_random_bars → fadeIn", () => {
+      expect(mapEffect('random_bars', 'in')).toEqual({ effect: 'fadeIn', fallback: false })
+    })
+    it("legacy 'peek' normalizes to entrance_peek → slideInUp", () => {
+      expect(mapEffect('peek', 'in')).toEqual({ effect: 'slideInUp', fallback: false })
+    })
+    it("legacy 'wheel' normalizes to entrance_wheel → rotateIn", () => {
+      expect(mapEffect('wheel', 'in')).toEqual({ effect: 'rotateIn', fallback: false })
+    })
+    it("legacy 'box' normalizes to entrance_box → zoomIn", () => {
+      expect(mapEffect('box', 'in')).toEqual({ effect: 'zoomIn', fallback: false })
+    })
+    it("legacy 'circle' normalizes to entrance_circle → rotateIn", () => {
+      expect(mapEffect('circle', 'in')).toEqual({ effect: 'rotateIn', fallback: false })
+    })
+    it("legacy 'diamond' normalizes to entrance_diamond → rotateIn", () => {
+      expect(mapEffect('diamond', 'in')).toEqual({ effect: 'rotateIn', fallback: false })
+    })
+    it("legacy 'plus' normalizes to entrance_plus → zoomIn", () => {
+      expect(mapEffect('plus', 'in')).toEqual({ effect: 'zoomIn', fallback: false })
+    })
+    it("legacy 'strips' normalizes to entrance_strips → slideInLeft", () => {
+      expect(mapEffect('strips', 'in')).toEqual({ effect: 'slideInLeft', fallback: false })
+    })
+    it("legacy 'wedge' normalizes to entrance_wedge → rotateInDownLeft", () => {
+      expect(mapEffect('wedge', 'in')).toEqual({ effect: 'rotateInDownLeft', fallback: false })
+    })
+    it("legacy 'stretch' normalizes to entrance_stretch → backInLeft", () => {
+      expect(mapEffect('stretch', 'in')).toEqual({ effect: 'backInLeft', fallback: false })
+    })
+    it("legacy 'expand' normalizes to entrance_expand → zoomIn", () => {
+      expect(mapEffect('expand', 'in')).toEqual({ effect: 'zoomIn', fallback: false })
+    })
+    it("legacy 'swivel' normalizes to entrance_swivel → rotateIn", () => {
+      expect(mapEffect('swivel', 'in')).toEqual({ effect: 'rotateIn', fallback: false })
+    })
   })
 
   describe('mapTrigger (D-18)', () => {
@@ -176,16 +270,115 @@ describe('Plan 14-02 — mappers/animation.ts (D-14~19)', () => {
     })
   })
 
-  describe('mapTransition (D-17)', () => {
-    it("'fade' → fade", () => expect(mapTransition('fade')).toBe('fade'))
-    it("'cut' → no", () => expect(mapTransition('cut')).toBe('no'))
-    it("'random' → random (passthrough)", () => expect(mapTransition('random')).toBe('random'))
-    it("'dissolve' → fade (unsupported → fallback)", () => expect(mapTransition('dissolve')).toBe('fade'))
-    it("'unknown_thing' → fade (universal fallback)", () => expect(mapTransition('unknown_thing')).toBe('fade'))
-    it("'push' → slideY", () => expect(mapTransition('push')).toBe('slideY'))
-    it("'cover' → slideX", () => expect(mapTransition('cover')).toBe('slideX'))
+  describe('D-LEGACY — normalizeLegacyEffect + LEGACY_NAME_MAP (ELEMENT_ANIMATIONS.md §4.7)', () => {
+  it('LEGACY_NAME_MAP has exactly 29 entries (matches ELEMENT_ANIMATIONS.md §4.7)', () => {
+    expect(Object.keys(LEGACY_NAME_MAP).length).toBe(29)
+  })
+
+  it('every canonical target in LEGACY_NAME_MAP is a key in ENTRANCE_MAP', () => {
+    for (const [k, v] of Object.entries(LEGACY_NAME_MAP)) {
+      expect(ENTRANCE_MAP[v.effect], `LEGACY_NAME_MAP[${k}].effect=${v.effect} not in ENTRANCE_MAP`).toBeDefined()
+    }
+  })
+
+  it("non-legacy key passes through normalizeLegacyEffect verbatim", () => {
+    expect(normalizeLegacyEffect('entrance_fly')).toEqual({
+      effect: 'entrance_fly',
+      options: undefined,
+    })
+    expect(normalizeLegacyEffect('emphasis_pulse')).toEqual({
+      effect: 'emphasis_pulse',
+      options: undefined,
+    })
+  })
+
+  it("legacy 'fly' normalizes to entrance_fly + direction='down' default", () => {
+    expect(normalizeLegacyEffect('fly')).toEqual({
+      effect: 'entrance_fly',
+      options: { direction: 'down' },
+    })
+  })
+
+  it("legacy 'fly_left' normalizes to entrance_fly + direction='left'", () => {
+    expect(normalizeLegacyEffect('fly_left')).toEqual({
+      effect: 'entrance_fly',
+      options: { direction: 'left' },
+    })
+  })
+
+  it("legacy 'wipe_down' normalizes to entrance_wipe + direction='down'", () => {
+    expect(normalizeLegacyEffect('wipe_down')).toEqual({
+      effect: 'entrance_wipe',
+      options: { direction: 'down' },
+    })
+  })
+
+  it("legacy 'wheel' normalizes to entrance_wheel + amount=4", () => {
+    expect(normalizeLegacyEffect('wheel')).toEqual({
+      effect: 'entrance_wheel',
+      options: { amount: 4 },
+    })
+  })
+
+  it("user-provided options win over legacy defaults", () => {
+    // fly has legacy direction='down', but user overrides with direction='right'
+    expect(normalizeLegacyEffect('fly', { direction: 'right' })).toEqual({
+      effect: 'entrance_fly',
+      options: { direction: 'right' },
+    })
+  })
+
+  it("user-provided options merge with legacy defaults when keys don't conflict", () => {
+    // fly direction='down' (legacy) + user duration='slow' (new key) → merged
+    expect(normalizeLegacyEffect('fly', { duration: 'slow' })).toEqual({
+      effect: 'entrance_fly',
+      options: { direction: 'down', duration: 'slow' },
+    })
+  })
+
+  it("legacy without options + no user options → options undefined", () => {
+    // 'zoom' has no default options
+    expect(normalizeLegacyEffect('zoom')).toEqual({
+      effect: 'entrance_zoom',
+      options: undefined,
+    })
+    // 'zoom' + no user options → still undefined
+    expect(normalizeLegacyEffect('zoom', undefined)).toEqual({
+      effect: 'entrance_zoom',
+      options: undefined,
+    })
+  })
+
+  it("legacy without default options + user options → only user options", () => {
+    expect(normalizeLegacyEffect('zoom', { direction: 'in' })).toEqual({
+      effect: 'entrance_zoom',
+      options: { direction: 'in' },
+    })
+  })
+
+  it("canonical entrance_fly passes through unchanged with user options", () => {
+    expect(normalizeLegacyEffect('entrance_fly', { direction: 'right' })).toEqual({
+      effect: 'entrance_fly',
+      options: { direction: 'right' },
+    })
   })
 })
+
+describe('mapTransition (D-17)', () => {
+  it("'fade' → fade", () => expect(mapTransition('fade')).toBe('fade'))
+  it("'cut' → no", () => expect(mapTransition('cut')).toBe('no'))
+  it("'random' → random (passthrough)", () => expect(mapTransition('random')).toBe('random'))
+  it("'dissolve' → fade (unsupported → fallback)", () => expect(mapTransition('dissolve')).toBe('fade'))
+  it("'unknown_thing' → fade (universal fallback)", () => expect(mapTransition('unknown_thing')).toBe('fade'))
+  it("'push' → slideY", () => expect(mapTransition('push')).toBe('slideY'))
+  it("'cover' → slideX", () => expect(mapTransition('cover')).toBe('slideX'))
+})
+})
+
+// ---------------------------------------------------------------------------
+// Plan 14-02 closing block — was an outer describe; now flattened to top-level
+// since the inline nested describe('mapTransition') was the last sub-block.
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Plan 15-01 — ELEMENT_ANIMATIONS.md §4.6 cross-coverage tests (D-09~12)

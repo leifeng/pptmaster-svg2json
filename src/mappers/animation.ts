@@ -312,6 +312,79 @@ export const EFFECT_FALLBACK: Record<AnimationType, string> = {
 /** Sentinel effect returned by `mapEffect` when the row carries `effect: 'none'`. */
 export const EFFECT_NONE_SENTINEL = '__skip__'
 
+/**
+ * LEGACY_NAME_MAP: 29 legacy compatibility input names → canonical preset.
+ *
+ * Source: `ELEMENT_ANIMATIONS.md §4.7` lines 490-520. These keys are accepted
+ * on input but normalized to `entrance_*` (203-key canonical) before the
+ * per-type MAP. The `originalEffect` field in `extensions` (D-15) preserves
+ * the original legacy key for provenance.
+ *
+ * When the legacy variant carries direction/amount semantics (e.g. `fly_left`),
+ * the canonical `effect_options` are merged in `normalizeLegacyEffect` (user-
+ * provided options win over legacy defaults — user-provided is more specific).
+ */
+export const LEGACY_NAME_MAP: Record<string, { effect: string; options?: Record<string, any> }> = {
+  appear:         { effect: 'entrance_appear' },
+  cut:            { effect: 'entrance_appear' },
+  fade:           { effect: 'entrance_fade' },
+  fly:            { effect: 'entrance_fly', options: { direction: 'down' } },
+  fly_left:       { effect: 'entrance_fly', options: { direction: 'left' } },
+  fly_right:      { effect: 'entrance_fly', options: { direction: 'right' } },
+  fly_top:        { effect: 'entrance_fly', options: { direction: 'up' } },
+  zoom:           { effect: 'entrance_zoom' },
+  wipe:           { effect: 'entrance_wipe', options: { direction: 'left' } },
+  wipe_left:      { effect: 'entrance_wipe', options: { direction: 'left' } },
+  wipe_right:     { effect: 'entrance_wipe', options: { direction: 'right' } },
+  wipe_up:        { effect: 'entrance_wipe', options: { direction: 'up' } },
+  wipe_down:      { effect: 'entrance_wipe', options: { direction: 'down' } },
+  split:          { effect: 'entrance_split', options: { direction: 'horizontal' } },
+  blinds:         { effect: 'entrance_blinds', options: { direction: 'vertical' } },
+  checkerboard:   { effect: 'entrance_checkerboard', options: { direction: 'horizontal' } },
+  dissolve:       { effect: 'entrance_dissolve' },
+  random_bars:    { effect: 'entrance_random_bars', options: { direction: 'horizontal' } },
+  peek:           { effect: 'entrance_peek', options: { direction: 'in_bottom' } },
+  wheel:          { effect: 'entrance_wheel', options: { amount: 4 } },
+  box:            { effect: 'entrance_box', options: { direction: 'in' } },
+  circle:         { effect: 'entrance_circle', options: { direction: 'in' } },
+  diamond:        { effect: 'entrance_diamond', options: { direction: 'in' } },
+  plus:           { effect: 'entrance_plus', options: { direction: 'in' } },
+  strips:         { effect: 'entrance_strips', options: { direction: 'right' } },
+  wedge:          { effect: 'entrance_wedge', options: { direction: 'down' } },
+  stretch:        { effect: 'entrance_stretch', options: { direction: 'in' } },
+  expand:         { effect: 'entrance_expand', options: { direction: 'out' } },
+  swivel:         { effect: 'entrance_swivel', options: { direction: 'vertical' } },
+}
+
+/**
+ * D-LEGACY — Translate a legacy input name to its canonical preset.
+ *
+ * Returns `{ effect: canonicalKey, options: mergedOptions }`. When the input
+ * is NOT a legacy name (e.g. already `entrance_fly` or `emphasis_pulse`), the
+ * key is returned verbatim and options are passed through (no legacy defaults
+ * applied). User-provided `existingOptions` always WIN over legacy defaults
+ * (user is more specific than the table).
+ *
+ * This is the per-row `NormalizedAnimation` step referenced in
+ * `PPTIST_ANIMATION_MAPPING.md §3.2`. Implementation lives in `mappers/`
+ * (NOT in `animation-types.ts`) because the table needs the runtime value of
+ * the key, which only the mapper consumes.
+ */
+export function normalizeLegacyEffect(
+  key: string,
+  existingOptions?: Record<string, any>,
+): { effect: string; options?: Record<string, any> } {
+  const legacy = LEGACY_NAME_MAP[key]
+  if (legacy === undefined) {
+    return { effect: key, options: existingOptions }
+  }
+  // Merge: user-provided wins over legacy defaults (per ELEMENT_ANIMATIONS.md §4.5 v2 rule).
+  const merged = existingOptions || legacy.options
+    ? { ...(legacy.options ?? {}), ...(existingOptions ?? {}) }
+    : undefined
+  return { effect: legacy.effect, options: merged }
+}
+
 // ---------------------------------------------------------------------------
 // Chrome-skip heuristic (D-04 — forward-compat only in Phase 15)
 // ---------------------------------------------------------------------------
@@ -386,6 +459,12 @@ export function inferAnimationType(threeSideKey: string): AnimationType {
  *
  * Callers are expected to honor the `__skip__` sentinel by skipping the row.
  *
+ * D-LEGACY normalization: when `threeSideKey` is a legacy compatibility input
+ * name (ELEMENT_ANIMATIONS.md §4.7 — e.g. `fly`, `zoom`, `wipe_left`), it is
+ * first translated to its canonical `entrance_*` form via `normalizeLegacyEffect`
+ * before the per-type MAP lookup. This unblocks the legacy 29-key input surface
+ * without polluting the 203-key canonical MAP.
+ *
  * `counters` (D-12 unmapped observability) — when provided, increments
  * `unmappedEffectCount` for each fallback hit (so the injector can surface
  * unmapped-key statistics without changing existing call sites).
@@ -397,12 +476,16 @@ export function mapEffect(
 ): { effect: string; fallback: boolean } {
   if (threeSideKey === 'none') return { effect: EFFECT_NONE_SENTINEL, fallback: false }
 
+  // D-LEGACY: legacy input → canonical preset before consulting the per-type MAP.
+  const normalized = normalizeLegacyEffect(threeSideKey)
+  const lookupKey = normalized.effect
+
   const byType: Record<AnimationType, Record<string, string>> = {
     in: ENTRANCE_MAP,
     attention: EMPHASIS_MAP,
     out: EXIT_MAP,
   }
-  const mapped = byType[inferredType]?.[threeSideKey]
+  const mapped = byType[inferredType]?.[lookupKey]
   if (mapped) return { effect: mapped, fallback: false }
   if (counters) counters.unmappedEffectCount++
   return { effect: EFFECT_FALLBACK[inferredType], fallback: true }

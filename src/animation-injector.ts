@@ -77,6 +77,7 @@ import {
   mapTrigger,
   mapDuration,
   inferAnimationType,
+  normalizeLegacyEffect,
   EFFECT_NONE_SENTINEL,
 } from './mappers/animation'
 import pc from 'picocolors'
@@ -439,8 +440,16 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
       }
 
       const inferredType: AnimationType = inferAnimationType(row.effect)
+      // D-LEGACY: legacy input name (e.g. `fly`, `zoom`, `wipe_left`) →
+      // canonical `entrance_*` + merged options (user-provided wins).
+      // Pass `normalized.effect` to mapEffect so the per-type MAP lookup
+      // succeeds; pass `normalized.options` to buildExtensions so the legacy
+      // direction/amount defaults reach `extensions.effectOptions`. The raw
+      // `row.effect` is preserved verbatim in `extensions.originalEffect`
+      // (D-15) for provenance.
+      const normalized = normalizeLegacyEffect(row.effect, row.effect_options)
       const { effect, fallback } = mapEffect(
-        row.effect,
+        normalized.effect,
         inferredType,
         opts.diagnostics,
       )
@@ -490,7 +499,16 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
       // fallback status). Shallow-copied per animation to keep each
       // PPTAnimation.extensions reference independent — defensive against
       // any future mutation in the consumer path.
-      const extensions = buildExtensions(row, fallback)
+      //
+      // D-LEGACY: feed normalized options (legacy defaults merged with user
+      // options) into buildExtensions so direction/amount from the legacy
+      // table reaches `extensions.effectOptions`. We don't mutate row itself —
+      // buildExtensions receives a row view with overridden `effect_options`.
+      const rowForExt: AnimationsSidecarRow = {
+        ...row,
+        effect_options: normalized.options ?? row.effect_options,
+      }
+      const extensions = buildExtensions(rowForExt, fallback)
       const hasExtensions = Object.keys(extensions).length > 0
 
       // Phase 15 / Bug 2 — per-element trigger derivation. The first element in
