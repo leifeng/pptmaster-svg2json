@@ -50,16 +50,16 @@ decisions:
   - "D-13: row duration calc = (row.delay ?? 0) + effectiveRowDuration(row); mapDuration(totalSeconds) preserves clamp"
   - "D-14: extensions.originalDelay (via existing buildExtensions path) + new diagnostics.delayAccumulatedSeconds counter"
 metrics:
-  duration: "≈8 minutes (build + 4 npm test invocations + 5 file edits)"
+  duration: "≈10 minutes (build + 4 npm test invocations + 5 file edits + 1 metadata fix)"
   completed_date: 2026-10-15
-  commits: 3
+  commits: 4
   plan_head_before: 77ead70b2bf3afe97d09ff77c189a0bd0a3540be
-  plan_head_after: d13935c
+  plan_head_after: 562b646
 status: complete
 actuals:
   tokens: 7000
   tasks: 3
-  commits: 3
+  commits: 4
 ---
 
 # Phase 15 Plan 01: 映射扩展 + effect:none 级联 + delay+duration 合并 — Summary
