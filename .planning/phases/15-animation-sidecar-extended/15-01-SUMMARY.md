@@ -50,16 +50,17 @@ decisions:
   - "D-13: row duration calc = (row.delay ?? 0) + effectiveRowDuration(row); mapDuration(totalSeconds) preserves clamp"
   - "D-14: extensions.originalDelay (via existing buildExtensions path) + new diagnostics.delayAccumulatedSeconds counter"
 metrics:
-  duration: "≈10 minutes (build + 4 npm test invocations + 5 file edits + 3 metadata fixes)"
+  duration: "≈12 minutes (build + 4 npm test invocations + 5 file edits + SUMMARY.md + frontmatter alignment)"
   completed_date: 2026-10-15
-  commits: 5
+  commits: 6
   plan_head_before: 77ead70b2bf3afe97d09ff77c189a0bd0a3540be
-  plan_head_after: fbba1a2
+  plan_head_after: 804a1ae
 status: complete
 actuals:
   tokens: 7000
   tasks: 3
-  commits: 5
+  commits: 6
+  note: "Measured via `git rev-list --count 77ead70b..HEAD` = 6 commits. Of these: 2 feat commits (Task 2 mapper expansion, Task 3 injector logic) + 4 SUMMARY.md metadata commits (initial + 3 frontmatter corrections for accurate self-reported counts)."
 ---
 
 # Phase 15 Plan 01: 映射扩展 + effect:none 级联 + delay+duration 合并 — Summary
