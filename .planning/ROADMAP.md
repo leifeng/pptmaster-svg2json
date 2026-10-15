@@ -9,7 +9,7 @@
 - ✅ **v1.4** — Directory Batch CLI (2026-07-02)
 - ✅ **v1.3** — resvg-js Text Measurement (2026-07-01)
 - ✅ **v1.9** — PPTist Animation Sidecar Injection (Planning)
-- ◐ **v1.10** — Animation Sidecar Extension (Planning)
+- ✅ **v1.10** — Animation Sidecar Extension (Planning)
 
 ---
 
@@ -95,7 +95,7 @@
 | Phase 12 | v1.7 | Complete | 2026-07-23 |
 | Phase 13 | v1.8 | Complete | 2026-08-06 |
 | Phase 14 | v1.9 | Complete | 2026-10-15 |
-| Phase 15 | v1.10 | Pending | — |
+| Phase 15 | v1.10 | Complete | 2026-10-15 |
 
 ---
 
