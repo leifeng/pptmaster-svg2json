@@ -2,7 +2,7 @@ import cac from 'cac'
 import pc from 'picocolors'
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
 import { join, extname } from 'path'
-import { convert } from './index'
+import { convert, convertDir } from './index'
 import { verifyFontLoaded } from './font-validator'
 
 const cli = cac('svg2json')
@@ -80,6 +80,23 @@ async function main() {
   if (options.output && isDirectory(input)) {
     console.error(pc.red('Error: --output cannot be used with directory input (single file holds one result)'))
     process.exit(1)
+  }
+
+  // D-01~03: parent-dir mode — detect BEFORE the existing isDirectory(input) branch
+  // so the disambiguation is explicit. Detection: input is a directory AND
+  // `<input>/svg_output/` is also a directory (per D-01 layout).
+  if (isDirectory(input) && isDirectory(join(input, 'svg_output'))) {
+    console.error('[svg2json] detected parent-dir mode (svg_output/ subdir present)')
+    const result = await convertDir(input)
+    if (!result.success) {
+      console.error(pc.red(`ConvertDir failed: ${result.errors.length} file(s)`))
+      for (const e of result.errors) {
+        console.error(pc.red(`  ${e.file}: ${e.error}`))
+      }
+      process.exit(1)
+    }
+    console.error(pc.green(`Wrote ${result.slides.length} slides to svg_output/`))
+    process.exit(0)
   }
 
   if (isDirectory(input)) {

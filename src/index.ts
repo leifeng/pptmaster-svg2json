@@ -5,8 +5,8 @@ import { renderSvgToPng } from './text-measurer'
 import type { PPTElement, Slide, SlideBackground } from './slides'
 import type { SvgElement } from './types/ast'
 import { log, logStep } from './utils'
-import { resolve, dirname } from 'path'
-import { mkdirSync, writeFileSync } from 'fs'
+import { resolve, join, basename, dirname } from 'path'
+import { mkdirSync, writeFileSync, readdirSync } from 'fs'
 
 export interface ConvertOptions {
   targetCanvas?: [number, number]; // Target canvas size [width, height], defaults to [1000, 562.5]
@@ -18,6 +18,53 @@ export interface ConvertResult {
   output?: string;
   error?: string;
   elementCount?: number;
+  /**
+   * The resulting Slide object (PPTist format).
+   * Surfaced for Plan 02's animation-injection pass and for programmatic
+   * consumers that want typed access (vs. the JSON-string `output`).
+   */
+  slide?: Slide;
+}
+
+/**
+ * D-04: ConvertDirOptions — configuration surface for `convertDir()` parent-dir mode.
+ *
+ * `animationsPath` is a Wave 2 seam: Plan 14-01 accepts the option but ignores
+ * its content (D-22 strict — no animations injected yet). Plan 14-02 wires
+ * the actual sidecar parsing + PPTAnimation[] injection on top.
+ */
+export interface ConvertDirOptions {
+  targetCanvas?: [number, number];
+  /** Reserved for Plan 14-02 — animations.json path inside parentDir. */
+  animationsPath?: string;
+}
+
+export interface InjectorDiagnostics {
+  slidesMatched: number;
+  animationsInjected: number;
+  fieldsPreservedInExtensions: number;
+  unmappedEffectsFallback: number;
+  warnings: string[];
+}
+
+/**
+ * Empty diagnostics skeleton for Wave 1 (D-23 prints real numbers in Plan 02).
+ */
+function emptyInjectorDiagnostics(): InjectorDiagnostics {
+  return {
+    slidesMatched: 0,
+    animationsInjected: 0,
+    fieldsPreservedInExtensions: 0,
+    unmappedEffectsFallback: 0,
+    warnings: [],
+  }
+}
+
+export interface ConvertDirResult {
+  success: boolean;
+  slides: Slide[];
+  errors: Array<{ file: string; error: string }>;
+  diagnostics: InjectorDiagnostics;
 }
 
 /**
@@ -151,66 +198,87 @@ function inferBackground(elements: PPTElement[], canvasWidth: number, canvasHeig
   return undefined
 }
 
+/**
+ * Internal single-SVG conversion helper shared by `convert()` and `convertDir()`.
+ * Returns the assembled Slide in PPTist shape plus element count.
+ *
+ * Plan 14-01: this is the seam that lets `convertDir()` reuse the same parsing,
+ * background inference, and PPTElement wiring that `convert()` uses. Per D-04
+ * the returned object exposes a typed `Slide` so callers can do programmatic
+ * animation injection in Plan 14-02 without re-parsing.
+ */
+async function convertOne(
+  svgContent: string,
+  options?: ConvertOptions,
+): Promise<{ slide: Slide; elementCount: number }> {
+  const ast = await logStep('[解析] parseSvg', async () => parseSvg(svgContent, options?.svgFilePath))
+
+  // Basic validation: must have a root svg element
+  if (!ast.root || ast.root.type !== 'svg') {
+    throw new Error('Invalid SVG: no svg root element')
+  }
+  // Must have non-empty content (at least width/height or children)
+  if (ast.width <= 0 || ast.height <= 0) {
+    throw new Error('Invalid SVG: missing width/height')
+  }
+
+  const canvasWidth = options?.targetCanvas?.[0] ?? 1000
+  const canvasHeight = options?.targetCanvas?.[1] ?? 562.5
+
+  // D-36: Check if background uses pattern fill BEFORE transformation
+  // If yes, render full SVG background to PNG to preserve tiling effect
+  let backgroundImagePng: string | undefined
+  if (ast.patternRegistry && ast.patternRegistry.size > 0) {
+    backgroundImagePng = await logStep(
+      '[解析] renderBackgroundPatternToPng',
+      async () => renderBackgroundPatternToPng(ast.root, ast.patternRegistry!, ast.width, ast.height),
+    )
+  }
+
+  const elements = await logStep(
+    '[转换] transformToPPTElement',
+    async () => transformToPPTElement(ast, options?.targetCanvas),
+  )
+
+  // Infer background from first element; remove it from elements if found
+  const background = inferBackground(elements, canvasWidth, canvasHeight)
+  let slideElements = background ? elements.slice(1) : elements
+
+  // D-36: If background pattern PNG was generated, remove background group elements from slide
+  if (backgroundImagePng) {
+    // Filter out elements that belong to the background group (bg-texture, background, etc.)
+    slideElements = slideElements.filter(el => {
+      if (el.groupId) {
+        const gid = el.groupId.toLowerCase()
+        return !(gid.includes('bg') || gid.includes('background'))
+      }
+      return true
+    })
+  }
+
+  // Build complete Slide object (PPTist format)
+  const slide: Slide = {
+    id: uuidv4(),
+    elements: slideElements,
+  }
+  if (backgroundImagePng) {
+    slide.background = { type: 'image', image: { src: backgroundImagePng, size: 'cover' } }
+  } else if (background) {
+    slide.background = background
+  }
+
+  return { slide, elementCount: elements.length }
+}
+
 export async function convert(svgContent: string, options?: ConvertOptions): Promise<ConvertResult> {
   const totalStart = performance.now()
   log('[主流程] 开始转换')
 
   try {
-    const ast = await logStep('[解析] parseSvg', async () => parseSvg(svgContent, options?.svgFilePath))
-
-    // Basic validation: must have a root svg element
-    if (!ast.root || ast.root.type !== 'svg') {
-      return { success: false, error: 'Invalid SVG: no svg root element' }
-    }
-    // Must have non-empty content (at least width/height or children)
-    if (ast.width <= 0 || ast.height <= 0) {
-      return { success: false, error: 'Invalid SVG: missing width/height' }
-    }
+    const { slide, elementCount } = await convertOne(svgContent, options)
 
     const canvasWidth = options?.targetCanvas?.[0] ?? 1000
     const canvasHeight = options?.targetCanvas?.[1] ?? 562.5
-
-    // D-36: Check if background uses pattern fill BEFORE transformation
-    // If yes, render full SVG background to PNG to preserve tiling effect
-    let backgroundImagePng: string | undefined
-    if (ast.patternRegistry && ast.patternRegistry.size > 0) {
-      backgroundImagePng = await logStep(
-        '[解析] renderBackgroundPatternToPng',
-        async () => renderBackgroundPatternToPng(ast.root, ast.patternRegistry!, ast.width, ast.height),
-      )
-    }
-
-    const elements = await logStep(
-      '[转换] transformToPPTElement',
-      async () => transformToPPTElement(ast, options?.targetCanvas),
-    )
-
-    // Infer background from first element; remove it from elements if found
-    const background = inferBackground(elements, canvasWidth, canvasHeight)
-    let slideElements = background ? elements.slice(1) : elements
-
-    // D-36: If background pattern PNG was generated, remove background group elements from slide
-    if (backgroundImagePng) {
-      // Filter out elements that belong to the background group (bg-texture, background, etc.)
-      slideElements = slideElements.filter(el => {
-        if (el.groupId) {
-          const gid = el.groupId.toLowerCase()
-          return !(gid.includes('bg') || gid.includes('background'))
-        }
-        return true
-      })
-    }
-
-    // Build complete Slide object (PPTist format)
-    const slide: Slide = {
-      id: uuidv4(),
-      elements: slideElements,
-    }
-    if (backgroundImagePng) {
-      slide.background = { type: 'image', image: { src: backgroundImagePng, size: 'cover' } }
-    } else if (background) {
-      slide.background = background
-    }
 
     // Wrap in full PPTist presentation format
     const presentation = {
@@ -229,15 +297,88 @@ export async function convert(svgContent: string, options?: ConvertOptions): Pro
     }
 
     const totalDuration = Math.round(performance.now() - totalStart)
-    log('[主流程] 转换完成', `共 ${elements.length} 个元素, 耗时 ${totalDuration}ms`)
+    log('[主流程] 转换完成', `共 ${elementCount} 个元素, 耗时 ${totalDuration}ms`)
 
     return {
       success: true,
       output: JSON.stringify(presentation, null, 2),
-      elementCount: elements.length,
+      elementCount,
+      slide,
     }
   } catch (err) {
     return { success: false, error: String(err) }
+  }
+}
+
+/**
+ * D-01~03 + D-04: Convert a parent directory of SVG files into a multi-slide PPTist
+ * presentation. Each `<svg_output_dir>/<name>.svg` produces `<svg_output_dir>/<name>.svg.json`
+ * containing the same `{ title, width, height, theme, slides: [slide] }` envelope as
+ * `convert()`. Per D-22, NO `slide.animations` or `slide.turningMode` is populated in
+ * this plan — Wave 1 ships empty-animation slides for Plan 02 to layer onto.
+ *
+ * D-22: sidecar-less parents still emit N `.svg.json` files with empty `animations[]`.
+ * Diagnostics are an empty skeleton in Wave 1 (D-23 prints real numbers in Plan 02).
+ */
+export async function convertDir(
+  parentDir: string,
+  options?: ConvertDirOptions,
+): Promise<ConvertDirResult> {
+  const svgOutputDir = join(parentDir, 'svg_output')
+  const files = readdirSync(svgOutputDir)
+    .filter(name => name.toLowerCase().endsWith('.svg'))
+    .sort()
+
+  const slides: Slide[] = []
+  const errors: Array<{ file: string; error: string }> = []
+
+  for (const file of files) {
+    const fullPath = join(svgOutputDir, file)
+    try {
+      const { readFileSync } = await import('fs')
+      const svgContent = readFileSync(fullPath, 'utf-8')
+      const { slide } = await convertOne(svgContent, {
+        targetCanvas: options?.targetCanvas,
+        svgFilePath: fullPath,
+      })
+      // slideId derives from filename without `.svg`
+      const slideId = basename(file, '.svg')
+      // Pin the slide.id to the deterministic filename-derived id (Plan 14-02
+      // animations.json uses slide_id to match — non-deterministic uuid would
+      // break matching across runs). We do NOT mutate `slide.id` if it is
+      // already deterministic? But convertOne always uses uuidv4() — so we
+      // override here and persist.
+      slide.id = slideId
+      slides.push(slide)
+
+      // Write `<file>.svg.json` envelope (same shape as convert() output)
+      const canvasWidth = options?.targetCanvas?.[0] ?? 1000
+      const canvasHeight = options?.targetCanvas?.[1] ?? 562.5
+      const envelope = {
+        title: '未命名演示文稿',
+        width: canvasWidth,
+        height: canvasHeight,
+        theme: {
+          themeColors: ['#5b9bd5', '#ed7d31', '#a5a5a5', '#ffc000', '#4472c4', '#70ad47'],
+          fontColor: '#333',
+          fontName: 'Source Han Sans CN Regular',
+          backgroundColor: '#fff',
+          shadow: { h: 3, v: 3, blur: 2, color: '#808080' },
+          outline: { width: 2, color: '#525252', style: 'solid' },
+        },
+        slides: [slide],
+      }
+      writeFileSync(fullPath + '.svg.json', JSON.stringify(envelope, null, 2), 'utf-8')
+    } catch (err) {
+      errors.push({ file: fullPath, error: String(err) })
+    }
+  }
+
+  return {
+    success: errors.length === 0,
+    slides,
+    errors,
+    diagnostics: emptyInjectorDiagnostics(),
   }
 }
 
