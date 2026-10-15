@@ -7,7 +7,7 @@ import type { SvgElement } from './types/ast'
 import { log, logStep } from './utils'
 import { resolve, join, basename, dirname } from 'path'
 import { mkdirSync, writeFileSync, readdirSync, readFileSync, existsSync } from 'fs'
-import { injectAnimations, emptyInjectorDiagnostics } from './animation-injector'
+import { injectAnimations, emptyInjectorDiagnostics, printDiagnostics } from './animation-injector'
 import type { AnimationsSidecar } from './animation-types'
 
 export interface ConvertOptions {
@@ -50,7 +50,18 @@ export interface ConvertDirResult {
   success: boolean;
   slides: Slide[];
   errors: Array<{ file: string; error: string }>;
+  /**
+   * Plan 14-03 / D-23 — diagnostics accumulator surfaced for programmatic
+   * callers. Always populated, even on partial failure (slides/errors[] may be
+   * non-empty but diagnostics reflects whatever injections actually ran).
+   */
   diagnostics: InjectorDiagnostics;
+  /**
+   * Plan 14-03 / D-23 — `elIdNotFoundWarnings` lifted from the diagnostics
+   * accumulator for callers that want a flat string list without picking it
+   * out of `diagnostics` themselves. Same data on both surfaces.
+   */
+  warnings: string[];
 }
 
 /**
@@ -389,11 +400,17 @@ export async function convertDir(
   // — Plan 02 stops here. PrintDiagnostics wiring moves into Plan 03 where the
   // full integration (per-row defaults + stderr summary) is layered in.
 
+  // D-23 + ANIM-DIAG-01: emit the diagnostic summary exactly once at end of
+  // `convertDir()`, regardless of partial failure. Default arg (process.stderr)
+  // keeps the output off stdout (D-23 strict).
+  printDiagnostics(diagnostics)
+
   return {
     success: errors.length === 0,
     slides,
     errors,
     diagnostics,
+    warnings: diagnostics.elIdNotFoundWarnings,
   }
 }
 
