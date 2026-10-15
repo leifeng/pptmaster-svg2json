@@ -30,89 +30,213 @@ import type { AnimationType, AnimationTrigger, TurningMode } from '../slides'
 // ---------------------------------------------------------------------------
 
 /**
- * ENTRANCE_MAP: three-side `entrance_*` key → PPTist 84-effect whitelist value.
+ * ENTRANCE_MAP: three-side `entrance_*` key → PPTist 92-effect whitelist value.
  *
- * Direction-driven variants (slideIn*Left vs slideInRight, etc.) currently map
- * to a single canonical value per D-16's "visually equivalent mapping" policy.
- * `effect_options.direction` is preserved verbatim in `extensions.effectOptions`
- * (per D-12) but is not consulted to refine the choice — flagged as a v2
- * enhancement (RESEARCH §0 Pitfall 4).
+ * 53 entries covering all `entrance_*` keys from ELEMENT_ANIMATIONS.md §4.6
+ * (lines 259-311). Direction-driven variants (slideIn*Left vs slideInRight)
+ * default to Left per D-16's "visually equivalent mapping" policy. The original
+ * three-side key is preserved in `extensions.effectOptions.direction` for v2
+ * refinement (RESEARCH §0 Pitfall 4).
+ *
+ * Unmapped three-side keys fall through to `EFFECT_FALLBACK['in']` (`fadeIn`)
+ * and `extensions.originalEffect` carries the original key (D-15).
  */
 export const ENTRANCE_MAP: Record<string, string> = {
-  entrance_fade: 'fadeIn',
-  entrance_wipe: 'fadeIn',             // direction drives slideInLeft/Right in v2
-  entrance_fly: 'lightSpeedInLeft',    // direction drives L/R
-  entrance_zoom: 'zoomIn',
-  entrance_circle: 'rotateIn',
-  entrance_dissolve: 'fadeIn',
-  entrance_rise_up: 'backInUp',
-  entrance_glide: 'slideInLeft',       // direction drives L/R
-  entrance_float: 'backInUp',
-  entrance_ascend: 'backInUp',
-  entrance_wheel: 'rotateIn',
-  entrance_wedge: 'rotateInDownLeft',  // direction drives DownLeft/Right
-  entrance_box: 'zoomIn',
-  entrance_expand: 'zoomIn',
-  entrance_stretch: 'backInLeft',      // direction drives L/R
-  entrance_swish: 'lightSpeedInLeft',  // direction drives L/R
-  entrance_split: 'zoomIn',
-  entrance_bounce: 'bounceIn',
-  entrance_drop: 'fadeInDown',
-  entrance_swing: 'backInUp',
-  entrance_twirl: 'rotateIn',
-  entrance_flip: 'flipInX',
-  entrance_roll: 'lightSpeedInLeft',
-  entrance_slide: 'slideInLeft',
-  entrance_drift: 'lightSpeedInLeft',
-  entrance_spin: 'rotateIn',
-  entrance_burst: 'zoomIn',
-  entrance_reveal: 'fadeIn',
-  entrance_pulse_in: 'fadeIn',
-  entrance_glow: 'fadeIn',
-  entrance_unfold: 'backInUp',
-  entrance_unfurl: 'backInLeft',
+  // Direct semantic equivalents
   entrance_appear: 'fadeIn',
-  entrance_ignite: 'fadeIn',
-  entrance_materialize: 'zoomIn',
+  entrance_fade: 'fadeIn',
+  entrance_zoom: 'zoomIn',
+  entrance_bounce: 'bounceIn',
+  entrance_flip: 'flipInX',
+
+  // Fly / wipe / glide (direction-aware; default = Left)
+  entrance_fly: 'lightSpeedInLeft',
+  entrance_wipe: 'fadeIn',
+  entrance_glide: 'slideInLeft',
+
+  // Circle / wheel / wedge / spiral (rotate family)
+  entrance_circle: 'rotateIn',
+  entrance_wheel: 'rotateIn',
+  entrance_wedge: 'rotateInDownLeft',
+  entrance_spiral: 'rotateIn',
+  entrance_pinwheel: 'rotateIn',
+  entrance_swivel: 'rotateIn',
+  entrance_spinner: 'rotateIn',
+  entrance_center_revolve: 'rotateIn',
+  entrance_faded_swivel: 'rotateIn',
+  entrance_grow_and_turn: 'rotateIn',
+
+  // Box / diamond / plus / peek / split / expand / fold (zoom family)
+  entrance_box: 'zoomIn',
+  entrance_diamond: 'rotateIn',
+  entrance_plus: 'zoomIn',
+  entrance_split: 'zoomIn',
+  entrance_expand: 'zoomIn',
+  entrance_fold: 'zoomIn',
+  entrance_faded_zoom: 'zoomIn',
+
+  // Stripes / random_bars / dissolve / blinds (no direct match → fadeIn)
+  entrance_blinds: 'fadeIn',
+  entrance_checkerboard: 'fadeIn',
+  entrance_dissolve: 'fadeIn',
+  entrance_random_bars: 'fadeIn',
+  entrance_strips: 'slideInLeft',
+  entrance_random_effects: 'fadeIn',
+  entrance_color_reveal: 'fadeIn',
+  entrance_thin_line: 'fadeIn',
+  entrance_credits: 'slideInUp',
+  entrance_ease_in: 'fadeIn',
+  entrance_flash_once: 'fadeIn',
+
+  // Rise / ascend / descend / float / arc_up (back family)
+  entrance_rise_up: 'backInUp',
+  entrance_ascend: 'backInUp',
+  entrance_descend: 'backInDown',
+  entrance_float: 'backInUp',
+  entrance_arc_up: 'backInUp',
+
+  // Crawl / peek / whip / swish / light_speed / zip / sling / boomerang / unfold / stretchy / stretch
+  entrance_crawl: 'slideInUp',
+  entrance_peek: 'slideInUp',
+  entrance_whip: 'lightSpeedInLeft',
+  entrance_swish: 'lightSpeedInLeft',
+  entrance_light_speed: 'lightSpeedInLeft',
+  entrance_zip: 'lightSpeedInLeft',
+  entrance_sling: 'backInLeft',
+  entrance_boomerang: 'backInUp',
+  entrance_unfold: 'backInUp',
+  entrance_stretchy: 'backInUp',
+  entrance_stretch: 'backInLeft',
+
+  // 3D — no 3D in PPTist; zoomIn fallback
+  entrance_3d_arrive: 'zoomIn',
 }
 
 /**
  * EMPHASIS_MAP: three-side `emphasis_*` key → PPTist ATTENTION_ANIMATIONS value.
- * 12 entries cover the canonical attention effects from the whitelist.
+ * 33 entries covering all `emphasis_*` keys from ELEMENT_ANIMATIONS.md §4.6
+ * (lines 317-349). ATTENTION_ANIMATIONS only has 12 values, so most three-side
+ * keys cluster on `pulse`, `flash`, `wobble`, or `bounce`.
  */
 export const EMPHASIS_MAP: Record<string, string> = {
-  emphasis_pulse: 'pulse',
-  emphasis_beat: 'pulse',
-  emphasis_flash: 'flash',
-  emphasis_bounce: 'bounce',
-  emphasis_jump: 'bounce',
-  emphasis_shake: 'headShake',
+  // Color / font change families (no PPTist equivalent; pulse fallback)
+  emphasis_change_fill_color: 'pulse',
+  emphasis_change_font: 'pulse',
+  emphasis_change_font_color: 'pulse',
+  emphasis_change_font_size: 'pulse',
+  emphasis_change_font_style: 'pulse',
+  emphasis_change_line_color: 'pulse',
+  emphasis_brush_on_color: 'pulse',
+  emphasis_brush_on_underline: 'pulse',
+  emphasis_color_blend: 'pulse',
+  emphasis_color_wave: 'pulse',
+  emphasis_complementary_color: 'pulse',
+  emphasis_complementary_color2: 'pulse',
+  emphasis_contrasting_color: 'pulse',
+  emphasis_darken: 'pulse',
+  emphasis_desaturate: 'pulse',
+  emphasis_grow_with_color: 'pulse',
+  emphasis_lighten: 'pulse',
+  emphasis_style_emphasis: 'pulse',
+  emphasis_bold_reveal: 'pulse',
+
+  // Flash / transparency / flicker
+  emphasis_transparency: 'flash',
+  emphasis_bold_flash: 'flash',
+  emphasis_flash_bulb: 'flash',
+  emphasis_flicker: 'flash',
+
+  // Motion / shake / teeter / shimmer / blast / wave
+  emphasis_shimmer: 'wobble',
+  emphasis_blast: 'wobble',
   emphasis_teeter: 'headShake',
+  emphasis_wave: 'swing',
+
+  // Spin / grow / scale (3D / scale)
   emphasis_spin: 'wobble',
-  emphasis_rotate: 'wobble',
-  emphasis_heartbeat: 'heartBeat',
-  emphasis_pendulum: 'swing',
-  emphasis_jelly: 'jello',
+  emphasis_grow_shrink: 'bounce',
+  emphasis_vertical_grow: 'bounce',
+
+  // 3D emphasis (PPTist has no 3D; wobble/swing/tada fallback)
+  emphasis_3d_turntable: 'wobble',
+  emphasis_3d_swing: 'swing',
+  emphasis_3d_jump_and_turn: 'tada',
 }
 
 /**
  * EXIT_MAP: three-side `exit_*` key → PPTist EXIT_ANIMATIONS value.
- * Symmetric to ENTRANCE_MAP where possible; minimum 10 entries required.
+ * 53 entries covering all `exit_*` keys from ELEMENT_ANIMATIONS.md §4.6
+ * (lines 426-478). Symmetric to ENTRANCE_MAP.
  */
 export const EXIT_MAP: Record<string, string> = {
+  // Direct semantic equivalents
+  exit_appear: 'fadeOut',
   exit_fade: 'fadeOut',
-  exit_wipe: 'fadeOut',
-  exit_fly: 'lightSpeedOutLeft',
   exit_zoom: 'zoomOut',
-  exit_circle: 'rotateOut',
-  exit_rise_up: 'backOutUp',
-  exit_glide: 'slideOutLeft',
-  exit_box: 'zoomOut',
-  exit_split: 'zoomOut',
-  exit_dissolve: 'fadeOut',
   exit_bounce: 'bounceOut',
-  exit_drop: 'fadeOutDown',
-  exit_shrink: 'zoomOut',
+  exit_flip: 'flipOutX',
+
+  // Fly / wipe / glide (direction-aware; default = Left)
+  exit_fly: 'lightSpeedOutLeft',
+  exit_wipe: 'fadeOut',
+  exit_glide: 'slideOutLeft',
+
+  // Circle / wheel / wedge / spiral (rotate family)
+  exit_circle: 'rotateOut',
+  exit_wheel: 'rotateOut',
+  exit_wedge: 'rotateOutDownLeft',
+  exit_spiral: 'rotateOut',
+  exit_pinwheel: 'rotateOut',
+  exit_swivel: 'rotateOut',
+  exit_spinner: 'rotateOut',
+  exit_center_revolve: 'rotateOut',
+  exit_faded_swivel: 'rotateOut',
+  exit_grow_and_turn: 'rotateOut',
+
+  // Box / diamond / plus / split / expand / fold (zoom family)
+  exit_box: 'zoomOut',
+  exit_diamond: 'rotateOut',
+  exit_plus: 'zoomOut',
+  exit_split: 'zoomOut',
+  exit_expand: 'zoomOut',
+  exit_fold: 'zoomOut',
+  exit_faded_zoom: 'zoomOut',
+
+  // Stripes / random_bars / dissolve / blinds (no direct match → fadeOut)
+  exit_blinds: 'fadeOut',
+  exit_checkerboard: 'fadeOut',
+  exit_dissolve: 'fadeOut',
+  exit_random_bars: 'fadeOut',
+  exit_strips: 'slideOutLeft',
+  exit_random_effects: 'fadeOut',
+  exit_color_reveal: 'fadeOut',
+  exit_thin_line: 'fadeOut',
+  exit_credits: 'slideOutDown',
+  exit_ease_in: 'fadeOut',
+  exit_flash_once: 'fadeOut',
+
+  // Rise / ascend / descend / float / arc_up (back family)
+  exit_rise_up: 'backOutUp',
+  exit_ascend: 'backOutUp',
+  exit_descend: 'backOutDown',
+  exit_float: 'backOutUp',
+  exit_arc_up: 'backOutUp',
+
+  // Crawl / peek / whip / swish / light_speed / zip / sling / boomerang / unfold / stretchy / stretch
+  exit_crawl: 'slideOutDown',
+  exit_peek: 'slideOutDown',
+  exit_whip: 'lightSpeedOutLeft',
+  exit_swish: 'lightSpeedOutLeft',
+  exit_light_speed: 'lightSpeedOutLeft',
+  exit_zip: 'lightSpeedOutLeft',
+  exit_sling: 'backOutLeft',
+  exit_boomerang: 'backOutUp',
+  exit_unfold: 'backOutUp',
+  exit_stretchy: 'backOutUp',
+  exit_stretch: 'backOutLeft',
+
+  // 3D — no 3D in PPTist; zoomOut fallback
+  exit_3d_arrive: 'zoomOut',
 }
 
 /**
@@ -208,7 +332,7 @@ export function inferAnimationType(threeSideKey: string): AnimationType {
 }
 
 /**
- * D-16 / D-15 — Map three-side effect key to PPTist effect value.
+ * D-16 / D-15 / D-12 — Map three-side effect key to PPTist effect value.
  *
  * Returns:
  *   { effect: <pptist-whitelist-value>, fallback: false } when key found in MAP
@@ -216,10 +340,15 @@ export function inferAnimationType(threeSideKey: string): AnimationType {
  *   { effect: '__skip__', fallback: false } when row.effect === 'none' (Pitfall 5)
  *
  * Callers are expected to honor the `__skip__` sentinel by skipping the row.
+ *
+ * `counters` (D-12 unmapped observability) — when provided, increments
+ * `unmappedEffectCount` for each fallback hit (so the injector can surface
+ * unmapped-key statistics without changing existing call sites).
  */
 export function mapEffect(
   threeSideKey: string,
   inferredType: AnimationType,
+  counters?: { unmappedEffectCount: number },
 ): { effect: string; fallback: boolean } {
   if (threeSideKey === 'none') return { effect: EFFECT_NONE_SENTINEL, fallback: false }
 
@@ -230,6 +359,7 @@ export function mapEffect(
   }
   const mapped = byType[inferredType]?.[threeSideKey]
   if (mapped) return { effect: mapped, fallback: false }
+  if (counters) counters.unmappedEffectCount++
   return { effect: EFFECT_FALLBACK[inferredType], fallback: true }
 }
 

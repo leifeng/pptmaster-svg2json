@@ -58,14 +58,14 @@ const PPTIST_TURNING_MODES = new Set([
 
 describe('Plan 14-02 — mappers/animation.ts (D-14~19)', () => {
   describe('whitelist invariants', () => {
-    it('ENTRANCE_MAP value count ≥ 30', () => {
-      expect(Object.keys(ENTRANCE_MAP).length).toBeGreaterThanOrEqual(30)
+    it('ENTRANCE_MAP has exactly 53 entries (ELEMENT_ANIMATIONS.md §4.6 lines 259-311)', () => {
+      expect(Object.keys(ENTRANCE_MAP).length).toBe(53)
     })
-    it('EMPHASIS_MAP value count ≥ 10', () => {
-      expect(Object.keys(EMPHASIS_MAP).length).toBeGreaterThanOrEqual(10)
+    it('EMPHASIS_MAP has exactly 33 entries (ELEMENT_ANIMATIONS.md §4.6 lines 317-349)', () => {
+      expect(Object.keys(EMPHASIS_MAP).length).toBe(33)
     })
-    it('EXIT_MAP value count ≥ 10', () => {
-      expect(Object.keys(EXIT_MAP).length).toBeGreaterThanOrEqual(10)
+    it('EXIT_MAP has exactly 53 entries (ELEMENT_ANIMATIONS.md §4.6 lines 426-478)', () => {
+      expect(Object.keys(EXIT_MAP).length).toBe(53)
     })
     it('TRANSITION_MAP includes both random and cut keys', () => {
       expect(TRANSITION_MAP.random).toBe('random')
@@ -111,7 +111,9 @@ describe('Plan 14-02 — mappers/animation.ts (D-14~19)', () => {
       expect(mapEffect('entrance_wipe', 'in')).toEqual({ effect: 'fadeIn', fallback: false })
     })
     it('known emphasis_ key returns mapped value with fallback=false', () => {
-      expect(mapEffect('emphasis_pulse', 'attention')).toEqual({ effect: 'pulse', fallback: false })
+      // `emphasis_shimmer` is in the expanded 33-entry EMPHASIS_MAP
+      // (ELEMENT_ANIMATIONS.md §4.6 line 317).
+      expect(mapEffect('emphasis_shimmer', 'attention')).toEqual({ effect: 'wobble', fallback: false })
     })
     it('known exit_ key returns mapped value with fallback=false', () => {
       expect(mapEffect('exit_fade', 'out')).toEqual({ effect: 'fadeOut', fallback: false })
@@ -180,5 +182,109 @@ describe('Plan 14-02 — mappers/animation.ts (D-14~19)', () => {
     it("'unknown_thing' → fade (universal fallback)", () => expect(mapTransition('unknown_thing')).toBe('fade'))
     it("'push' → slideY", () => expect(mapTransition('push')).toBe('slideY'))
     it("'cover' → slideX", () => expect(mapTransition('cover')).toBe('slideX'))
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Plan 15-01 — ELEMENT_ANIMATIONS.md §4.6 cross-coverage tests (D-09~12)
+// ---------------------------------------------------------------------------
+
+// 53 entrance_* keys from ELEMENT_ANIMATIONS.md §4.6 lines 259-311.
+const SPEC_ENTRANCE_KEYS = [
+  'entrance_appear', 'entrance_fly', 'entrance_blinds', 'entrance_box',
+  'entrance_checkerboard', 'entrance_circle', 'entrance_crawl',
+  'entrance_diamond', 'entrance_dissolve', 'entrance_fade',
+  'entrance_flash_once', 'entrance_peek', 'entrance_plus',
+  'entrance_random_bars', 'entrance_spiral', 'entrance_split',
+  'entrance_stretch', 'entrance_strips', 'entrance_swivel',
+  'entrance_wedge', 'entrance_wheel', 'entrance_wipe', 'entrance_zoom',
+  'entrance_random_effects', 'entrance_boomerang', 'entrance_bounce',
+  'entrance_color_reveal', 'entrance_credits', 'entrance_ease_in',
+  'entrance_float', 'entrance_grow_and_turn', 'entrance_light_speed',
+  'entrance_pinwheel', 'entrance_rise_up', 'entrance_swish',
+  'entrance_thin_line', 'entrance_unfold', 'entrance_whip',
+  'entrance_ascend', 'entrance_center_revolve', 'entrance_faded_swivel',
+  'entrance_descend', 'entrance_sling', 'entrance_spinner',
+  'entrance_stretchy', 'entrance_zip', 'entrance_arc_up',
+  'entrance_faded_zoom', 'entrance_glide', 'entrance_expand',
+  'entrance_flip', 'entrance_fold', 'entrance_3d_arrive',
+] as const
+
+// 33 emphasis_* keys from ELEMENT_ANIMATIONS.md §4.6 lines 317-349.
+const SPEC_EMPHASIS_KEYS = [
+  'emphasis_shimmer', 'emphasis_change_fill_color', 'emphasis_change_font',
+  'emphasis_change_font_color', 'emphasis_change_font_size',
+  'emphasis_change_font_style', 'emphasis_grow_shrink',
+  'emphasis_change_line_color', 'emphasis_spin', 'emphasis_transparency',
+  'emphasis_bold_flash', 'emphasis_blast', 'emphasis_bold_reveal',
+  'emphasis_brush_on_color', 'emphasis_brush_on_underline',
+  'emphasis_color_blend', 'emphasis_color_wave',
+  'emphasis_complementary_color', 'emphasis_complementary_color2',
+  'emphasis_contrasting_color', 'emphasis_darken', 'emphasis_desaturate',
+  'emphasis_flash_bulb', 'emphasis_flicker', 'emphasis_grow_with_color',
+  'emphasis_lighten', 'emphasis_style_emphasis', 'emphasis_teeter',
+  'emphasis_vertical_grow', 'emphasis_wave', 'emphasis_3d_turntable',
+  'emphasis_3d_swing', 'emphasis_3d_jump_and_turn',
+] as const
+
+// 53 exit_* keys from ELEMENT_ANIMATIONS.md §4.6 lines 426-478.
+const SPEC_EXIT_KEYS = [
+  'exit_appear', 'exit_fly', 'exit_blinds', 'exit_box',
+  'exit_checkerboard', 'exit_circle', 'exit_crawl',
+  'exit_diamond', 'exit_dissolve', 'exit_fade',
+  'exit_flash_once', 'exit_peek', 'exit_plus',
+  'exit_random_bars', 'exit_spiral', 'exit_split',
+  'exit_stretch', 'exit_strips', 'exit_swivel',
+  'exit_wedge', 'exit_wheel', 'exit_wipe', 'exit_zoom',
+  'exit_random_effects', 'exit_boomerang', 'exit_bounce',
+  'exit_color_reveal', 'exit_credits', 'exit_ease_in',
+  'exit_float', 'exit_grow_and_turn', 'exit_light_speed',
+  'exit_pinwheel', 'exit_rise_up', 'exit_swish',
+  'exit_thin_line', 'exit_unfold', 'exit_whip',
+  'exit_ascend', 'exit_center_revolve', 'exit_faded_swivel',
+  'exit_descend', 'exit_sling', 'exit_spinner',
+  'exit_stretchy', 'exit_zip', 'exit_arc_up',
+  'exit_faded_zoom', 'exit_glide', 'exit_expand',
+  'exit_flip', 'exit_fold', 'exit_3d_arrive',
+] as const
+
+describe('Plan 15-01 — ELEMENT_ANIMATIONS.md §4.6 coverage', () => {
+  it('SPEC_ENTRANCE_KEYS has 53 entries (matches spec table)', () => {
+    expect(SPEC_ENTRANCE_KEYS.length).toBe(53)
+  })
+  it('SPEC_EMPHASIS_KEYS has 33 entries (matches spec table)', () => {
+    expect(SPEC_EMPHASIS_KEYS.length).toBe(33)
+  })
+  it('SPEC_EXIT_KEYS has 53 entries (matches spec table)', () => {
+    expect(SPEC_EXIT_KEYS.length).toBe(53)
+  })
+
+  it('every SPEC_ENTRANCE_KEYS key is present in ENTRANCE_MAP', () => {
+    for (const k of SPEC_ENTRANCE_KEYS) {
+      expect(ENTRANCE_MAP[k], `ENTRANCE_MAP missing key ${k}`).toBeDefined()
+    }
+  })
+
+  it('every SPEC_EMPHASIS_KEYS key is present in EMPHASIS_MAP', () => {
+    for (const k of SPEC_EMPHASIS_KEYS) {
+      expect(EMPHASIS_MAP[k], `EMPHASIS_MAP missing key ${k}`).toBeDefined()
+    }
+  })
+
+  it('every SPEC_EXIT_KEYS key is present in EXIT_MAP', () => {
+    for (const k of SPEC_EXIT_KEYS) {
+      expect(EXIT_MAP[k], `EXIT_MAP missing key ${k}`).toBeDefined()
+    }
+  })
+
+  it('unmapped emphasis key (emphasis_pulse — NOT in §4.6) falls back to pulse', () => {
+    // Phase 14 had `emphasis_pulse` mapped to 'pulse', but it is NOT in §4.6.
+    // Plan 15-01 strictly aligns to §4.6 — unmapped keys go through fallback.
+    const counters = { unmappedEffectCount: 0 }
+    expect(mapEffect('emphasis_pulse', 'attention', counters)).toEqual({
+      effect: 'pulse',
+      fallback: true,
+    })
+    expect(counters.unmappedEffectCount).toBe(1)
   })
 })

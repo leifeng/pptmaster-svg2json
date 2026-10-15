@@ -73,6 +73,10 @@ export interface AnimationsSidecarGroup {
  * `transition` maps to `Slide.turningMode` (D-17).
  * `animation` is slide-level animation defaults (rarely used — most animations
  * are per `<g id>` under `groups`).
+ *
+ * Plan 15-01 / D-02 — `animation.effect` carries the slide-wide cascade. `effect`
+ * can be `'none'` to suppress all animations on the slide (unless a row
+ * overrides), a specific three-side key, or omitted entirely.
  */
 export interface AnimationsSidecarSlide {
   transition?: {
@@ -82,6 +86,7 @@ export interface AnimationsSidecarSlide {
     [key: string]: unknown
   }
   animation?: {
+    effect?: string
     trigger?: 'on-click' | 'with-previous' | 'after-previous'
     duration?: number
     [key: string]: unknown
@@ -99,6 +104,7 @@ export interface AnimationsSidecar {
   defaults?: {
     transition?: { effect?: string; duration?: number; sound?: string }
     animation?: {
+      effect?: string
       trigger?: 'on-click' | 'with-previous' | 'after-previous'
       duration?: number
     }
