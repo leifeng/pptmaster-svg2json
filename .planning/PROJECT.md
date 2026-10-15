@@ -33,28 +33,31 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 - ✓ **FONT-PREPROCESS-01~04** — font preprocessor normalizes all fonts to Source Han Sans CN Regular — v1.7
 - ✓ **FONT-VALIDATION-01~03** — CLI startup font validation with three-layer defense (existsSync + magic-bytes + getBBox) — v1.8
 - ✓ **DIR-BATCH-01** — Directory batch CLI processes `*.svg` recursively, outputs `<svg>.json` siblings — v1.4
+- ✓ **ANIM-CLI-01~03** — Parent-dir CLI dispatch + sidecar detection — v1.9
+- ✓ **ANIM-ID-01~02** — `<group_id>__<nanoid(8)>` id naming under `<g>` children — v1.9
+- ✓ **ANIM-MAP-01~06** — `animations.json` ↔ `<g id="gid">` mapping, single-entry + array forms, extensions field for unmapped — v1.9
+- ✓ **ANIM-TRANS-01~03** — duration seconds→ms, trigger `on-click→click` mapping, effect whitelist mapping — v1.9
+- ✓ **ANIM-TURN-01** — 48-key → 12 `TurningMode` mapping with `fade` fallback — v1.9
+- ✓ **ANIM-DEFAULTS-01** — `defaults.animation` / `defaults.transition` propagation through slide-level — v1.9
+- ✓ **ANIM-DIAG-01** — Mapping/preserved/dropped field counter summary (stderr-only) — v1.9
 
 ### Active
 
-#### v1.9 — PPTist Animation Sidecar Injection
+#### v1.10 — Animation Sidecar Extension (in progress)
 
-- [ ] **ANIM-CLI-01**: CLI 入参改为接受「父级目录」路径；目录中 `svg_output/` 子目录放源 SVG，根目录可放 `animations.json`（可选）
-- [ ] **ANIM-CLI-02**: 检测到 `animations.json` 时自动启用动画注入；缺失时不报错，按无动画模式生成
-- [ ] **ANIM-CLI-03**: 父目录输入时输出仍为多文件 JSON（每个 SVG 一个 .json），位于 `svg_output/` 内
-- [ ] **ANIM-ID-01**: transformer 给 `<g id="x">` 子元素生成的 PPTElement.id 使用 `<group_id>__<nanoid(8)>` 格式，确保跨 g 不冲突且定位精确
-- [ ] **ANIM-ID-02**: 同一 `<g>` 下多个子元素各自获得独立 id（即使被 path-merge 合并仍保留子 id，可选择性挂动画）
-- [ ] **ANIM-MAP-01**: `animations.json` 的 `slides.<slide_id>` 对应 `svg_output/<slide_id>.svg`（去后缀）
-- [ ] **ANIM-MAP-02**: `slides.<slide_id>.groups.<group_id>` 对应 SVG 中 `<g id="<group_id>">` 锚点
-- [ ] **ANIM-MAP-03**: 每个 group 解析为 1+ 条 `PPTAnimation` 写入对应 Slide 的 `animations` 数组
-- [ ] **ANIM-MAP-04**: `elId` 字段使用对应元素在 transformer 阶段生成的 `<group_id>__<nanoid(8)>` id
-- [ ] **ANIM-MAP-05**: 单 entry 格式 `{effect, order, duration}` 与 `effects[]` 数组格式都支持
-- [ ] **ANIM-MAP-06**: 三方字段未映射项保留到 `PPTAnimation.extensions` 字段，**全量无损**
-- [ ] **ANIM-TRANS-01**: `duration` 单位转换：三方秒 → PPTist 毫秒（×1000 + round）
-- [ ] **ANIM-TRANS-02**: `trigger` 转换：`on-click → click`、`with-previous → meantime`、`after-previous → auto`
-- [ ] **ANIM-TRANS-03**: `effect` 映射：能映射的（entrance + emphasis + exit 常用 key）写到 PPTAnimation.effect；映射不到的写到 `extensions.originalEffect`
-- [ ] **ANIM-TURN-01**: `slides.<slide_id>.transition.effect` 写入 `Slide.turningMode`，48 个三方 key → 12 个 TurningMode（未对应 fallback 为 `fade`）
-- [ ] **ANIM-DEFAULTS-01**: `defaults.animation` / `defaults.transition` 生效于所有 slide 的对应字段缺省值
-- [ ] **ANIM-DIAG-01**: 转换结束打印被映射/被保留/被丢弃字段的统计报告（写 stderr，不进 JSON）
+- [ ] **ANIM-NONE-01**: `groups[gid].effect === "none"`（legacy 单 effect 形式）时不发射任何 PPTAnimation
+- [ ] **ANIM-NONE-02**: `defaults.animation.effect === "none"` 时该 slide 不生成 animations，除非 row-level effect 显式非 none
+- [ ] **ANIM-NONE-03**: `defaults.transition.effect === "none"` 或 slide-level `transition.effect === "none"` 时 `slide.turningMode === "no"`（保留 auto_advance / sound 语义）
+- [ ] **ANIM-EXTS-01**: 所有 row 字段（含 `restart`、`after_effect`、`sound`）原样保留到 `extensions`（camelCase 顶层键）
+- [ ] **ANIM-EXTS-02**: `effect_options` 顶层 camelCase 为 `effectOptions`，嵌套键 verbatim
+- [ ] **ANIM-MAP-EXT-01**: `ENTRANCE_MAP` 覆盖所有 53 个三方 entrance_* key，值 ∈ PPTist 84-effect whitelist 或 fallback
+- [ ] **ANIM-MAP-EXT-02**: `EMPHASIS_MAP` 覆盖所有 33 个三方 emphasis_* key
+- [ ] **ANIM-MAP-EXT-03**: `EXIT_MAP` 覆盖所有 53 个三方 exit_* key
+- [ ] **ANIM-DELAY-01**: PPTAnimation.duration = clamp(round((row.delay + row.duration) * 1000), 100, 5000)
+- [ ] **ANIM-INHERIT-01**: 实现 `resolveEffectiveRow` 纯函数，五层链路 CLI → deck → slide → group → row
+- [ ] **ANIM-CHROME-01**: 导出 `CHROME_REGEX` 与 `isChromeGroupId(id)` 助手；不接入 iteration loop（forward-compat）
+- [ ] **ANIM-LEGACY-01**: 29 个 legacy 输入名（`fly`/`zoom`/`wipe_left` 等）归一到 canonical `entrance_*`，再走映射查表 — _post-v1.9 fix_ (post-ship)
+- [ ] **ANIM-ORIGTRIG-01**: `extensions.originalTrigger` 无条件保留 D-11 spec 意图 — _post-v1.9 fix_ (post-ship)
 
 ### Out of Scope
 
@@ -69,7 +72,7 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 
 **Existing library** — svg-to-pptel v1.8, published as npm package.
 
-**Current state** — v1.8 milestone SHIPPED 2026-08-07. Phase 13 (CLI Font Validation) completed with 24 tests green, plus 15 pre-existing failures in gradient / image-outline / path-merge / shadow / shape-rx suites (documented, accepted, deferred to future milestones).
+**Current state** — v1.9 milestone SHIPPED 2026-10-15 (override_closeout, 30 items acknowledged as deferred tech debt). Phase 14 (PPTist Animation Sidecar Injection) shipped with 3 plans, 9 feat/test commits, +4888 LOC. Post-ship fixes: `extensions.originalTrigger` unconditional preservation (D-11), legacy name normalization (29-entry LEGACY_NAME_MAP). v1.10 (Phase 15) implementation complete, awaiting separate closeout.
 
 **Target canvas** — 1000×562.5 (16:9 aspect ratio).
 
@@ -103,9 +106,14 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 | Three-layer font validation | existsSync + TTF magic-bytes + Resvg getBBox non-zero | ✓ Complete (v1.8) |
 | Real subprocess exit-code tests | Direct catch on err.status / err.stderr | ✓ Complete (v1.8) |
 | Directory Batch CLI | v1.4 directory input → sibling .json output | ✓ Complete |
-| v1.9: PPTAnimation.extensions 全量字段 | 用户要求 JSON 无损 — 即使 PPTist 不识别也保留三方原字段 | — Pending |
-| v1.9: id 命名 `<g.id>__<nanoid(8)>` | 双下划线分隔避开 PPTist nanoid 冲突；跨 g 唯一 | — Pending |
-| v1.9: 父目录入参含 svg_output/ + animations.json | 三方约定目录结构；保留单 SVG 入口作为隐式父目录（cwd/svg_output/） | — Pending |
+| v1.9: PPTAnimation.extensions 全量字段 | 用户要求 JSON 无损 — 即使 PPTist 不识别也保留三方原字段 | ✓ Complete |
+| v1.9: id 命名 `<g.id>__<nanoid(8)>` | 双下划线分隔避开 PPTist nanoid 冲突；跨 g 唯一 | ✓ Complete |
+| v1.9: 父目录入参含 svg_output/ + animations.json | 三方约定目录结构；保留单 SVG 入口作为隐式父目录（cwd/svg_output/） | ✓ Complete |
+| v1.9: D-22 strict guard | 不在 sidecar 里的 slide 永不生成 animations（含 transition） | ✓ Complete |
+| v1.9: N→N group coverage | 每 row × 每个匹配 groupId 的 PPTElement 都发射 animation | ✓ Complete |
+| v1.9: ANIM-DIAG-01 stderr diagnostics | 转换结束打印 5 项计数 (slides/animations/extensions/unmapped/delay) | ✓ Complete |
+| v1.9 post-fix: LEGACY_NAME_MAP (29 项) | fly/zoom/wipe_left 等裸名归一到 canonical entrance_* 再走映射 | ✓ Complete (post-ship) |
+| v1.9 post-fix: originalTrigger unconditional | 与 originalEffect 对齐 — 无条件保留 D-11 spec 意图 | ✓ Complete (post-ship) |
 
 ## Evolution
 
@@ -119,7 +127,16 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: v1.9 — PPTist Animation Sidecar Injection (Planning)
+## Current Milestone: v1.10 — Animation Sidecar Extension (Planning)
+
+**Status:** Phase 15 (Wave 1+2) implementation complete, awaiting `/gsd-complete-milestone v1.10` to formalize closeout. Plus post-ship fixes (ANIM-LEGACY-01, ANIM-ORIGTRIG-01) shipped as v1.9.1 hot-fix — see STATE.md deferred items.
+
+**Goal:** 扩展动画 sidecar 处理 — `effect: "none"` cascade, 三方字段原封不动存 extensions, 三方→PPTist effect 全覆盖映射 (53/53/33), `delay + duration` 合并, inheritance chain, chrome forward-compat.
+
+**Reference docs:**
+- 三方原始 schema：`E:\git\svg2json\ELEMENT_ANIMATIONS.md`
+- 映射关系：`E:\git\svg2json\PPTIST_ANIMATION_MAPPING.md`
+- 实例 sidecar：`E:\git\svg2json\exampels\ppt169_attention_is_all_you_need\animations.json`
 
 **Status:** Milestone kickoff 2026-10-14, awaiting `/gsd-plan-phase 14` execution.
 
@@ -136,6 +153,19 @@ This document evolves at phase transitions and milestone boundaries.
 ---
 
 ## Previous Milestones
+
+### v1.9 — PPTist Animation Sidecar Injection (2026-10-15)
+
+**Closeout type:** override_closeout — all phases verified, but 30 open debug items acknowledged as deferred tech debt (28 v1.x-carried + 1 v1.10 post-ship + 1 v1.8 verification gap).
+
+- ANIM-CLI-01~03: parent-dir CLI dispatch with `svg_output/` + `animations.json` convention
+- ANIM-ID-01~02: `<group_id>__<nanoid(8)>` id-injection in transformer
+- ANIM-MAP-01~06: sidecar → slide bridge with 1:1 + N→N coverage and `extensions` passthrough
+- ANIM-TRANS-01~03: duration seconds→ms, trigger mapping, effect whitelist mapping
+- ANIM-TURN-01: 48-key → 12 `TurningMode` with `fade` fallback
+- ANIM-DEFAULTS-01: per-entry → sidecar defaults inheritance
+- ANIM-DIAG-01: stderr-only diagnostic summary (5 counters)
+- Post-ship fixes: `extensions.originalTrigger` unconditional + 29-entry `LEGACY_NAME_MAP` legacy normalization
 
 ### v1.8 — CLI 字体验证 (2026-08-07)
 
@@ -180,4 +210,4 @@ Research confirmed all target PPTist schema properties already implemented or de
 
 ---
 
-*Last updated: 2026-10-14 after v1.9 milestone kickoff*
+*Last updated: 2026-10-15 after v1.9 milestone closeout (override_closeout)*

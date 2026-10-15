@@ -1,5 +1,15 @@
 # Milestones
 
+## v1.9 PPTist Animation Sidecar Injection (Shipped: 2026-10-15)
+
+**Phases completed:** 1 phases, 3 plans, 9 tasks
+
+**Key accomplishments:**
+- Parent-dir CLI dispatch + convertDir() shell + transformer id-injection (D-05~09) + PPTAnimation.extensions field (D-10) — no animation content yet (Plan 02)
+- Pure-function mapper tables + sidecar → slide bridge + convertDir() wiring (D-11~23) — animations live for the first time.
+
+---
+
 ## v1.8 CLI 字体验证 (Shipped: 2026-08-07)
 
 **Phases completed:** 1 phase, 2 plans, 6 tasks

@@ -2,13 +2,12 @@
 gsd_state_version: "1.0"
 milestone: v1.9
 milestone_name: PPTist Animation Sidecar Injection
-current_phase: 15
-status: completed
+status: Awaiting next milestone
 stopped_at: Phase 15 complete — all phases complete
-last_updated: "2026-10-15T07:37:40.711Z"
+last_updated: "2026-10-15T09:42:16.863Z"
 last_activity: 2026-10-15
-last_activity_desc: Phase 15 complete
-state_head: 86d45ed6aff17d36a3d81fee32c0f2ec677984b8
+last_activity_desc: Milestone v1.9 completed and archived
+state_head: c724d859926dc9e0d434516020df90b7437e4cb5
 progress:
   total_phases: 1
   completed_phases: 1
@@ -16,20 +15,56 @@ progress:
   completed_plans: 3
   percent: 100
 _phase: 1
+current_phase: 15
 ---
 
 ## Deferred Items
 
-(空 — v1.9 为新特性，暂无继承项)
+_Updated: 2026-10-15 during v1.9 closeout (30 items newly acknowledged via `audit-open acknowledge`)_
+
+| # | Category | Identifier | Status at acknowledge | Origin |
+|---:|---|---|---|---|
+| 1 | debug_session | anim-elid-coverage | fixing | v1.x carry-over |
+| 2 | debug_session | cover-tags-text-anchor-middle | unknown | v1.x carry-over |
+| 3 | debug_session | foreignobject-svg-offset | investigating | v1.x carry-over |
+| 4 | debug_session | g-fill-stroke-inheritance | investigating | v1.x carry-over |
+| 5 | debug_session | icon2-single-path-scale | investigating | v1.x carry-over |
+| 6 | debug_session | line-height-not-scaled | unknown | v1.x carry-over |
+| 7 | debug_session | nested-g-path-merge-top-offset | fixed | v1.x carry-over |
+| 8 | debug_session | path-header-coord-bug | unknown | v1.x carry-over |
+| 9 | debug_session | phase15-trigger-extensions-bug | fixing | v1.10 carry-over (resolved post-ship) |
+| 10 | debug_session | polygon-defs-background | investigating | v1.x carry-over |
+| 11 | debug_session | pptist-rich-text-spec | investigating | v1.x carry-over |
+| 12 | debug_session | rect-bg-gradient-display | investigating | v1.x carry-over |
+| 13 | debug_session | resvg-pkg-native-module | investigating | v1.x carry-over |
+| 14 | debug_session | svg-filter-rendering-bug | investigating | v1.x carry-over |
+| 15 | debug_session | svg-rect-text-vertical-alignment | diagnosed | v1.x carry-over |
+| 16 | debug_session | svg-tspan-attention-loss | awaiting_human_verify | v1.x carry-over |
+| 17 | debug_session | svg-use-fill-attribute | diagnosed | v1.x carry-over |
+| 18 | debug_session | svg-w-crossplatform | unknown | v1.x carry-over |
+| 19 | debug_session | text-in-circle-vertical-position-v2 | unknown | v1.x carry-over |
+| 20 | debug_session | text-in-circle-vertical-position-v3 | unknown | v1.x carry-over |
+| 21 | debug_session | text-in-circle-vertical-position | unknown | v1.x carry-over |
+| 22 | debug_session | text-tspan-color-and-order-bug | awaiting_human_verify | v1.x carry-over |
+| 23 | debug_session | text-tspan-content-splitting-bug | investigating | v1.x carry-over |
+| 24 | debug_session | text-tspan-fontsize-nesting | investigating | v1.x carry-over |
+| 25 | debug_session | text-tspan-mixed-content-loss | awaiting_human_verify | v1.x carry-over |
+| 26 | debug_session | text-width-comparison | investigating | v1.x carry-over |
+| 27 | debug_session | text-y-coordinate-textTop-bug | investigating | v1.x carry-over |
+| 28 | debug_session | ts-build-errors | unknown | v1.x carry-over |
+| 29 | debug_session | tspan-baseline-shift-pptist | in_progress | v1.x carry-over (YAML fixed 2026-10-15 for audit) |
+| 30 | verification_gap | 13-VERIFICATION.md (phase 13, archived v1.8) | gaps_found | v1.8 carry-over |
+
+Closeout type: **override_closeout** (28 v1.x-carried debug sessions + 1 v1.10 post-ship debug session + 1 v1.8 verification gap — all acknowledged as known tech debt, none blocking v1.9 completion).
 
 ## Project State
 
 ## Current Position
 
-Phase: 15
-Plan: Not started
-Status: All phases complete
-Last activity: 2026-10-15 — Phase 15 complete
+Phase: Milestone v1.9 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-10-15 — Milestone v1.9 completed and archived
 
 ## Project Reference
 
@@ -75,4 +110,4 @@ See: `.planning/PROJECT.md` (updated 2026-10-14)
 
 ## Operator Next Steps
 
-- Run `/gsd-plan-phase 14` to start planning Phase 14
+- Start the next milestone with /gsd-new-milestone
