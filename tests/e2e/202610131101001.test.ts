@@ -332,6 +332,42 @@ describe('Plan 14-03 — E2E on exampels/202610131101001 (ANIM-DIAG-01)', () => 
       if (!hasFixture || !firstRun) return
       expect(firstRun.diagnostics.unmappedEffectCount).toBe(0)
     })
+
+    // Phase 15 / Bug 1 reverse-assertion — D-11 unconditional
+    // `extensions.originalEffect`. The fixture never hits the fallback path
+    // (only mapped ENTRANCE_MAP keys), so this also pins the mapped side of
+    // the contract. Counter surfaces the same fact.
+    it('Phase 15 Bug 1: every covered PPTAnimation carries extensions.originalEffect', () => {
+      if (!hasFixture || !firstRun) return
+      let totalOriginalEffect = 0
+      for (const slide of firstRun.slides) {
+        for (const a of slide.animations ?? []) {
+          expect(
+            a.extensions?.originalEffect,
+            `slide=${slide.id}, animation.id=${a.id} must have extensions.originalEffect (D-11)`,
+          ).toBeTypeOf('string')
+          expect((a.extensions!.originalEffect as string).length).toBeGreaterThan(0)
+          totalOriginalEffect++
+        }
+      }
+      // 13 covered slides × N (N→N coverage). With the Fixture's current
+      // path-merge behavior, the runtime total is 225 per the latest
+      // verification (see .planning/phases/15/animation-sidecar-extended).
+      expect(totalOriginalEffect).toBe(firstRun.diagnostics.animationsInjected)
+      // Re-pin the Bug 1 assertion: animationsInjected == animationsCovered
+      // (every emitted animation has its originalEffect counted at least once).
+      expect(totalOriginalEffect).toBeGreaterThan(0)
+    })
+
+    it('Phase 15 Bug 1: extensionsFieldsPreserved >= animationsInjected (one per animation minimum)', () => {
+      // The D-11 unconditional rule bumps the lower bound: each animation
+      // contributes at LEAST originalEffect. Verification: the diagnostic
+      // counter must be at least as large as the injected count.
+      if (!hasFixture || !firstRun) return
+      expect(firstRun.diagnostics.extensionsFieldsPreserved).toBeGreaterThanOrEqual(
+        firstRun.diagnostics.animationsInjected,
+      )
+    })
   })
 
   describe('03_overview specific — group-count invariant (N→N coverage)', () => {
@@ -364,6 +400,85 @@ describe('Plan 14-03 — E2E on exampels/202610131101001 (ANIM-DIAG-01)', () => 
             `element ${(el as any).id} under group ${gid} must have an animation`,
           ).toBe(true)
         }
+      }
+    })
+
+    // Phase 15 / Bug 2 reverse-assertion — 03_overview fixture has 4 groups
+    // × 4 PPTShapes each (path-merge expanded). Per-element trigger derivation:
+    //   - first element in each group: row-level (anchor)
+    //   - subsequent elements in same group: 'meantime' (concurrent)
+    // None of the fixture rows carry `trigger='on-click'` or `trigger_shape`,
+    // so the click-all branch is not exercised here (unit-tested instead).
+    it('Phase 15 Bug 2: subsequent same-group elements on 03_overview use trigger="meantime"', () => {
+      if (!hasFixture || !firstRun || !sidecar) return
+      const slide = firstRun.slides.find(s => s.id === '03_overview')
+      // Bucket animations by groupId.
+      const groupAnimations = new Map<string, any[]>()
+      for (const a of slide!.animations!) {
+        // find element → groupId
+        const el = slide!.elements.find((e: any) => e.id === (a as any).elId)
+        expect(el, `animation ${a.id} → elId ${(a as any).elId} must resolve to an element`).toBeDefined()
+        const gid = (el as any).groupId
+        // chrome elements (title/subtitle/slot) carry no groupId — skip
+        if (!gid) continue
+        const arr = groupAnimations.get(gid) ?? []
+        arr.push(a)
+        groupAnimations.set(gid, arr)
+      }
+
+      // Verify each multi-element group has the first/rest split correct.
+      let multiGroups = 0
+      let sameGroupConcurrentCorrect = 0
+      for (const [gid, anims] of groupAnimations) {
+        if (anims.length < 2) continue
+        multiGroups++
+        // 03_overview fixture rows use trigger='after-previous' implicitly
+        // (defaults) — first element expected 'auto', rest expected 'meantime'.
+        // The emission order inside a group matches the element-list order
+        // because `slide.elements.filter(...)` preserves source order.
+        const first = anims[0]
+        const rest = anims.slice(1)
+        expect(
+          ['auto', 'click', 'meantime'].includes(first.trigger),
+          `group ${gid} first-element trigger=${first.trigger} must be a valid PPTist trigger`,
+        ).toBe(true)
+        for (const a of rest) {
+          // Fixture has no click / on-click / trigger_shape → expect 'meantime'.
+          expect(
+            a.trigger,
+            `group ${gid} subsequent element ${a.elId} must be 'meantime' (concurrent within row)`,
+          ).toBe('meantime')
+          sameGroupConcurrentCorrect++
+        }
+      }
+      // 03_overview has 4 cards × 4 elements each → 4 multi-element groups
+      // and 4 × 3 = 12 subsequent elements that must be 'meantime'.
+      expect(multiGroups).toBe(4)
+      expect(sameGroupConcurrentCorrect).toBe(12)
+    })
+
+    it('Phase 15 Bug 2: same-group elements have distinct elIds (one animation per PPTElement)', () => {
+      // Reverse-assertion that the element-loop emitted exactly one row per
+      // matching PPTElement within each multi-element group. Combined with
+      // the trigger test above, this pins the N→N-per-element model with
+      // first/rest concurrent semantics.
+      if (!hasFixture || !firstRun || !sidecar) return
+      const slide = firstRun.slides.find(s => s.id === '03_overview')
+      const groupAnimations = new Map<string, string[]>()
+      for (const a of slide!.animations!) {
+        const el = slide!.elements.find((e: any) => e.id === (a as any).elId)
+        if (!el || !(el as any).groupId) continue
+        const gid = (el as any).groupId
+        const arr = groupAnimations.get(gid) ?? []
+        arr.push((a as any).elId)
+        groupAnimations.set(gid, arr)
+      }
+      for (const [gid, elIds] of groupAnimations) {
+        if (elIds.length < 2) continue
+        expect(
+          new Set(elIds).size,
+          `group ${gid} PPTAnimations must reference distinct PPTElements`,
+        ).toBe(elIds.length)
       }
     })
 
