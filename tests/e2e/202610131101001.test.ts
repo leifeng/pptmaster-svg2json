@@ -368,6 +368,34 @@ describe('Plan 14-03 — E2E on exampels/202610131101001 (ANIM-DIAG-01)', () => 
         firstRun.diagnostics.animationsInjected,
       )
     })
+
+    // Phase 16 micro-fix — D-11 unconditional `extensions.originalTrigger`
+    // (parallel to originalEffect). Every emitted PPTAnimation must contain
+    // the originalTrigger key — value is either a string trigger
+    // ('with-previous' / 'after-previous' / 'on-click') or undefined for
+    // implicitly-defaulted rows. Object.keys surfaces the unconditional
+    // presence even when the value is undefined.
+    it('Phase 16: every covered PPTAnimation extensions contains originalTrigger key (D-11 unconditional)', () => {
+      if (!hasFixture || !firstRun) return
+      let totalOriginalTriggerKeys = 0
+      for (const slide of firstRun.slides) {
+        for (const a of slide.animations ?? []) {
+          // D-11 unconditional: every emitted animation's extensions must
+          // contain the originalTrigger key. The value may be a string or
+          // undefined (implicit trigger) — Object.keys is the right oracle
+          // here, not `toBeTypeOf`.
+          expect(
+            Object.keys(a.extensions ?? {}),
+            `slide=${slide.id}, animation.id=${a.id} must contain originalTrigger key (D-11)`,
+          ).toContain('originalTrigger')
+          totalOriginalTriggerKeys++
+        }
+      }
+      // 1:1 with animationsInjected — every covered animation contributes
+      // exactly one originalTrigger key.
+      expect(totalOriginalTriggerKeys).toBe(firstRun.diagnostics.animationsInjected)
+      expect(totalOriginalTriggerKeys).toBeGreaterThan(0)
+    })
   })
 
   describe('03_overview specific — group-count invariant (N→N coverage)', () => {
