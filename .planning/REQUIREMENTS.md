@@ -51,6 +51,36 @@ Requirements for PPTist Animation Sidecar Injection. Each maps to Phase 14.
 
 - [ ] **ANIM-DIAG-01**: 转换结束打印被映射/被保留/被丢弃字段的统计报告（写 stderr，不进 JSON）
 
+## v1.10 Requirements
+
+Requirements for Animation Sidecar Extension. Each maps to Phase 15.
+
+### 默认与级联
+
+- [ ] **ANIM-NONE-01**: `groups[gid].effect === "none"`（legacy 单 effect 形式）时不发射任何 PPTAnimation
+- [ ] **ANIM-NONE-02**: `defaults.animation.effect === "none"` 时该 slide 不生成 animations，除非 row-level effect 显式非 none
+- [ ] **ANIM-NONE-03**: `defaults.transition.effect === "none"` 或 slide-level `transition.effect === "none"` 时 `slide.turningMode === "no"`（保留 auto_advance / sound 语义）
+
+### 字段保留
+
+- [ ] **ANIM-EXTS-01**: 所有 row 字段（含 `restart`、`after_effect`、`sound`）原样保留到 `extensions`（camelCase 顶层键）
+- [ ] **ANIM-EXTS-02**: `effect_options` 顶层 camelCase 为 `effectOptions`，嵌套键 verbatim
+
+### Effect 映射扩展
+
+- [ ] **ANIM-MAP-EXT-01**: `ENTRANCE_MAP` 覆盖所有 53 个三方 entrance_* key，值 ∈ PPTist 84-effect whitelist 或 fallback
+- [ ] **ANIM-MAP-EXT-02**: `EMPHASIS_MAP` 覆盖所有 33 个三方 emphasis_* key
+- [ ] **ANIM-MAP-EXT-03**: `EXIT_MAP` 覆盖所有 53 个三方 exit_* key
+
+### Delay 合并
+
+- [ ] **ANIM-DELAY-01**: PPTAnimation.duration = clamp(round((row.delay + row.duration) * 1000), 100, 5000)
+
+### Inheritance 与 Chrome
+
+- [ ] **ANIM-INHERIT-01**: 实现 `resolveEffectiveRow` 纯函数，五层链路 CLI → deck → slide → group → row
+- [ ] **ANIM-CHROME-01**: 导出 `CHROME_REGEX` 与 `isChromeGroupId(id)` 助手；不接入 iteration loop（forward-compat）
+
 ## v2 Requirements
 
 Deferred. Not in current roadmap.
@@ -82,23 +112,34 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ANIM-CLI-01 | Phase 14 | Pending |
-| ANIM-CLI-02 | Phase 14 | Pending |
-| ANIM-CLI-03 | Phase 14 | Pending |
-| ANIM-ID-01 | Phase 14 | Pending |
-| ANIM-ID-02 | Phase 14 | Pending |
-| ANIM-MAP-01 | Phase 14 | Pending |
-| ANIM-MAP-02 | Phase 14 | Pending |
-| ANIM-MAP-03 | Phase 14 | Pending |
-| ANIM-MAP-04 | Phase 14 | Pending |
-| ANIM-MAP-05 | Phase 14 | Pending |
-| ANIM-MAP-06 | Phase 14 | Pending |
-| ANIM-TRANS-01 | Phase 14 | Pending |
-| ANIM-TRANS-02 | Phase 14 | Pending |
-| ANIM-TRANS-03 | Phase 14 | Pending |
-| ANIM-TURN-01 | Phase 14 | Pending |
-| ANIM-DEFAULTS-01 | Phase 14 | Pending |
-| ANIM-DIAG-01 | Phase 14 | Pending |
+| ANIM-CLI-01 | Phase 14 | Complete |
+| ANIM-CLI-02 | Phase 14 | Complete |
+| ANIM-CLI-03 | Phase 14 | Complete |
+| ANIM-ID-01 | Phase 14 | Complete |
+| ANIM-ID-02 | Phase 14 | Complete |
+| ANIM-MAP-01 | Phase 14 | Complete |
+| ANIM-MAP-02 | Phase 14 | Complete |
+| ANIM-MAP-03 | Phase 14 | Complete |
+| ANIM-MAP-04 | Phase 14 | Complete |
+| ANIM-MAP-05 | Phase 14 | Complete |
+| ANIM-MAP-06 | Phase 14 | Complete |
+| ANIM-TRANS-01 | Phase 14 | Complete |
+| ANIM-TRANS-02 | Phase 14 | Complete |
+| ANIM-TRANS-03 | Phase 14 | Complete |
+| ANIM-TURN-01 | Phase 14 | Complete |
+| ANIM-DEFAULTS-01 | Phase 14 | Complete |
+| ANIM-DIAG-01 | Phase 14 | Complete |
+| ANIM-NONE-01 | Phase 15 | Pending |
+| ANIM-NONE-02 | Phase 15 | Pending |
+| ANIM-NONE-03 | Phase 15 | Pending |
+| ANIM-EXTS-01 | Phase 15 | Pending |
+| ANIM-EXTS-02 | Phase 15 | Pending |
+| ANIM-MAP-EXT-01 | Phase 15 | Pending |
+| ANIM-MAP-EXT-02 | Phase 15 | Pending |
+| ANIM-MAP-EXT-03 | Phase 15 | Pending |
+| ANIM-DELAY-01 | Phase 15 | Pending |
+| ANIM-INHERIT-01 | Phase 15 | Pending |
+| ANIM-CHROME-01 | Phase 15 | Pending |
 
 **Coverage:**
 - v1.9 requirements: 17 total
