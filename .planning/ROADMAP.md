@@ -12,9 +12,20 @@
 - ✅ **v1.7** — Path 合并优化 (2026-07-23)
 - ✅ **v1.8** — CLI 字体验证 (2026-08-07)
 - ✅ **v1.9** — PPTist Animation Sidecar Injection (2026-10-15)
-- 🚧 **v1.10** — Animation Sidecar Extension (in progress)
+- ✅ **v1.10** — Animation Sidecar Extension (2026-10-15)
 
 ## Phases
+
+<details>
+<summary>✅ v1.10 — Animation Sidecar Extension (Phase 15) — SHIPPED 2026-10-15</summary>
+
+- [x] Phase 15: animation-sidecar-extended (2/2 plans) — completed 2026-10-15
+  - 15-01: Extend ENTRANCE_MAP / EMPHASIS_MAP / EXIT_MAP to 53/33/53 = 139 full coverage + D-02 none cascade + D-03 transition 'none' → turningMode 'no' + D-13 delay+duration merge + 2 new diagnostics counters
+  - 15-02: `resolveEffectiveRow` pure-function resolver (D-15 inheritance) + D-06 afterEffect/sound extensions + D-04 chrome forward-compat helpers + `chromeSkippedGroups` counter
+  - **Post-ship fixes (2026-10-15):** `extensions.originalTrigger` unconditional preservation (commit `9fa7fec`); 29-entry `LEGACY_NAME_MAP` normalizing fly/zoom/wipe_left etc. (commit `913e342`)
+  - **Closeout type:** verified_closeout — 30 acknowledged items still suppressed from v1.9 close, audit clean
+
+</details>
 
 <details>
 <summary>✅ v1.9 — PPTist Animation Sidecar Injection (Phase 14) — SHIPPED 2026-10-15</summary>
@@ -86,21 +97,7 @@
 
 ## Active
 
-### 🚧 v1.10 — Animation Sidecar Extension
-
-### Phase 15: animation-sidecar-extended
-
-**Goal:** 扩展动画 sidecar 处理 — `effect: "none"` 不生成动画、default 与 transition 字段扩展处理、三方字段原封不动存 extensions、三方→PPTist effect 全覆盖映射、三方 `delay + duration` 合并到 PPTist `duration`
-**Requirements:** ANIM-NONE-01/02/03, ANIM-EXTS-01/02, ANIM-MAP-EXT-01/02/03, ANIM-DELAY-01, ANIM-INHERIT-01, ANIM-CHROME-01
-**Plans:** 2 plans
-
-**Wave 1** ✅ completed 2026-10-15
-- [x] 15-01-PLAN.md — Mapping 53/33/53 全覆盖 + effect:none cascade + transition 'none' → 'no' + delay+duration 合并 + new counters
-
-**Wave 2** ✅ completed 2026-10-15
-- [x] 15-02-PLAN.md — `resolveEffectiveRow` 纯函数 + extensions 三字段补全 + chrome 助手 + chromeSkippedGroups counter
-
-**Reference:** `E:\git\svg2json\ELEMENT_ANIMATIONS.md`, `E:\git\svg2json\animation-adaptation-analysis.md`, `E:\git\svg2json\.planning\phases\15-animation-sidecar-extended\15-CONTEXT.md`, `E:\git\svg2json\.planning\phases\15-animation-sidecar-extended\15-RESEARCH.md`
+(None — `Awaiting next milestone kickoff`. Use `/gsd-new-milestone` to start v1.11+.)
 
 ---
 
@@ -117,8 +114,8 @@
 | Phase 12 | v1.7 | Complete | 2026-07-23 |
 | Phase 13 | v1.8 | Complete | 2026-08-06 |
 | Phase 14 | v1.9 | Complete | 2026-10-15 |
-| Phase 15 | v1.10 | Complete (pending closeout) | 2026-10-15 |
+| Phase 15 | v1.10 | Complete | 2026-10-15 |
 
 ---
 
-*Roadmap reorganized: 2026-10-15 during v1.9 milestone closeout (override_closeout)*
+*Roadmap reorganized: 2026-10-15 during v1.10 milestone closeout (verified_closeout)*

@@ -1,21 +1,20 @@
 ---
 gsd_state_version: "1.0"
-milestone: v1.9
-milestone_name: PPTist Animation Sidecar Injection
+milestone: v1.10
 status: Awaiting next milestone
-stopped_at: Phase 15 complete — all phases complete
-last_updated: "2026-10-15T09:42:16.863Z"
+stopped_at: v1.10 milestone complete and archived (verified_closeout) — Phase 15 plus 2 post-ship fixes
+last_updated: "2026-10-15T17:50:00.000Z"
 last_activity: 2026-10-15
-last_activity_desc: Milestone v1.9 completed and archived
-state_head: c724d859926dc9e0d434516020df90b7437e4cb5
+last_activity_desc: Milestone v1.10 completed and archived (verified_closeout)
+state_head: 1c031a2ee6ab6286972185addd508ad42f4a9954
 progress:
   total_phases: 1
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
-  percent: 100
+  total_plans: 2
+  completed_plans: 2
+milestone_name: Animation Sidecar Extension
 _phase: 1
-current_phase: 15
+current_phase: null
 ---
 
 ## Deferred Items
@@ -61,10 +60,10 @@ Closeout type: **override_closeout** (28 v1.x-carried debug sessions + 1 v1.10 p
 
 ## Current Position
 
-Phase: Milestone v1.9 complete
+Phase: Milestone v1.10 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-10-15 — Milestone v1.9 completed and archived
+Last activity: 2026-10-15 — Milestone v1.10 completed and archived
 
 ## Project Reference
 

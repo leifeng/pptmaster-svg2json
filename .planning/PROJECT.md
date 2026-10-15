@@ -40,24 +40,18 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 - ✓ **ANIM-TURN-01** — 48-key → 12 `TurningMode` mapping with `fade` fallback — v1.9
 - ✓ **ANIM-DEFAULTS-01** — `defaults.animation` / `defaults.transition` propagation through slide-level — v1.9
 - ✓ **ANIM-DIAG-01** — Mapping/preserved/dropped field counter summary (stderr-only) — v1.9
+- ✓ **ANIM-NONE-01/02/03** — `effect: "none"` cascade (legacy row / defaults.animation / defaults.transition) — v1.10
+- ✓ **ANIM-EXTS-01/02** — All row fields (incl. `restart`/`after_effect`/`sound`) preserved to extensions via camelCase; effect_options top-level → `effectOptions`, nested verbatim — v1.10
+- ✓ **ANIM-MAP-EXT-01/02/03** — Three-way mapping tables extended to 53/33/53 full coverage of ELEMENT_ANIMATIONS.md §4.6 — v1.10
+- ✓ **ANIM-DELAY-01** — PPTAnimation.duration = clamp(round((delay + duration) × 1000), 100, 5000) — v1.10
+- ✓ **ANIM-INHERIT-01** — `resolveEffectiveRow` pure function with 5-layer inheritance chain (CLI → deck → slide → group → row) — v1.10
+- ✓ **ANIM-CHROME-01** — `CHROME_REGEX` + `isChromeGroupId()` forward-compat helpers (not wired into iteration) — v1.10
+- ✓ **ANIM-LEGACY-01** — 29-entry LEGACY_NAME_MAP normalizing bare names (`fly`/`zoom`/`wipe_left`/etc.) to canonical `entrance_*` — v1.10 post-ship
+- ✓ **ANIM-ORIGTRIG-01** — `extensions.originalTrigger` unconditional preservation per D-11 spec intent — v1.10 post-ship
 
 ### Active
 
-#### v1.10 — Animation Sidecar Extension (in progress)
-
-- [ ] **ANIM-NONE-01**: `groups[gid].effect === "none"`（legacy 单 effect 形式）时不发射任何 PPTAnimation
-- [ ] **ANIM-NONE-02**: `defaults.animation.effect === "none"` 时该 slide 不生成 animations，除非 row-level effect 显式非 none
-- [ ] **ANIM-NONE-03**: `defaults.transition.effect === "none"` 或 slide-level `transition.effect === "none"` 时 `slide.turningMode === "no"`（保留 auto_advance / sound 语义）
-- [ ] **ANIM-EXTS-01**: 所有 row 字段（含 `restart`、`after_effect`、`sound`）原样保留到 `extensions`（camelCase 顶层键）
-- [ ] **ANIM-EXTS-02**: `effect_options` 顶层 camelCase 为 `effectOptions`，嵌套键 verbatim
-- [ ] **ANIM-MAP-EXT-01**: `ENTRANCE_MAP` 覆盖所有 53 个三方 entrance_* key，值 ∈ PPTist 84-effect whitelist 或 fallback
-- [ ] **ANIM-MAP-EXT-02**: `EMPHASIS_MAP` 覆盖所有 33 个三方 emphasis_* key
-- [ ] **ANIM-MAP-EXT-03**: `EXIT_MAP` 覆盖所有 53 个三方 exit_* key
-- [ ] **ANIM-DELAY-01**: PPTAnimation.duration = clamp(round((row.delay + row.duration) * 1000), 100, 5000)
-- [ ] **ANIM-INHERIT-01**: 实现 `resolveEffectiveRow` 纯函数，五层链路 CLI → deck → slide → group → row
-- [ ] **ANIM-CHROME-01**: 导出 `CHROME_REGEX` 与 `isChromeGroupId(id)` 助手；不接入 iteration loop（forward-compat）
-- [ ] **ANIM-LEGACY-01**: 29 个 legacy 输入名（`fly`/`zoom`/`wipe_left` 等）归一到 canonical `entrance_*`，再走映射查表 — _post-v1.9 fix_ (post-ship)
-- [ ] **ANIM-ORIGTRIG-01**: `extensions.originalTrigger` 无条件保留 D-11 spec 意图 — _post-v1.9 fix_ (post-ship)
+(None — awaiting next milestone kickoff via `/gsd-new-milestone`)
 
 ### Out of Scope
 
@@ -72,7 +66,7 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 
 **Existing library** — svg-to-pptel v1.8, published as npm package.
 
-**Current state** — v1.9 milestone SHIPPED 2026-10-15 (override_closeout, 30 items acknowledged as deferred tech debt). Phase 14 (PPTist Animation Sidecar Injection) shipped with 3 plans, 9 feat/test commits, +4888 LOC. Post-ship fixes: `extensions.originalTrigger` unconditional preservation (D-11), legacy name normalization (29-entry LEGACY_NAME_MAP). v1.10 (Phase 15) implementation complete, awaiting separate closeout.
+**Current state** — v1.10 milestone SHIPPED 2026-10-15 (verified_closeout). Phase 15 (Animation Sidecar Extension) shipped with 2 plans + 2 post-ship fixes (legacy-name-normalization, preserve-original-trigger), 18 files changed +3446/-113. Audit clean — 30 acknowledged carry-over items from v1.9 close still suppressed. 116 animation tests passing (66 unit + 50 E2E).
 
 **Target canvas** — 1000×562.5 (16:9 aspect ratio).
 
@@ -114,6 +108,12 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 | v1.9: ANIM-DIAG-01 stderr diagnostics | 转换结束打印 5 项计数 (slides/animations/extensions/unmapped/delay) | ✓ Complete |
 | v1.9 post-fix: LEGACY_NAME_MAP (29 项) | fly/zoom/wipe_left 等裸名归一到 canonical entrance_* 再走映射 | ✓ Complete (post-ship) |
 | v1.9 post-fix: originalTrigger unconditional | 与 originalEffect 对齐 — 无条件保留 D-11 spec 意图 | ✓ Complete (post-ship) |
+| v1.10: `resolveEffectiveRow` 纯函数 | 五层 inheritance chain 抽出,DTO 化 row-level 子解析 | ✓ Complete |
+| v1.10: D-13 `delay + duration` 合并 | PPTAnimation.duration clamp [100, 5000] ms | ✓ Complete |
+| v1.10: D-02/D-03 `effect: "none"` 级联 | row / defaults.animation / defaults.transition 全部走 'no'/'skip' 兜底 | ✓ Complete |
+| v1.10: ANIM-CHROME-01 forward-compat | `CHROME_REGEX` + `isChromeGroupId()` 助手导出但不接入 | ✓ Complete (forward-compat) |
+| v1.10 post-fix: LEGACY_NAME_MAP | 29 项裸名归一(镜像 ELEMENT_ANIMATIONS.md §4.7 lines 490-520) | ✓ Complete (post-ship) |
+| v1.10 post-fix: originalTrigger unconditional | 无条件保留 row.trigger,与 originalEffect 行为对齐 | ✓ Complete (post-ship) |
 
 ## Evolution
 
@@ -127,11 +127,11 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: v1.10 — Animation Sidecar Extension (Planning)
+## Current Milestone: Awaiting next milestone kickoff
 
-**Status:** Phase 15 (Wave 1+2) implementation complete, awaiting `/gsd-complete-milestone v1.10` to formalize closeout. Plus post-ship fixes (ANIM-LEGACY-01, ANIM-ORIGTRIG-01) shipped as v1.9.1 hot-fix — see STATE.md deferred items.
+**Status:** v1.10 SHIPPED 2026-10-15 (verified_closeout, 30 carried-forward acknowledged items suppressed from v1.9 close). Use `/gsd-new-milestone` to start v1.11+.
 
-**Goal:** 扩展动画 sidecar 处理 — `effect: "none"` cascade, 三方字段原封不动存 extensions, 三方→PPTist effect 全覆盖映射 (53/53/33), `delay + duration` 合并, inheritance chain, chrome forward-compat.
+**Goal:** Carry forward into v1.11+ — see `RETROSPECTIVE.md` for cross-milestone trends and ideas for next iteration.
 
 **Reference docs:**
 - 三方原始 schema：`E:\git\svg2json\ELEMENT_ANIMATIONS.md`
@@ -166,6 +166,20 @@ This document evolves at phase transitions and milestone boundaries.
 - ANIM-DEFAULTS-01: per-entry → sidecar defaults inheritance
 - ANIM-DIAG-01: stderr-only diagnostic summary (5 counters)
 - Post-ship fixes: `extensions.originalTrigger` unconditional + 29-entry `LEGACY_NAME_MAP` legacy normalization
+
+### v1.10 — Animation Sidecar Extension (2026-10-15)
+
+**Closeout type:** verified_closeout — all phases verified, audit clean (30 acknowledged carry-over items still suppressed from v1.9 close). Phase 15 implementation complete + 2 post-ship fixes.
+
+- ANIM-NONE-01~03: `effect: "none"` cascade (row / defaults.animation / defaults.transition)
+- ANIM-EXTS-01/02: full field preservation to `extensions` (camelCase top-level, nested verbatim)
+- ANIM-MAP-EXT-01/02/03: 53/33/53 full-coverage mapping tables (`ENTRANCE_MAP` / `EMPHASIS_MAP` / `EXIT_MAP`)
+- ANIM-DELAY-01: `delay + duration` merged into single clamped ms duration
+- ANIM-INHERIT-01: `resolveEffectiveRow` pure-function with 5-layer inheritance chain
+- ANIM-CHROME-01: forward-compat helpers (`CHROME_REGEX` + `isChromeGroupId`)
+- Post-ship fixes:
+  - ANIM-LEGACY-01: 29-entry `LEGACY_NAME_MAP` normalizing fly/zoom/wipe_left etc. → canonical `entrance_*` (commit `913e342`)
+  - ANIM-ORIGTRIG-01: `extensions.originalTrigger` unconditional preservation (commit `9fa7fec`)
 
 ### v1.8 — CLI 字体验证 (2026-08-07)
 
@@ -210,4 +224,4 @@ Research confirmed all target PPTist schema properties already implemented or de
 
 ---
 
-*Last updated: 2026-10-15 after v1.9 milestone closeout (override_closeout)*
+*Last updated: 2026-10-15 after v1.10 milestone closeout (verified_closeout)*

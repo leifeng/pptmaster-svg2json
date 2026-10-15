@@ -1,5 +1,14 @@
 # Milestones
 
+## v1.10 Animation Sidecar Extension (Shipped: 2026-10-15)
+
+**Phases completed:** 1 phases, 2 plans, 0 tasks
+
+**Key accomplishments:**
+- (none recorded)
+
+---
+
 ## v1.9 PPTist Animation Sidecar Injection (Shipped: 2026-10-15)
 
 **Phases completed:** 1 phases, 3 plans, 9 tasks
