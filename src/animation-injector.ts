@@ -30,22 +30,29 @@
  *   D-12: Three-side fields PPTist cannot express are preserved as well
  *     (`effect_options`, `repeat_count`, `repeat_duration`, `auto_reverse`,
  *     `rewind`, `accelerate`, `decelerate`, `bounce_end`, `restart`).
+ *     Plan 15-02 / D-06 also preserves `after_effect` → `afterEffect` and
+ *     `sound` (camelCase top-level keys).
  *   D-13: Top-level `extensions` keys are camelCased (e.g. `repeat_count` →
  *     `repeatCount`). Nested keys under `effectOptions` are preserved verbatim.
  *   D-15: When `mapEffect` returns `fallback: true`, `extensions.originalEffect`
- *     captures the original three-side key.
- *   D-18: `trigger_shape` non-undefined collapses to 'click' via the row-level
- *     `effectiveRowTrigger` resolver (always returns a string — order-based
- *     implicit semantics only fire when the resolver's string isn't matched).
- *   D-21 row-level: `effectiveRowDuration(row)` and `effectiveRowTrigger(row)`
- *     apply the per-row > entry.animation > sidecar.defaults.animation >
- *     hardcoded fallback chain (`0.45` sec, `'after-previous'` trigger). Each
+ *     captures the original three-side key. Plan 15-02 also extracts the row-
+ *     level inheritance chain into the pure `resolveEffectiveRow` helper.
+ *   D-18: `trigger_shape` non-undefined collapses to 'on-click' via the row-
+ *     level resolver (always returns a string — order-based implicit semantics
+ *     only fire when the resolver's string isn't matched).
+ *   D-21 row-level: per-row > entry.animation > sidecar.defaults.animation >
+ *     hardcoded fallback chain (`0.45` sec, `'after-previous'` trigger) is
+ *     implemented inside `resolveEffectiveRow` (Plan 15-02 / D-15). Each
  *     substitution increments `diagnostics.defaultsApplied`.
  *   D-21 slide-level + D-22 + Task 4 fix: `effectiveTransitionEffect` resolves
  *     `entry.transition.effect ?? sidecar.defaults.transition.effect`.
  *     The D-22 strict guard at the top of `injectAnimations()` ensures this
- *     helper never leaks defaults into slides absent from `sidecar.slides`.
+ *     helper never leaks defaults to slides absent from `sidecar.slides`.
  *   D-23: `printDiagnostics` writes to `process.stderr` only (never console.log).
+ *   D-04 (chrome): `chromeSkippedGroups` counter is exposed on
+ *     `InjectDiagnostics` (Plan 15-02 / forward-compat). Always 0 in Phase 15
+ *     because the chrome-skip helper is not wired into the iteration loop —
+ *     future bulk-scan feature should increment here.
  *
  * Claude's Discretion: `extensions` is omitted from the JSON when no fields
  * are preservable (avoids shipping `{}` envelopes).
@@ -62,6 +69,7 @@ import type {
   AnimationsSidecar,
   AnimationsSidecarGroup,
   AnimationsSidecarRow,
+  AnimationsSidecarSlide,
 } from './animation-types'
 import {
   mapEffect,
@@ -85,7 +93,8 @@ export interface InjectDiagnostics {
   elIdNotFoundWarnings: string[]
   /**
    * Plan 14-03 — number of times a per-row missing field (duration / trigger)
-   * was substituted by `effectiveAnimationDefaults` or the hardcoded fallback.
+   * was substituted by the resolved defaults chain (`resolveEffectiveRow`)
+   * or the hardcoded fallback.
    * Observability counter that proves ANIM-DEFAULTS-01 row-level resolution
    * actually fired during a run. Increments for each row where:
    *   - `row.duration === undefined` (one count), OR
@@ -124,6 +133,15 @@ export interface InjectDiagnostics {
    * the animation `duration`. Zero for fixtures that never set `row.delay`.
    */
   delayAccumulatedSeconds: number
+  /**
+   * Plan 15-02 / D-04 — forward-compat counter. Counts group ids that match
+   * `CHROME_REGEX` (i.e., chrome-style ids like `bg`, `*-header`, `*-footer`,
+   * etc.) which were not explicitly listed under `slides.<id>.groups`.
+   * Always 0 in Phase 15 because the chrome-skip helper is not yet wired
+   * into the `for-of entry.groups` iteration loop. Future bulk-scan feature
+   * (Plan 16+) should increment here whenever a chrome id is skipped.
+   */
+  chromeSkippedGroups: number
 }
 
 export function emptyInjectorDiagnostics(): InjectDiagnostics {
@@ -137,6 +155,7 @@ export function emptyInjectorDiagnostics(): InjectDiagnostics {
     elementsCovered: 0,
     unmappedEffectCount: 0,
     delayAccumulatedSeconds: 0,
+    chromeSkippedGroups: 0,
   }
 }
 
@@ -192,6 +211,11 @@ function normalizeRows(groupEntry: AnimationsSidecarGroup): AnimationsSidecarRow
       decelerate: (groupEntry as any).decelerate,
       bounce_end: (groupEntry as any).bounce_end,
       restart: (groupEntry as any).restart,
+      // Plan 15-02 / D-06: legacy single-effect form also lifts after_effect
+      // and sound from the group level so the row carries every piece of
+      // provenance before buildExtensions camelCases them.
+      after_effect: (groupEntry as any).after_effect,
+      sound: (groupEntry as any).sound,
     },
   ]
 }
@@ -229,6 +253,8 @@ function buildExtensions(
     'decelerate',
     'bounce_end',
     'restart',
+    'after_effect',
+    'sound',
   ] as const
   for (const k of snakeCasePreservedKeys) {
     const v = (row as any)[k]
@@ -275,6 +301,79 @@ function resolveAnimationDefaults(
 }
 
 // ---------------------------------------------------------------------------
+// D-15 — resolved-row capture (Plan 15-02)
+// ---------------------------------------------------------------------------
+
+/**
+ * D-15 — fully-resolved view of one row + its inherited defaults.
+ *
+ * Built by `resolveEffectiveRow`. Pure data — every field has been resolved
+ * through the inheritance chain so callers do not need to re-resolve. The
+ * underlying row is preserved verbatim via `trigger_shape` / `order` so the
+ * downstream PPTist pipeline can still inspect raw three-side values when
+ * needed.
+ */
+export interface ResolvedRow {
+  effect: string | 'none'
+  duration: number // raw seconds, not clamped (clamping happens at PPTist emission)
+  delay: number // raw seconds, 0 when row.delay is undefined (D-13 merge input)
+  trigger: string // 'on-click' | 'with-previous' | 'after-previous' (pre-map)
+  trigger_shape: string | undefined
+  order: number | undefined
+}
+
+/**
+ * D-15 — pure-function resolver: walks the inheritance chain for one row.
+ *
+ * Resolution order per field (most-specific → least-specific):
+ *   effect      : row.effect  ?? slide.animation.effect  ?? deck.animation.effect  ?? 'none'
+ *   duration    : row.duration ?? slide.animation.duration ?? deck.animation.duration ?? 0.45
+ *   delay       : row.delay ?? 0
+ *   trigger     : row.trigger_shape !== undefined
+ *                   ? 'on-click'
+ *                   : (row.trigger ?? slide.animation.trigger ?? deck.animation.trigger ?? 'after-previous')
+ *   trigger_shape: row.trigger_shape (passthrough; undefined is fine)
+ *   order       : row.order (passthrough)
+ *
+ * CRITICAL — this function MUST stay pure: no captured closure variables
+ * (no `opts`, `slide`, `entry`, `this`, etc.). All inputs flow through the
+ * three explicit parameters. Verification: `grep` 'opts\b\|slide\b\|entry\b'
+ * in the function body returns zero hits.
+ */
+export function resolveEffectiveRow(
+  row: AnimationsSidecarRow,
+  slideDefaults: AnimationsSidecarSlide | undefined,
+  deckDefaults: AnimationsSidecar['defaults'] | undefined,
+): ResolvedRow {
+  const effect =
+    row.effect ??
+    slideDefaults?.animation?.effect ??
+    deckDefaults?.animation?.effect ??
+    'none'
+  const duration =
+    row.duration ??
+    slideDefaults?.animation?.duration ??
+    deckDefaults?.animation?.duration ??
+    0.45
+  const delay = row.delay ?? 0
+  const trigger =
+    row.trigger_shape !== undefined
+      ? 'on-click'
+      : (row.trigger ??
+        slideDefaults?.animation?.trigger ??
+        deckDefaults?.animation?.trigger ??
+        'after-previous')
+  return {
+    effect,
+    duration,
+    delay,
+    trigger,
+    trigger_shape: row.trigger_shape,
+    order: row.order,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main injector function (D-22, D-11~13, D-18~20)
 // ---------------------------------------------------------------------------
 
@@ -294,22 +393,9 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
   const builtAnimations: PPTAnimation[] = []
   let previousOrder: number | undefined
 
-  // D-21 + Plan 14-03: row-level defaults resolver. `entry.animation` wins
-  // over `sidecar.defaults.animation`; either may be undefined.
-  const effectiveAnimationDefaults = resolveAnimationDefaults(entry, opts.sidecar)
-  const effectiveRowDuration = (row: AnimationsSidecarRow): number =>
-    row.duration ?? effectiveAnimationDefaults?.duration ?? 0.45
-  const effectiveRowTrigger = (row: AnimationsSidecarRow): string =>
-    row.trigger_shape !== undefined
-      ? 'on-click'
-      : (row.trigger ?? effectiveAnimationDefaults?.trigger ?? 'after-previous')
-
-  // Plan 15-01 / D-02 cascade — when slide-level defaults.animation.effect === 'none',
-  // skip rows that don't override the cascade with their own explicit effect.
-  // `effectiveAnimationDefaults?.effect === 'none'` is the only signal — row-level
-  // `effect === 'none'` is handled later via the EFFECT_NONE_SENTINEL path.
-  const animationEffectCascadeNone =
-    effectiveAnimationDefaults?.effect === 'none'
+  // Plan 15-02 / D-15 — row-level resolution via the pure `resolveEffectiveRow`
+  // helper is applied per-group inside the loop body, where each row's
+  // resolved view is captured alongside the raw row for downstream consumers.
 
   for (const [groupId, groupEntry] of Object.entries(entry.groups)) {
     // Resolve ALL PPTElements whose groupId matches (D-08 + ANIM-MAP-04 + user-intent revision).
@@ -323,12 +409,20 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
       continue
     }
 
-    const rows = normalizeRows(groupEntry)
-    for (const row of rows) {
-      // D-02 row-level override: when cascade is active AND row has no explicit
-      // effect (undefined), skip — the row would inherit the slide's 'none'.
-      // When row.effect is defined (and not 'none'), allow emission as override.
-      if (animationEffectCascadeNone && row.effect === undefined) {
+    const rowsHere = normalizeRows(groupEntry)
+    const resolvedRowsHere = rowsHere.map((r) =>
+      resolveEffectiveRow(r, entry, opts.sidecar?.defaults),
+    )
+    for (let rowIdx = 0; rowIdx < rowsHere.length; rowIdx++) {
+      const row = rowsHere[rowIdx]
+      const resolved = resolvedRowsHere[rowIdx]
+
+      // Plan 15-02 / D-02 cascade — single guard via the resolved row.
+      // When the resolved cascade lands on 'none' AND the row itself didn't set
+      // its own effect, skip emission. This unifies Plan 15-01's three-line
+      // inline check into one readable guard. Row-level `effect === 'none'` is
+      // handled later via the EFFECT_NONE_SENTINEL path.
+      if (resolved.effect === 'none' && row.effect === undefined) {
         continue
       }
 
@@ -349,7 +443,7 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
       // `previousOrder` is shared across all candidates for this row (same trigger
       // semantics), then advances once per row to preserve the cross-row ordering chain.
       const trigger = mapTrigger(
-        effectiveRowTrigger(row),
+        resolved.trigger,
         row.order,
         previousOrder,
       )
@@ -357,8 +451,7 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
       // PPTist has no independent `delay` field on PPTAnimation, so the delay is
       // absorbed into `duration` (clamped [100, 5000]). The original delay is
       // preserved in `extensions.originalDelay` per D-14 (buildExtensions below).
-      const rowDurationSeconds = effectiveRowDuration(row)
-      const totalSeconds = (row.delay ?? 0) + rowDurationSeconds
+      const totalSeconds = resolved.delay + resolved.duration
       if (row.delay !== undefined) {
         opts.diagnostics.delayAccumulatedSeconds += row.delay
       }
@@ -467,7 +560,8 @@ export function printDiagnostics(
         `${d.extensionsFieldsPreserved} fields preserved in extensions, ` +
         `${d.unmappedEffects} effects fell back to defaults, ` +
         `${d.unmappedEffectCount} effects unmapped (fallback), ` +
-        `${d.delayAccumulatedSeconds.toFixed(2)}s total delay\n`,
+        `${d.delayAccumulatedSeconds.toFixed(2)}s total delay, ` +
+        `${d.chromeSkippedGroups} chrome groups skipped\n`,
     ),
   )
   if (d.elIdNotFoundWarnings.length > 0) {
