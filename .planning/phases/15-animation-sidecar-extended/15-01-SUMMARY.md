@@ -52,14 +52,14 @@ decisions:
 metrics:
   duration: "≈8 minutes (build + 4 npm test invocations + 5 file edits)"
   completed_date: 2026-10-15
-  commits: 2
+  commits: 3
   plan_head_before: 77ead70b2bf3afe97d09ff77c189a0bd0a3540be
-  plan_head_after: ba8fcb3684bd930f7ba0f628ffa0dc2613c804e7
+  plan_head_after: d13935c
 status: complete
 actuals:
   tokens: 7000
   tasks: 3
-  commits: 2
+  commits: 3
 ---
 
 # Phase 15 Plan 01: 映射扩展 + effect:none 级联 + delay+duration 合并 — Summary
