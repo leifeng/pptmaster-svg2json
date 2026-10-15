@@ -56,6 +56,7 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
         extensionsFieldsPreserved: 0,
         unmappedEffects: 0,
         elIdNotFoundWarnings: [],
+        defaultsApplied: 0,
       })
     })
   })
@@ -500,6 +501,7 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
         extensionsFieldsPreserved: 24,
         unmappedEffects: 2,
         elIdNotFoundWarnings: [],
+        defaultsApplied: 0,
       }
       let captured = ''
       const fakeStream = {
@@ -522,6 +524,7 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
         extensionsFieldsPreserved: 0,
         unmappedEffects: 0,
         elIdNotFoundWarnings: ['slide=s1, group=g1: no match'],
+        defaultsApplied: 0,
       }
       let captured = ''
       const fakeStream = {
@@ -563,6 +566,244 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
       // The known key emits duration → 1 preserved field.
       expect(opts.diagnostics.extensionsFieldsPreserved).toBeGreaterThanOrEqual(2)
       expect(opts.diagnostics.slidesWithAnimation).toBe(1)
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Plan 14-03 / Task 1 — D-21 row-level defaults propagation (ANIM-DEFAULTS-01)
+  // -------------------------------------------------------------------------
+  describe('Plan 14-03 — D-21 row-level defaults propagation', () => {
+    it("sidecar defaults.animation.duration = 0.45 with row lacking duration → duration === 450", () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar = makeSidecar(
+        {
+          '03_overview': {
+            groups: {
+              g1: { effect: 'entrance_fade', order: 1 /* no duration, no trigger */ },
+            },
+          },
+        },
+        { animation: { duration: 0.45, trigger: 'after-previous' } },
+      )
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations![0].duration).toBe(450)
+    })
+
+    it("sidecar defaults.animation.trigger = 'on-click' with row lacking trigger → trigger === 'click'", () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar = makeSidecar(
+        {
+          '03_overview': {
+            groups: {
+              g1: { effect: 'entrance_fade', order: 1 /* no trigger */ },
+            },
+          },
+        },
+        { animation: { duration: 0.45, trigger: 'on-click' } },
+      )
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations![0].trigger).toBe('click')
+    })
+
+    it('slide-level entry.animation.duration overrides defaults (per-slide wins)', () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar = makeSidecar(
+        {
+          '03_overview': {
+            animation: { duration: 1.5, trigger: 'on-click' },
+            groups: {
+              g1: { effect: 'entrance_fade', order: 1 /* row has no duration */ },
+            },
+          },
+        },
+        { animation: { duration: 0.45, trigger: 'after-previous' } },
+      )
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations![0].duration).toBe(1500)
+      expect(result.animations![0].trigger).toBe('click')
+    })
+
+    it("per-row turn > entry > defaults > hardcoded: explicit row values win outright", () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar = makeSidecar(
+        {
+          '03_overview': {
+            animation: { duration: 1.5, trigger: 'on-click' },
+            groups: {
+              g1: {
+                effect: 'entrance_fade',
+                order: 1,
+                duration: 2.5,
+                trigger: 'with-previous',
+              },
+            },
+          },
+        },
+        { animation: { duration: 0.45, trigger: 'after-previous' } },
+      )
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations![0].duration).toBe(2500)
+      expect(result.animations![0].trigger).toBe('meantime')
+    })
+
+    it("slide-level entry.transition='push' overrides defaults.transition='fade' (Plan 02 Task 4 boundary)", () => {
+      const slide = makeSlide()
+      const sidecar = makeSidecar(
+        {
+          '03_overview': { transition: { effect: 'push' }, groups: {} },
+        },
+        { transition: { effect: 'fade' } },
+      )
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.turningMode).toBe('slideY')
+    })
+
+    it('defaultsApplied increments per row when both row.duration and row.trigger are missing', () => {
+      const slide = makeSlide([
+        makeShape('el1', 'g1'),
+        makeShape('el2', 'g2'),
+      ])
+      const sidecar = makeSidecar(
+        {
+          '03_overview': {
+            groups: {
+              g1: { effect: 'entrance_fade', order: 1 /* no duration, no trigger */ },
+              g2: { effect: 'entrance_zoom', order: 2 /* no duration, no trigger */ },
+            },
+          },
+        },
+        { animation: { duration: 0.45, trigger: 'after-previous' } },
+      )
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations!.length).toBe(2)
+      // 2 rows × 2 missing fields = 4 substitutions
+      expect(opts.diagnostics.defaultsApplied).toBe(4)
+    })
+
+    it('defaultsApplied counts duration substitution only when row.duration is undefined', () => {
+      const slide = makeSlide([
+        makeShape('el1', 'g1'),
+        makeShape('el2', 'g2'),
+      ])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: { effect: 'entrance_fade', order: 1, duration: 0.5 }, // explicit duration, no trigger
+            g2: { effect: 'entrance_zoom', order: 2 /* both missing */ },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      injectAnimations(slide, opts)
+      // g1: duration explicit → 0; trigger undefined → 1
+      // g2: both missing → 2
+      expect(opts.diagnostics.defaultsApplied).toBe(3)
+    })
+
+    it('defaultsApplied does NOT increment when trigger_shape is defined (substitution came from trigger_shape, not defaults)', () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: {
+              effect: 'entrance_fade',
+              order: 1,
+              duration: 0.5,
+              trigger_shape: 'some-other-shape',
+              // row.trigger intentionally undefined — but trigger_shape wins
+            },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      injectAnimations(slide, opts)
+      // duration: explicit → 0; trigger_shape defined → trigger_substitution not counted
+      expect(opts.diagnostics.defaultsApplied).toBe(0)
+      expect(opts.diagnostics.animationsInjected).toBe(1)
+    })
+
+    it('D-22 strict: defaults present but no entry → defaults do NOT leak to animations or turningMode', () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar: AnimationsSidecar = {
+        version: 1,
+        defaults: {
+          transition: { effect: 'fade' },
+          animation: { duration: 0.45, trigger: 'on-click' },
+        },
+        slides: {}, // ← empty — no entry for 03_overview
+      }
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations).toBeUndefined()
+      expect(result.turningMode).toBeUndefined()
+      // defaultsApplied must NOT have incremented since the entry guard returned early
+      expect(opts.diagnostics.defaultsApplied).toBe(0)
+      expect(opts.diagnostics.animationsInjected).toBe(0)
+    })
+
+    it('trigger_shape present with explicit trigger → still collapses to click (D-18)', () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: {
+              effect: 'entrance_fade',
+              order: 1,
+              trigger: 'after-previous',
+              trigger_shape: 'some-other-shape',
+            },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations![0].trigger).toBe('click')
     })
   })
 })

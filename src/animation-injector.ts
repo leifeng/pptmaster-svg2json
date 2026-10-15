@@ -1,5 +1,5 @@
 /**
- * Animation injector — Phase 14 / Plan 14-02.
+ * Animation injector — Phase 14 / Plan 14-02 + Plan 14-03.
  *
  * Sidecar → Slide bridge. Translates a three-side `animations.json` entry for
  * one slide into `slide.animations[]` (one PPTAnimation per `groups[gid]` row)
@@ -18,7 +18,14 @@
  *     `repeatCount`). Nested keys under `effectOptions` are preserved verbatim.
  *   D-15: When `mapEffect` returns `fallback: true`, `extensions.originalEffect`
  *     captures the original three-side key.
- *   D-21 + D-22 + Task 4 fix: `effectiveTransitionEffect` resolves
+ *   D-18: `trigger_shape` non-undefined collapses to 'click' via the row-level
+ *     `effectiveRowTrigger` resolver (always returns a string — order-based
+ *     implicit semantics only fire when the resolver's string isn't matched).
+ *   D-21 row-level: `effectiveRowDuration(row)` and `effectiveRowTrigger(row)`
+ *     apply the per-row > entry.animation > sidecar.defaults.animation >
+ *     hardcoded fallback chain (`0.45` sec, `'after-previous'` trigger). Each
+ *     substitution increments `diagnostics.defaultsApplied`.
+ *   D-21 slide-level + D-22 + Task 4 fix: `effectiveTransitionEffect` resolves
  *     `entry.transition.effect ?? sidecar.defaults.transition.effect`.
  *     The D-22 strict guard at the top of `injectAnimations()` ensures this
  *     helper never leaks defaults into slides absent from `sidecar.slides`.
@@ -60,6 +67,21 @@ export interface InjectDiagnostics {
   extensionsFieldsPreserved: number
   unmappedEffects: number
   elIdNotFoundWarnings: string[]
+  /**
+   * Plan 14-03 — number of times a per-row missing field (duration / trigger)
+   * was substituted by `effectiveAnimationDefaults` or the hardcoded fallback.
+   * Observability counter that proves ANIM-DEFAULTS-01 row-level resolution
+   * actually fired during a run. Increments for each row where:
+   *   - `row.duration === undefined` (one count), OR
+   *   - `row.trigger === undefined` AND `row.trigger_shape === undefined`
+   *     (one count — the trigger substitution happened whether the source
+   *     was `entry.animation`, `sidecar.defaults.animation`, or the
+   *     `'after-previous'` hardcoded fallback)
+   * D-22 strict: when a slide lacks a sidecar entry, this counter does NOT
+   * increment even when defaults are populated — the early-return prevents
+   * defaults from leaking to slides absent from `sidecar.slides`.
+   */
+  defaultsApplied: number
 }
 
 export function emptyInjectorDiagnostics(): InjectDiagnostics {
@@ -69,6 +91,7 @@ export function emptyInjectorDiagnostics(): InjectDiagnostics {
     extensionsFieldsPreserved: 0,
     unmappedEffects: 0,
     elIdNotFoundWarnings: [],
+    defaultsApplied: 0,
   }
 }
 
@@ -189,6 +212,23 @@ function effectiveTransitionEffect(
   return entry.transition?.effect ?? sidecar?.defaults?.transition?.effect
 }
 
+/**
+ * D-21 row-level defaults resolution — Plan 14-03.
+ *
+ * The slide-level `entry.animation` wins over the global `sidecar.defaults.animation`.
+ * Either may be `undefined`; the hardcoded `'after-previous'` / `0.45` fallbacks
+ * only fire when both tiers are missing. D-22 still guarantees `entry` itself
+ * exists (the outer strict-return already filtered slides absent from
+ * `sidecar.slides`).
+ */
+type AnimationDefaults = NonNullable<AnimationsSidecar['defaults']>['animation']
+function resolveAnimationDefaults(
+  entry: { animation?: AnimationDefaults },
+  sidecar: AnimationsSidecar | undefined,
+): AnimationDefaults | undefined {
+  return entry.animation ?? sidecar?.defaults?.animation
+}
+
 // ---------------------------------------------------------------------------
 // Main injector function (D-22, D-11~13, D-18~20)
 // ---------------------------------------------------------------------------
@@ -208,6 +248,16 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
   const entry = opts.sidecar.slides[opts.slideId]
   const builtAnimations: PPTAnimation[] = []
   let previousOrder: number | undefined
+
+  // D-21 + Plan 14-03: row-level defaults resolver. `entry.animation` wins
+  // over `sidecar.defaults.animation`; either may be undefined.
+  const effectiveAnimationDefaults = resolveAnimationDefaults(entry, opts.sidecar)
+  const effectiveRowDuration = (row: AnimationsSidecarRow): number =>
+    row.duration ?? effectiveAnimationDefaults?.duration ?? 0.45
+  const effectiveRowTrigger = (row: AnimationsSidecarRow): string =>
+    row.trigger_shape !== undefined
+      ? 'on-click'
+      : (row.trigger ?? effectiveAnimationDefaults?.trigger ?? 'after-previous')
 
   for (const [groupId, groupEntry] of Object.entries(entry.groups)) {
     // Resolve elId — first PPTElement whose groupId matches (D-08 + ANIM-MAP-04).
@@ -230,15 +280,19 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
         continue
       }
 
-      // D-18: trigger_shape non-undefined collapses to 'click'.
-      let trigger: AnimationTrigger
-      if (row.trigger_shape !== undefined) {
-        trigger = 'click'
-      } else {
-        trigger = mapTrigger(row.trigger, row.order, previousOrder)
-      }
+      // D-21 row-level defaults + D-18 trigger_shape fallback — both pass through
+      // mapTrigger to collapse three-side strings to the PPTist AnimationTrigger enum.
+      const trigger = mapTrigger(
+        effectiveRowTrigger(row),
+        row.order,
+        previousOrder,
+      )
+      const duration = mapDuration(effectiveRowDuration(row))
 
-      const duration = mapDuration(row.duration)
+      // ANIM-DEFAULTS-01 observability: count each row-level substitution.
+      if (row.duration === undefined) opts.diagnostics.defaultsApplied++
+      if (row.trigger === undefined && row.trigger_shape === undefined)
+        opts.diagnostics.defaultsApplied++
 
       // D-11/12/13: extensions provenance + preserved opaque fields.
       const extensions = buildExtensions(row, fallback)
