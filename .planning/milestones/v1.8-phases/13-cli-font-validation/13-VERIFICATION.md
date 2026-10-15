@@ -32,6 +32,10 @@ behavior_unverified_items:
     expected: "Per the docstring, the constructor should throw or otherwise signal that the font is unloadable so verifyFontLoaded returns { ok: false }. Instead, Resvg returns a silent empty-glyph render."
     why_human: "Whether this gap matters depends on the team's threat model. text-measurer.ts already rejects zero-dimension bboxes at measurement time, so a corrupt font eventually surfaces as a measurement error during conversion rather than as a startup-time error. The decision (tighten validator vs. accept Layer 1 + downstream detection) is a design call, not a mechanical fix."
 human_verification: []
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: gaps_found
 ---
 
 # Phase 13: CLI Font Validation — Verification Report

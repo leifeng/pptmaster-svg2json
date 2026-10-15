@@ -4,6 +4,10 @@ trigger: "SVG text 元素换行问题 + tspan 字体大小嵌套格式问题"
 created: 2026-07-10T10:30:00.000Z
 updated: 2026-07-10T10:30:00.000Z
 symptoms_prefilled: true
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: investigating
 ---
 
 ## Current Focus
@@ -113,4 +117,3 @@ verification: |
 
 files_changed:
   - src/transformer/transform-to-pptel.ts
-

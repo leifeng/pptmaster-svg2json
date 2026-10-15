@@ -3,15 +3,21 @@ status: investigating
 trigger: "Bug Report: 文本宽度计算函数需要对比验证"
 created: 2026-06-29T00:00:00.000Z
 updated: 2026-06-29T00:00:00.000Z
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: investigating
 ---
 
 ## Current Focus
+
 hypothesis: "新函数与当前函数的宽度系数体系完全不同,需要通过测试用例验证哪个更准确"
 test: "计算测试用例对比结果"
 expecting: "确定差异大小并判断是否需要修改当前函数"
 next_action: "完成调试报告"
 
 ## Symptoms
+
 expected: "两个函数对测试用例给出相同或相近的宽度计算结果"
 actual: "当前函数和新函数对数字/字母的宽度系数存在显著差异"
 errors: []
@@ -21,6 +27,7 @@ started: "待调查"
 ## Eliminated
 
 ## Evidence
+
 - timestamp: 2026-06-29
   checked: "用户提供的两个函数定义"
   found: "当前函数使用细粒度字符分类(数字0.55/大写0.65/小写0.55/其他0.3), 新函数仅区分数字(0.70)和其他(0.6)"
@@ -42,6 +49,7 @@ started: "待调查"
   implication: "当前 isBold 判断过于严格,应改为只要存在 font-weight 属性就视为粗体"
 
 ## Resolution
+
 root_cause: "1. 当前 isBold 判断逻辑不完整: 仅识别 'bold'/'600'/'700',遗漏其他 font-weight 值; 2. 新函数与当前函数的系数体系完全不同,无法直接替换"
 fix: ""
 verification: ""

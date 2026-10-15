@@ -3,6 +3,10 @@ status: investigating
 trigger: "嵌套 `<g>` 标签中 fill/stroke 颜色未向下传递"
 created: 2026-07-13T10:00:00.000Z
 updated: 2026-07-13T10:00:00.000Z
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: investigating
 ---
 
 ## Current Focus
@@ -30,7 +34,6 @@ reproduction: |
 started: always
 
 ## Eliminated
-
 
 ## Evidence
 

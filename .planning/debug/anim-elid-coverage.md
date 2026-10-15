@@ -1,3 +1,10 @@
+---
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: unknown
+---
+
 # Debug: animations.json groups[gid] 缺少元素覆盖（仅第一个 PPTElement 有动画）
 
 ## 症状

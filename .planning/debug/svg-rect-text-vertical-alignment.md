@@ -3,15 +3,21 @@ status: diagnosed
 trigger: "SVG rect at y=280 height=3 and text at y=340 fontSize=56 - rect appears aligned with text BOTTOM instead of being above text"
 created: 2026-07-01T10:00:00.000Z
 updated: 2026-07-01T10:30:00.000Z
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: diagnosed
 ---
 
 ## Current Focus
+
 hypothesis: "Text vertical positioning formula subtracts fontSize directly from measured.y, but fontSize is in SVG units while measured.y and transformed.top are in different scales, causing misalignment"
 test: "Trace coordinate flow for text vs rect in transform-to-pptel.ts and mapCoordinates"
 expecting: "Find exact formula discrepancy causing text to appear lower than expected"
 next_action: "Analyze textTop formula at line 766 in detail"
 
 ## Symptoms
+
 expected: "Rect at y=280 (top=218.75 in output) should appear ABOVE text at y=340 (textTop=173.1, textBottom=207.5 in output)"
 actual: "Rect appears aligned with text BOTTOM in converted output"
 errors: []
@@ -19,6 +25,7 @@ reproduction: "SVG rect y=280 height=3 and text y=340 fontSize=56 converts with 
 started: "Unknown - discovered during conversion testing"
 
 ## Eliminated
+
 - hypothesis: "mapCoordinates returns wrong top for text element"
   evidence: "mapCoordinates correctly returns y=340 for text (baseline position)"
   timestamp: "2026-07-01T10:15:00.000Z"
@@ -28,6 +35,7 @@ started: "Unknown - discovered during conversion testing"
   timestamp: "2026-07-01T10:15:00.000Z"
 
 ## Evidence
+
 - timestamp: 2026-07-01T10:05:00.000Z
   checked: "transform-to-pptel.ts text case (lines 722-846)"
   found: "textTop = (transformed.top + measured.y - fontSize) * scaleY at line 766"
@@ -54,6 +62,7 @@ started: "Unknown - discovered during conversion testing"
   implication: "Text baseline is at 265.625 in output space. textTop formula should convert this to visual top correctly"
 
 ## Resolution
+
 root_cause: "Two competing issues in text vertical positioning in transform-to-pptel.ts:\n1. Line 766: textTop formula uses `(transformed.top + measured.y - fontSize) * scaleY` which incorrectly handles the coordinate conversion from SVG baseline to visual top. For typical values (measured.y=12, fontSize=56, scaleY=0.7813), this gives textTop=173.1 when correct should be ~231.2 (difference of ~58 pixels).\n2. Line 772 (fallback): Uses `fontSize * 0.8` heuristic for ascent, which differs from actual measured ascent, causing fallback textTop=221.1 vs correct ~231.2 (off by ~10 pixels).\n\nThe actual output textTop appears to be ~175 (user reports rect at y=280 aligning with text bottom), which doesn't match either formula directly. This suggests either: (a) measured.y is returning an unexpected value (e.g., 0 or negative for this specific font/text), or (b) the fallback is being triggered unexpectedly."
 fix: "The fix should:\n1. Change line 766 from: `textTop = (transformed.top + measured.y - fontSize) * scaleY`\n   To: `textTop = transformed.top - (fontSize - measured.y) * scaleY`\n   Where (fontSize - measured.y) is the ascent in SVG units, then properly scaled.\n\n2. Alternatively, simplify to: `textTop = transformed.top - measured.y * scaleY`\n   IF measured.y already represents the ascent distance from baseline to bbox top.\n\n3. Fix fallback line 772 to use measured.y from a partial measurement rather than heuristic fontSize * 0.8"
 verification: "After fix, text at y=340 fontSize=56 should produce textTop such that text appears ABOVE rect at y=280 (textTop ~231, textBottom ~265, rectTop ~219)"

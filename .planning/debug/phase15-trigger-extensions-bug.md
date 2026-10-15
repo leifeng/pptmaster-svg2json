@@ -1,3 +1,10 @@
+---
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: unknown
+---
+
 # Debug: Phase 15 extensions.originalEffect + 同组元素 trigger 并发
 
 ## 症状
@@ -19,10 +26,13 @@ Phase 15 Wave 1+2 完成后,两个相关 bug:
 ## 当前代码
 
 `src/animation-injector.ts:235`:
+
 ```ts
 if (fallback) ext.originalEffect = row.effect
 ```
+
 应该改为(无条件):
+
 ```ts
 ext.originalEffect = row.effect
 ```
@@ -49,6 +59,7 @@ bug_class: bohrbug (deterministic — both bugs reproducible from inputs)
 hypothesis: 
   - Bug 1: buildExtensions 第 235 行的 `if (fallback)` 是 D-11 实现偏差 — D-11 spec 要求"映射后同时保留三方原值",无论 mapped/fallback 都应写入 originalEffect
   - Bug 2: element-loop 内 `trigger` 由 row-level 单一决定(row-level 默认 `after-previous` → `auto`),同 row 多 element 共享,导致同组元素被串行(`auto` = after-previous),而不是同时(meantime)
+
 test: 单元 + E2E reverse-assertion
 expecting: Bug 1 — 所有 PPTAnimation.extensions.originalEffect 都存在;Bug 2 — 多 element row 的首个 element 保留 row-level trigger,后续 element 走 meantime(除非 row 显式 click 变体)
 next_action: 实施 Commit 1 — Bug 1 fix (originalEffect unconditional) + 单元测试

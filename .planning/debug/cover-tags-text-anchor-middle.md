@@ -1,3 +1,10 @@
+---
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: unknown
+---
+
 # Debug: cover-tags 文本 x 位置不正确（text-anchor="middle" 继承失败）
 
 ## 症状

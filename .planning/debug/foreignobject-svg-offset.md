@@ -3,6 +3,10 @@ status: investigating
 trigger: "svg中引用的其他svg文件替换后的临时svg在浏览器上看正常，但是转json后这部分代码整体往右下偏移，并且整体有点大"
 created: 2026-07-09T10:30:00.000Z
 updated: 2026-07-09T10:30:00.000Z
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: investigating
 ---
 
 ## Current Focus

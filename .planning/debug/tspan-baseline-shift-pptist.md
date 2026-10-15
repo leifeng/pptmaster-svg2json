@@ -1,47 +1,26 @@
 ---
 slug: tspan-baseline-shift-pptist
-title: tspan baseline-shift SVG to JSON conversion issue
 status: in_progress
 created: 2026-07-10
-symptoms:
-  - SVG tspan elements with baseline-shift="super" or baseline-shift="sub" not displaying correctly in pptist
-  - The baseline-shift attribute is lost or not properly converted to pptist's text format
-  - Superscript and subscript text appears inline instead of shifted up/down
-root_cause: "The extractTextContentFromElement function in transform-to-pptel.ts discards all tspan attributes including baseline-shift. The text case handler only uses parent text element attributes and does not process tspan children individually."
-hypothesis: "The extractTextContentFromElement function extracts only text content from tspan children, ignoring the baseline-shift attribute. This causes superscript/subscript to render as normal inline text."
-investigation:
-  - file: src/transformer/transform-to-pptel.ts
-    line: 577-591
-    finding: "extractTextContentFromElement recursively extracts text from tspan children but discards ALL attributes including baseline-shift. It only returns the text content as a plain string with newlines."
-  - file: src/transformer/transform-to-pptel.ts
-    line: 1072-1201
-    finding: "The text case handler in transformElement only uses parent text element attributes (font-family, font-size, fill, font-weight, font-style) for styling. It does not process tspan children individually."
-  - file: code/PPTist/src/utils/prosemirror/schema/marks.ts
-    line: 4-26
-    finding: "PPTist's ProseMirror schema defines 'subscript' and 'superscript' marks that recognize either HTML tags (sub/sup) or CSS style (vertical-align: sub/super)."
-  - file: code/PPTist/src/hooks/useExport.ts
-    line: 213-280
-    finding: "When exporting to pptx, PPTist correctly maps vertical-align: super to options.superscript = true and vertical-align: sub to options.subscript = true."
-verification:
-  test_case: null
-  result: null
-fix:
-  applied: true
-  commit: null
-  solution: "Used linkedom to re-parse SVG after fast-xml-parser, preserving text/tspan node order. Added fixMixedTextTspanContentWithLinkedom and related helper functions to src/parser/svg-parser.ts"
-notes:
-  - pptist supports text superscript/subscript display natively
-  - SVG baseline-shift attribute values: "super", "sub", or numeric values (percentages, lengths)
-  - The fix should wrap content in <sup> or <sub> tags OR add vertical-align CSS style
+root_cause: >
+  The extractTextContentFromElement function in transform-to-pptel.ts
+  discards all tspan attributes including baseline-shift.
+notes: 'superscript/subscript text appears inline; pptist supports via vertical-align CSS or sub/sup tags'
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: in_progress
 ---
 
 ## Root Cause Analysis
 
 ### Finding 1: SVG Parser Does Capture baseline-shift
+
 **file:** src/parser/svg-parser.ts
 **line:** ~469-474
 
 The SVG parser correctly extracts the baseline-shift attribute via the `convertToSvgElement` function:
+
 ```typescript
 for (const key of Object.keys(node)) {
   if (key.startsWith('@_')) {
@@ -54,6 +33,7 @@ for (const key of Object.keys(node)) {
 So `<tspan baseline-shift="super">` stores `baseline-shift: "super"` in `element.attrs['baseline-shift']`.
 
 ### Finding 2: extractTextContentFromElement Discards All Attributes
+
 **file:** src/transformer/transform-to-pptel.ts
 **line:** 577-591
 
@@ -81,6 +61,7 @@ function extractTextContentFromElement(element: SvgElement): string {
 4. **Completely ignores all attributes** including `baseline-shift`, `font-size`, `font-family`, etc.
 
 ### Finding 3: Text Case Handler Only Uses Parent Attributes
+
 **file:** src/transformer/transform-to-pptel.ts
 **line:** 1072-1201
 
@@ -94,6 +75,7 @@ The text case in `transformElement` only extracts formatting from the parent `<t
 It does NOT iterate through tspan children to apply child-specific attributes.
 
 ### Finding 4: PPTist ProseMirror Schema Supports superscript/subscript
+
 **file:** code/PPTist/src/utils/prosemirror/schema/marks.ts
 **line:** 4-26
 

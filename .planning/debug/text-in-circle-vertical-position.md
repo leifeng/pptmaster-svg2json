@@ -1,3 +1,10 @@
+---
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: unknown
+---
+
 # 根因分析报告：文本在圆形内垂直定位错误
 
 ## 现象
@@ -34,14 +41,17 @@
 ## 假设验证
 
 ### 假设1：坐标转换比例错误
+
 - **验证**：scaleX = scaleY = 1000/1280 = 562.5/720 = 0.78125，计算正确
 - **结论**：排除
 
 ### 假设2：text-anchor处理导致位置偏移
+
 - **验证**：text-anchor="middle" 的处理逻辑正确（left = x - width/2）
 - **结论**：排除
 
 ### 假设3：ascent ratio不正确
+
 - **验证**：通过resvg实际测量Arial字体的ascent
   ```
   fontSize=13: measured.y=3.65625, ascent=9.34375, ratio=0.7188
@@ -72,6 +82,7 @@ textTop = transformed.top - fontSize * ASCENT_RATIO * scaleY
 4. 由于0.8 > 0.72，计算出的ascent偏大，导致textTop偏小（文本偏低）
 
 **数学验证**：
+
 ```
 canvasBaselineY = 334 * 0.78125 = 260.9375
 

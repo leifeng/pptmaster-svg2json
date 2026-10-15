@@ -3,15 +3,21 @@ status: investigating
 trigger: "两个文本元素 y=270 坐标相同，但转换后 textTop 值不同"
 created: 2026-07-02T00:00:00.000Z
 updated: 2026-07-02T00:00:00.000Z
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: investigating
 ---
 
 ## Current Focus
+
 hypothesis: "measured.y 由 resvg-js 返回，对 '19' 和 '600+' 返回不同值，导致 textTop 计算差异"
 test: "分析 textTop 计算公式中 measured.y 对两个文本的影响"
 expecting: "确认 measured.y 差异是导致 textTop 不同的根本原因"
 next_action: "完成根本原因分析并报告结论"
 
 ## Symptoms
+
 expected: "两个 y=270 的文本元素转换后应有相同/相近的 textTop 值"
 actual: "card-1 (19) 和 card-2 (600+) 的 textTop 值不同"
 errors: []
@@ -21,6 +27,7 @@ started: "待调查"
 ## Eliminated
 
 ## Evidence
+
 - timestamp: 2026-07-02
   checked: "transform-to-pptel.ts 第788行 textTop 计算公式"
   found: "textTop = transformed.top - (fontSize - measured.y) * scaleY"
@@ -62,6 +69,7 @@ started: "待调查"
   implication: "'+' 字符的 ascent 与数字不同，导致相同 baseline 位置产生不同的 textTop"
 
 ## Resolution
+
 root_cause: "textTop = transformed.top - (fontSize - measured.y) * scaleY 公式中，measured.y（bbox.y）是 resvg-js 返回的实际渲染边界框顶部。由于 '+' 字符的垂直度量（ascent）不同于数字字符，导致 '600+' 的 measured.y 比 '19' 更小，从而使 textTop 计算结果不同。"
 fix: ""
 verification: ""

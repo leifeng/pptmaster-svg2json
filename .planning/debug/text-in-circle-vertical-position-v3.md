@@ -1,6 +1,14 @@
+---
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: unknown
+---
+
 # 根因分析报告 v3：文本在圆形内定位不一致（实际是测量字体错配）
 
 ## 状态
+
 status: investigated → ready to fix
 trigger: "05/06/07 三个 SVG 浏览器视觉一致，JSON 文字相对圆形位置不同"
 created: 2026-07-23

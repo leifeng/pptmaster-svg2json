@@ -3,15 +3,21 @@ status: awaiting_human_verify
 trigger: "处理 exampels/ppt169_attention_is_all_you_need/svg_output/03_sequence_evolution.svg 中 `<text x=\"80\" y=\"190\" font-family=\"Georgia, &quot;Microsoft YaHei&quot;, serif\" font-size=\"40\" font-weight=\"700\" fill=\"#1A365D\">attention <tspan fill=\"#3182CE\">mesh</tspan></text>` 转为 JSON 的 text 类型后，富文本内容丢失 \"attention\"，只剩 tspan 中的 \"mesh\"。"
 created: 2026-07-23T10:00:00+08:00
 updated: 2026-07-23T11:00:00+08:00
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: awaiting_human_verify
 ---
 
 ## Current Focus
+
 hypothesis: "已确认并修复：parser 现在按文档顺序生成 inline text/tspan children，真实 SVG 输出完整 attention mesh"
 test: "等待用户在实际工作流/消费端确认生成 JSON 符合预期"
 expecting: "目标富文本显示 attention mesh，attention 使用父 text 颜色，mesh 使用 #3182CE"
 next_action: "等待用户回复 confirmed fixed 或报告仍失败的现象"
 
 ## Symptoms
+
 expected: |
   输入 SVG：
   ```xml
@@ -29,14 +35,17 @@ reproduction: |
   1. 使用 svg-to-pptel 处理 exampels/ppt169_attention_is_all_you_need/svg_output/03_sequence_evolution.svg
   2. 查找输出中 y=190 的 text 元素
   3. content 字段只有 'mesh'，缺失 'attention '
+
 started: 未知
 
 ## Eliminated
+
 - hypothesis: "本次 parser mixed-content 修复导致完整套件的 path-merge nested transform 失败"
   evidence: "失败测试仅导入 src/merger/path-merge.ts，直接构造 SvgElement 并调用 createMergedShapeElement，不经过 parseSvg/svg-parser；单独运行仍以同样坐标差异稳定失败。"
   timestamp: 2026-07-23T10:55:00+08:00
 
 ## Evidence
+
 - timestamp: 2026-07-23T10:00:00+08:00
   checked: "src/parser/svg-parser.ts:469-494 extractTextContent"
   found: |
@@ -138,6 +147,7 @@ started: 未知
   implication: "不仅原始 leading-text 场景通过，后置文本顺序与 XML 声明边界也正常。"
 
 ## Resolution
+
 root_cause: "XML parser 与 rich-text transformer 的 mixed-content 数据契约不一致：parser 未启用 preserveOrder 且 trimValues:true，将直系文本存入 element.text、tspan 存入 children 并删除语义空格；buildRichTextAST 的混合分支只处理有序 children，因而忽略 element.text，导致 attention 丢失。"
 fix: "新增 preserveOrder:true、trimValues:false 的 XML 解析视图，并通过 convertOrderedToSvgElement 按文档顺序生成 text/tspan/text children；保留原 grouped parse 结果供 gradient/filter/pattern collectors 使用；新增 mixed text+tspan 端到端回归测试。"
 verification: "自验证通过：npm run build 成功；6 个文本相关文件共 63 个测试通过；新增 mixed-content 2 个测试重复运行仍通过；真实 03_sequence_evolution.svg 经 dist/src/index.js 的公开 convert 输出纯文本精确为 'attention mesh'，mesh 保持 #3182CE，宽度同步包含完整文本；相邻 before/tspan/after + XML declaration 探测也通过。完整 npm test 仅有 1 个与 parser 无调用关系、可单独稳定重现的既有 path-merge nested transform 坐标失败。等待用户实际工作流确认。"

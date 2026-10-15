@@ -3,15 +3,21 @@ status: investigating
 trigger: "exampels/08_training.svg Icon 2 (Hardware): 1 path with same transform as other icons, but wrong size (18.23x23.44 instead of 23.33x30)"
 created: 2026-07-15T11:00:00
 updated: 2026-07-15T11:00:00
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: investigating
 ---
 
 ## Current Focus
+
 hypothesis: "mapCoordinates 对 path 元素应用了 groupScale，导致 coords.width 已经是 scale 后的值。但后续 transformElement 又应用了 canvasScale，导致 width 被双重缩放。最后 viewBoxW 计算时只除了 canvasScale，得到的是 groupScale 后的值而不是原始 bbox"
 test: "检查 mapCoordinates 的 path case 是否错误地应用了 groupScale 到 width/height"
 expecting: "找出为什么 Icon 2 (单 path) 的输出与其他 icons (多 path) 不一致"
 next_action: "完成根因分析和修复方案"
 
 ## Symptoms
+
 expected: |
   Icon 2 path: "M13,3L13,10L19,10L11,21L11,14L5,14L13,3"
   raw bbox: left=5, top=3, width=14, height=18
@@ -27,9 +33,11 @@ reproduction: |
   1. 读取 exampels/08_training.svg
   2. 运行转换器
   3. 检查 Hardware 图标（第二个带 scale 的 g）
+
 started: always broken
 
 ## Evidence
+
 - timestamp: 2026-07-15T11:01:00
   checked: "createMergedShapeElement 的实际输出"
   found: |
@@ -125,6 +133,7 @@ started: always broken
 ## Eliminated
 
 ## Resolution
+
 root_cause: |
   mapCoordinates 对 path 元素应用了 groupScale 到 width/height，但 transformElement 后续又应用了 canvasScale，导致 width 被双重缩放。在计算 viewBoxW 时只除了 canvasScale，没有正确还原到原始 bbox 尺寸。
 

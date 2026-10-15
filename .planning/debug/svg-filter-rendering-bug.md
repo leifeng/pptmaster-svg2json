@@ -4,6 +4,10 @@ trigger: "SVG filter rendering bug - rect element with filter=\"url(#cardShadow)
 created: 2026-07-01T12:00:00.000Z
 updated: 2026-07-01T12:00:00.000Z
 symptoms_prefilled: true
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: investigating
 ---
 
 ## Current Focus

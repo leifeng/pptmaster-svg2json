@@ -1,3 +1,10 @@
+---
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: unknown
+---
+
 # TypeScript 构建错误诊断报告
 
 ## 概述
@@ -18,6 +25,7 @@
 **根本原因:** `renderSvgToPng` 函数从未存在于 `text-measurer.ts` 中。这是一个**遗留的无效导入**。
 
 **证据:**
+
 ```typescript
 // src/index.ts:4
 import { renderSvgToPng } from './text-measurer'
@@ -43,6 +51,7 @@ export async function measureTextElement(...)
 **根本原因:** `src/types/ast.ts` 被修改删除了 `PatternDef` 和 `PatternChild` 类型定义，但 `svg-parser.ts` 仍在使用这些类型。这些类型存在于旧的构建产物中 (`dist/svg2json/types/ast.d.ts`)，表明曾经存在但后来被移除。
 
 **证据:**
+
 ```typescript
 // src/parser/svg-parser.ts:2 - 正在导入不存在的类型
 import { ..., PatternDef, PatternChild } from '../types/ast'
@@ -76,6 +85,7 @@ export interface PatternDef {
 **根本原因:** `svg-parser.ts` 返回了 `patternRegistry` 属性，但 `SvgParseResult` 接口未定义此属性。`src/index.ts:173` 也引用了 `ast.patternRegistry`。
 
 **证据:**
+
 ```typescript
 // src/parser/svg-parser.ts:745 - 返回包含 patternRegistry
 return {
@@ -112,17 +122,23 @@ export interface SvgParseResult {
 **根本原因:** `src/utils/path-utils.ts` 源文件**从未存在于 git 仓库中**。`dist/src/utils/` 目录也没有被 git 跟踪（`git ls-files dist/src/utils/` 返回空）。当前 `src/utils/` 目录只有 `index.ts` 和 `logger.ts`。
 
 **证据:**
+
 ```bash
+
 # src/utils/ 目录内容
+
 $ ls -la src/utils/
 index.ts  logger.ts
+
 # 没有 path-utils.ts
 
 # dist/src/utils/ 未被 git 跟踪
+
 $ git ls-files dist/src/utils/
 (空)
 
 # 但 dist/src/utils/path-utils.js 存在于文件系统中
+
 $ ls dist/src/utils/
 path-utils.js  path-utils.d.ts  path-utils.js.map
 ```
@@ -195,11 +211,13 @@ export function scalePathCoords(d: string, scaleX: number, scaleY: number): stri
 **文件:** `src/index.ts`
 
 **选项 A:** 如果 `renderBackgroundPatternToPng` 功能不需要，实现为空函数：
+
 ```typescript
 async function renderBackgroundPatternToPng(...): Promise<string | undefined> {
   return undefined;  // 功能暂未实现
 }
 ```
+
 并移除 `renderSvgToPng` 导入。
 
 **选项 B:** 实现 `renderSvgToPng` 函数（需要调研原有设计意图）。

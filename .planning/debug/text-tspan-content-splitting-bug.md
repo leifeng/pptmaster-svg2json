@@ -3,15 +3,21 @@ status: investigating
 trigger: "SVG text/tspan content splitting bug - heuristic splitTextForTspans fails on real-world text patterns"
 created: 2026-07-21T10:00:00.000Z
 updated: 2026-07-21T10:30:00.000Z
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: investigating
 ---
 
 ## Current Focus
+
 hypothesis: "splitTextForTspans 使用启发式算法分割文本，导致当实际文本分布不均匀时失败。根本原因是 XML parser 不保留 text 和 tspan 子元素的顺序。"
 test: "分析 splitTextForTspans 对示例输入的处理结果"
 expecting: "找出启发式分割失败的具体条件和根本原因"
 next_action: "检查 fast-xml-parser 的 preserveOrder 选项是否可用，以及修改 parser 的可行性"
 
 ## Symptoms
+
 expected: |
   对于输入：
   <text x="246" y="222">
@@ -35,6 +41,7 @@ started: "unknown"
 ## Eliminated
 
 ## Evidence
+
 - timestamp: 2026-07-21T10:00:00.000Z
   checked: "buildRichTextAST 函数实现（第434-508行）"
   found: |
@@ -92,6 +99,7 @@ started: "unknown"
   implication: "当前 parser 没有使用 preserveOrder 选项"
 
 ## Resolution
+
 root_cause: |
   **根本原因：SVG parser 配置缺少 preserveOrder: true**
 

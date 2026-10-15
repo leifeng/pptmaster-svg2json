@@ -3,6 +3,10 @@ status: fixed
 trigger: "处理多个g嵌套中，在path合并的情况下，最终转为json的top坐标偏下，left坐标正确"
 created: 2026-07-14T10:35:00.000Z
 updated: 2026-07-14T14:25:00.000Z
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: fixed
 ---
 
 ## Root Cause
@@ -22,12 +26,14 @@ Fixed `src/mapper/coordinate-mapper.ts` - changed formula for all element types:
 - rect, circle, ellipse, line, path, text, image
 
 Changed from:
+
 ```javascript
 left = bbox.left * Math.abs(sx) + tx
 top = bbox.top * Math.abs(sy) + ty
 ```
 
 To:
+
 ```javascript
 left = (bbox.left + tx) * Math.abs(sx)
 top = (bbox.top + ty) * Math.abs(sy)

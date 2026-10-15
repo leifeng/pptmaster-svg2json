@@ -6,11 +6,16 @@ metadata:
   severity: high
   file: exampels/ppt169_attention_is_all_you_need/svg_output/06_encoder_decoder.svg
   element: path#cdd67816 (card-encoder header)
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: unknown
 ---
 
 ## 症状
 
 SVG中card-encoder组的header path元素：
+
 ```svg
 <path d="M 94 160 h 527 a 14 14 0 0 1 14 14 v 90 h -555 v -90 a 14 14 0 0 1 14 -14 Z" fill="#1A365D"/>
 ```
@@ -34,6 +39,7 @@ SVG viewBox: 0 0 1280 720
 ## 对比: 同组内rect元素
 
 card-encoder rect (SVG):
+
 ```svg
 <rect x="80" y="160" width="555" height="500" rx="14" .../>
 ```

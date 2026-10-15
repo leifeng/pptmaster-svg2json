@@ -3,20 +3,27 @@ status: investigating
 trigger: "Cannot find module '@resvg/resvg-js-linux-x64-gnu'"
 created: 2026-07-03T00:00:00.000Z
 updated: 2026-07-03T00:00:00.000Z
+audit_acknowledged:
+  milestone: v1.9
+  at: 2026-10-15
+  status: investigating
 ---
 
 ## Current Focus
+
 hypothesis: "pkg does not include native Node.js addons (.node files) from optionalDependencies in its snapshot. The @resvg/resvg-js-linux-x64-gnu package exists on the build machine but is missing from the /snapshot filesystem in the packaged binary."
 test: "Examine pkg packaging behavior with native modules and verify the binding resolution mechanism in js-binding.js"
 expecting: "Confirmation that pkg snapshots are filesystem-based and native addons must be explicitly included"
 next_action: "Complete root cause analysis and report findings"
 
 ## Symptoms
+
 expected: "Native module @resvg/resvg-js-linux-x64-gnu should load correctly on linux-x64-gnu platform"
 actual: "Error: Cannot find module '@resvg/resvg-js-linux-x64-gnu'"
 errors:
   - "Cannot find module '@resvg/resvg-js-linux-x64-gnu'"
   - "Module resolution fails in /snapshot/svg2json/node_modules/@resvg/resvg-js/js-binding.js"
+
 reproduction: "Run ./svg2json-linux 01.svg -o output.json in Docker container on Linux x64 GNU"
 started: "When running pkg-packaged binary"
 
@@ -50,6 +57,7 @@ started: "When running pkg-packaged binary"
   implication: "This is definitely a pkg packaging issue with native modules"
 
 ## Resolution
+
 root_cause: "pkg does not automatically include native Node.js addons (.node files) from optionalDependencies in the snapshot. When @resvg/resvg-js/js-binding.js tries to load the platform-specific binding '@resvg/resvg-js-linux-x64-gnu', pkg's filesystem snapshot has no knowledge of this package - it exists in the build machine's node_modules but not in the packaged binary."
 fix: ""
 verification: ""
