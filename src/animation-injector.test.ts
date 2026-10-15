@@ -417,6 +417,12 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
     })
 
     it('omits extensions for genuinely empty row', () => {
+      // Phase 15 / Bug 1 — D-11 mandates unconditional `extensions.originalEffect`.
+      // A row whose only authored field is `effect` now preserves it; the
+      // omission path no longer fires for non-empty rows. The previous
+      // "extensions = undefined" expectation was conditioned on Bug 1's old
+      // fallback-gated behavior, which D-11 expressly overrides. Pin the new
+      // contract: originalEffect is present, no other preservable fields.
       const slide = makeSlide([makeShape('el1', 'g1')])
       const sidecar = makeSidecar({
         '03_overview': {
@@ -433,7 +439,11 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
         diagnostics: emptyInjectorDiagnostics(),
       }
       const result = injectAnimations(slide, opts)
-      expect(result.animations![0].extensions).toBeUndefined()
+      const ext = result.animations![0].extensions
+      expect(ext).toBeDefined()
+      expect(ext!.originalEffect).toBe('entrance_zoom')
+      // No other preserved field exists
+      expect(Object.keys(ext!).sort()).toEqual(['originalEffect'])
     })
 
     it('preserves trigger_shape as originalTriggerShape', () => {
@@ -456,6 +466,79 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
       }
       const result = injectAnimations(slide, opts)
       expect(result.animations![0].extensions!.originalTriggerShape).toBe('other-shape-id')
+    })
+
+    // Phase 15 / Bug 1 — D-11 spec requires `extensions.originalEffect` to be
+    // written on the MAPPED path too (not only fallback). Pin the new
+    // unconditional contract so the regression cannot return.
+    it('writes extensions.originalEffect on MAPPED effect path (D-11 unconditional)', () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: { effect: 'entrance_fade', order: 1, duration: 0.5 },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      const ext = result.animations![0].extensions
+      expect(ext).toBeDefined()
+      // D-11: original three-side key captured even when mapped success
+      expect(ext!.originalEffect).toBe('entrance_fade')
+      // fallback counter MUST NOT increment — mapped path
+      expect(opts.diagnostics.unmappedEffects).toBe(0)
+    })
+
+    it('writes extensions.originalEffect on FALLBACK (unmapped) effect path (D-15)', () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar = makeSidecar({
+        '03_overview': { groups: { g1: { effect: 'entrance_unknown_key' } } },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      const ext = result.animations![0].extensions
+      expect(ext).toBeDefined()
+      expect(ext!.originalEffect).toBe('entrance_unknown_key')
+      expect(opts.diagnostics.unmappedEffects).toBe(1)
+    })
+
+    it('extensionsFieldsPreserved counts originalEffect on every mapped path (D-11)', () => {
+      // Each mapped animation contributes at LEAST `originalEffect` to the
+      // preserved-field counter. This pins the Bug 1 contract at the diagnostic
+      // surface — the increment is unconditional, not fallback-gated.
+      const slide = makeSlide([
+        makeShape('el1', 'g1'),
+        makeShape('el2', 'g2'),
+      ])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: { effect: 'entrance_fade' }, // no extra fields beyond effect
+            g2: { effect: 'entrance_wipe', order: 2, duration: 0.5 }, // mapped + order/duration
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations!.length).toBe(2)
+      // g1 → 1 preserved field (originalEffect only); g2 → 3 (originalEffect + order + duration)
+      // Sum: 4
+      expect(opts.diagnostics.extensionsFieldsPreserved).toBe(4)
+      // Sanity: every animation carries originalEffect
+      expect(result.animations!.every((a) => a.extensions?.originalEffect !== undefined)).toBe(true)
     })
   })
 

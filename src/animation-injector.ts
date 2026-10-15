@@ -232,7 +232,11 @@ function buildExtensions(
 ): Record<string, any> {
   const ext: Record<string, any> = {}
 
-  if (fallback) ext.originalEffect = row.effect
+  // Phase 15 / Bug 1 — D-11 spec requires the original three-side `effect`
+  // value to be preserved in `extensions.originalEffect` for BOTH mapped and
+  // fallback paths. Previously this was gated on `fallback`, which left mapped
+  // PPTAnimations without provenance. Write unconditionally.
+  ext.originalEffect = row.effect
   if (row.trigger !== undefined) ext.originalTrigger = row.trigger
   if (row.duration !== undefined) ext.originalDuration = row.duration
   if (row.order !== undefined) ext.originalOrder = row.order
