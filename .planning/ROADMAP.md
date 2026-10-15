@@ -8,7 +8,7 @@
 - ✅ **v1.5** — Use Tag Refactor (2026-07-10)
 - ✅ **v1.4** — Directory Batch CLI (2026-07-02)
 - ✅ **v1.3** — resvg-js Text Measurement (2026-07-01)
-- ◐ **v1.9** — PPTist Animation Sidecar Injection (Planning)
+- ✅ **v1.9** — PPTist Animation Sidecar Injection (Planning)
 
 ---
 
