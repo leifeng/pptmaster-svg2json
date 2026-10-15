@@ -75,10 +75,11 @@
 
 ### ◐ v1.9 — PPTist Animation Sidecar Injection
 
-- [ ] Phase 14: pptist-animation-from-sidecar — 父目录 CLI + id 命名 + 映射 + 兜底 + extensions 全量保留
-  - **Goal:** SVG → PPTist JSON 转换时自动消费 `animations.json` sidecar，生成 `slide.animations[]` / `slide.turningMode`，并全量保留三方字段到 `extensions`
-  - **Requirements:** ANIM-CLI-01/02/03, ANIM-ID-01/02, ANIM-MAP-01/02/03/04/05/06, ANIM-TRANS-01/02/03, ANIM-TURN-01, ANIM-DEFAULTS-01, ANIM-DIAG-01
-  - **Reference:** `E:\git\svg2json\animation-adaptation-analysis.md`, `E:\git\ppt-master\docs\animations.md`, `E:\git\svg2json\exampels\202610131101001\animations.json`
+### Phase 14: pptist-animation-from-sidecar
+
+**Goal:** SVG → PPTist JSON 转换时自动消费 `animations.json` sidecar，生成 `slide.animations[]` / `slide.turningMode`，并全量保留三方字段到 `extensions`
+**Requirements:** ANIM-CLI-01/02/03, ANIM-ID-01/02, ANIM-MAP-01/02/03/04/05/06, ANIM-TRANS-01/02/03, ANIM-TURN-01, ANIM-DEFAULTS-01, ANIM-DIAG-01
+**Reference:** `E:\git\svg2json\animation-adaptation-analysis.md`, `E:\git\ppt-master\docs\animations.md`, `E:\git\svg2json\exampels\202610131101001\animations.json`
 
 ## Progress
 
@@ -96,4 +97,4 @@
 
 ---
 
-*Roadmap updated: 2026-10-14 after v1.9 milestone kickoff*
+*Roadmap updated: 2026-10-15 during Phase 14 context gathering*
