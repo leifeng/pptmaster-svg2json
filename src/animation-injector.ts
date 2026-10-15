@@ -446,11 +446,20 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
       // mapTrigger to collapse three-side strings to the PPTist AnimationTrigger enum.
       // `previousOrder` is shared across all candidates for this row (same trigger
       // semantics), then advances once per row to preserve the cross-row ordering chain.
-      const trigger = mapTrigger(
+      //
+      // Phase 15 / Bug 2 — same `<g id="gid">` host produces N PPTShapes (path-merge
+      // or pre-merged siblings). They share the same row-level trigger semantics
+      // for cross-row anchoring, but WITHIN the row they should run concurrently
+      // (`trigger='meantime'`). Exception: when the row-level trigger resolves to
+      // the click variant (`'on-click'`, which captures both explicit
+      // `trigger='on-click'` and `trigger_shape` per D-18), interactive gating
+      // is per-row and ALL elements must use `trigger='click'`.
+      const baseTrigger: AnimationTrigger = mapTrigger(
         resolved.trigger,
         row.order,
         previousOrder,
       )
+      const isRowClick = resolved.trigger === 'on-click'
       // Plan 15-01 / D-13 — `delay + duration` collapse into a single ms value.
       // PPTist has no independent `delay` field on PPTAnimation, so the delay is
       // absorbed into `duration` (clamped [100, 5000]). The original delay is
@@ -476,8 +485,20 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
       const extensions = buildExtensions(row, fallback)
       const hasExtensions = Object.keys(extensions).length > 0
 
-      for (const candidate of candidates) {
+      // Phase 15 / Bug 2 — per-element trigger derivation. The first element in
+      // a multi-element row carries the cross-row anchor (`baseTrigger`); every
+      // subsequent element collapses to `meantime` so the same `<g id>` group
+      // plays concurrently. The click variant short-circuits this and pins ALL
+      // elements to `'click'` (interactive gating is per-row, not per-element).
+      for (let candIdx = 0; candIdx < candidates.length; candIdx++) {
+        const candidate = candidates[candIdx]
         const pptAnimationId = generatePptAnimationId()
+
+        const perElementTrigger: AnimationTrigger = isRowClick
+          ? 'click'
+          : candIdx === 0
+            ? baseTrigger
+            : 'meantime'
 
         const animation: PPTAnimation = {
           id: pptAnimationId,
@@ -485,7 +506,7 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
           effect,
           type: inferredType,
           duration,
-          trigger,
+          trigger: perElementTrigger,
         }
         if (hasExtensions) animation.extensions = { ...extensions }
 

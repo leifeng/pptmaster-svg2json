@@ -1300,6 +1300,212 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
   })
 
   // -------------------------------------------------------------------------
+  // Phase 15 / Bug 2 — same-group (multi PPTElement) concurrent trigger semantics
+  // Pins ELEMENT_ANIMATIONS.md §3 trigger_shape vs same-row semantics:
+  //   - same-row multi-element: first element carries row-level trigger (the
+  //     cross-row anchor), subsequent elements collapse to `meantime` (concurrent).
+  //   - row-level explicit click variant (`on-click` / `trigger_shape`): ALL
+  //     elements collapse to `'click'` because interactive gating is per-row.
+  // -------------------------------------------------------------------------
+
+  describe('Phase 15 — same-group multi-element concurrent trigger semantics', () => {
+    it('first element keeps row-level trigger, subsequent collapse to meantime (default)', () => {
+      // group `g1` has 3 PPTShapes. row trigger is implicit (defaults →
+      // 'after-previous' → 'auto' for first row). First element anchors the
+      // cross-row chain; subsequent elements are concurrent within group.
+      const slide = makeSlide([
+        makeShape('g1__a', 'g1'),
+        makeShape('g1__b', 'g1'),
+        makeShape('g1__c', 'g1'),
+      ])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: { effect: 'entrance_fade', order: 1, duration: 0.4 },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations!.length).toBe(3)
+      // First element = row-level anchor (auto, since first row in slide)
+      expect(result.animations![0].trigger).toBe('auto')
+      // Subsequent elements = concurrent within group
+      expect(result.animations![1].trigger).toBe('meantime')
+      expect(result.animations![2].trigger).toBe('meantime')
+      // Every element still has the row's effect and provenance
+      expect(result.animations!.every((a) => a.effect === 'fadeIn')).toBe(true)
+      expect(result.animations!.every((a) => a.extensions?.originalEffect === 'entrance_fade')).toBe(true)
+    })
+
+    it('explicit row.trigger="after-previous" with multi-element: first=auto, rest=meantime', () => {
+      const slide = makeSlide([
+        makeShape('g1__a', 'g1'),
+        makeShape('g1__b', 'g1'),
+      ])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: { effect: 'entrance_fade', trigger: 'after-previous', order: 1, duration: 0.4 },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations![0].trigger).toBe('auto')
+      expect(result.animations![1].trigger).toBe('meantime')
+    })
+
+    it('explicit row.trigger="with-previous" with multi-element: all elements = meantime', () => {
+      // mapTrigger already collapses 'with-previous' → 'meantime'; subsequent
+      // elements short-circuit to 'meantime' as well. No click override path.
+      const slide = makeSlide([
+        makeShape('g1__a', 'g1'),
+        makeShape('g1__b', 'g1'),
+        makeShape('g1__c', 'g1'),
+      ])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: { effect: 'entrance_fade', trigger: 'with-previous', order: 1, duration: 0.4 },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations!.length).toBe(3)
+      expect(result.animations!.every((a) => a.trigger === 'meantime')).toBe(true)
+    })
+
+    it('explicit row.trigger="on-click" with multi-element: ALL elements = click', () => {
+      // Interactive gating is per-row, not per-element: when row-level trigger
+      // is `'on-click'`, every PPTAnimation under the row must collapse to
+      // `'click'`, even subsequent same-group elements.
+      const slide = makeSlide([
+        makeShape('g1__a', 'g1'),
+        makeShape('g1__b', 'g1'),
+        makeShape('g1__c', 'g1'),
+      ])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: { effect: 'entrance_fade', trigger: 'on-click', order: 1, duration: 0.4 },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations!.length).toBe(3)
+      expect(result.animations!.every((a) => a.trigger === 'click')).toBe(true)
+    })
+
+    it('row.trigger_shape="x" with multi-element: ALL elements = click (D-18 override)', () => {
+      // D-18 collapses trigger_shape presence into 'on-click' at the resolver
+      // level; the element-loop click branch then pins every element to
+      // 'click', overriding the natural first/rest split.
+      const slide = makeSlide([
+        makeShape('g1__a', 'g1'),
+        makeShape('g1__b', 'g1'),
+      ])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: {
+              effect: 'entrance_fade',
+              order: 1,
+              duration: 0.4,
+              trigger_shape: 'other-shape',
+            },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations!.length).toBe(2)
+      expect(result.animations![0].trigger).toBe('click')
+      expect(result.animations![1].trigger).toBe('click')
+    })
+
+    it('cross-row ordering chain is preserved through same-row concurrent elements', () => {
+      // Two rows, two groups. Each group has multiple elements. The cross-row
+      // anchor (first element of each row) must follow the order-based chain;
+      // within-row siblings stay concurrent. Repro cases where the chain would
+      // regress to all-auto or all-same-trigger.
+      const slide = makeSlide([
+        makeShape('g1__a', 'g1'),
+        makeShape('g1__b', 'g1'),
+        makeShape('g2__a', 'g2'),
+        makeShape('g2__b', 'g2'),
+      ])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: { effect: 'entrance_fade', order: 1, duration: 0.4 },
+            g2: { effect: 'entrance_zoom', order: 2, duration: 0.4 },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations!.length).toBe(4)
+      // g1__a: cross-row anchor for row 1 (first row → 'auto' baseline)
+      expect(result.animations![0].trigger).toBe('auto')
+      // g1__b: concurrent within g1
+      expect(result.animations![1].trigger).toBe('meantime')
+      // g2__a: cross-row anchor for row 2 (previousOrder exists, new order →
+      // 'auto' on the order-based chain)
+      expect(result.animations![2].trigger).toBe('auto')
+      // g2__b: concurrent within g2
+      expect(result.animations![3].trigger).toBe('meantime')
+    })
+
+    it('single-element group: behavior unchanged from prior phase (Bug 2 only kicks in for multi-element)', () => {
+      // Regression guard: a row whose group has exactly ONE element must keep
+      // the row-level anchor (no spurious 'meantime' downgrade).
+      const slide = makeSlide([makeShape('g1__single', 'g1')])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: { effect: 'entrance_fade', order: 1, duration: 0.4 },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations!.length).toBe(1)
+      expect(result.animations![0].trigger).toBe('auto')
+    })
+  })
+
+  // -------------------------------------------------------------------------
   // Plan 15-02 / D-04 — chromeSkippedGroups counter (always 0 in Phase 15)
   // -------------------------------------------------------------------------
 
