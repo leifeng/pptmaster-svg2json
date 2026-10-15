@@ -236,8 +236,16 @@ function buildExtensions(
   // value to be preserved in `extensions.originalEffect` for BOTH mapped and
   // fallback paths. Previously this was gated on `fallback`, which left mapped
   // PPTAnimations without provenance. Write unconditionally.
+  //
+  // Phase 16 micro-fix — the same unconditional contract applies to the
+  // parallel `original*` fields. row.trigger may be undefined (implicit
+  // 'after-previous' downstream) but the key is still written so callers can
+  // detect provenance without re-deriving from the sidecar. JSON.stringify
+  // drops undefined values, so the serialized output is unaffected —
+  // but Object.keys includes the key, which the extensionsFieldsPreserved
+  // diagnostic depends on.
   ext.originalEffect = row.effect
-  if (row.trigger !== undefined) ext.originalTrigger = row.trigger
+  ext.originalTrigger = row.trigger
   if (row.duration !== undefined) ext.originalDuration = row.duration
   if (row.order !== undefined) ext.originalOrder = row.order
   if (row.delay !== undefined) ext.originalDelay = row.delay

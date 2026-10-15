@@ -421,8 +421,12 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
       // A row whose only authored field is `effect` now preserves it; the
       // omission path no longer fires for non-empty rows. The previous
       // "extensions = undefined" expectation was conditioned on Bug 1's old
-      // fallback-gated behavior, which D-11 expressly overrides. Pin the new
-      // contract: originalEffect is present, no other preservable fields.
+      // fallback-gated behavior, which D-11 expressly overrides.
+      //
+      // Phase 16 micro-fix — originalTrigger joins originalEffect under the
+      // same unconditional contract (parallel intent per D-11 docstring at
+      // src/animation-injector.ts:27-29). The row has no explicit trigger,
+      // so the value is undefined, but the key is still present.
       const slide = makeSlide([makeShape('el1', 'g1')])
       const sidecar = makeSidecar({
         '03_overview': {
@@ -442,8 +446,10 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
       const ext = result.animations![0].extensions
       expect(ext).toBeDefined()
       expect(ext!.originalEffect).toBe('entrance_zoom')
-      // No other preserved field exists
-      expect(Object.keys(ext!).sort()).toEqual(['originalEffect'])
+      // originalTrigger is also unconditional — key present even when value
+      // is undefined. JSON serialization skips undefined, so wire format is
+      // unaffected, but Object.keys surfaces the provenance guarantee.
+      expect(Object.keys(ext!).sort()).toEqual(['originalEffect', 'originalTrigger'])
     })
 
     it('preserves trigger_shape as originalTriggerShape', () => {
@@ -515,6 +521,9 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
       // Each mapped animation contributes at LEAST `originalEffect` to the
       // preserved-field counter. This pins the Bug 1 contract at the diagnostic
       // surface — the increment is unconditional, not fallback-gated.
+      //
+      // Phase 16 micro-fix — originalTrigger now unconditionally increments
+      // the counter too (parallel to originalEffect per D-11 spec).
       const slide = makeSlide([
         makeShape('el1', 'g1'),
         makeShape('el2', 'g2'),
@@ -534,9 +543,10 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
       }
       const result = injectAnimations(slide, opts)
       expect(result.animations!.length).toBe(2)
-      // g1 → 1 preserved field (originalEffect only); g2 → 3 (originalEffect + order + duration)
-      // Sum: 4
-      expect(opts.diagnostics.extensionsFieldsPreserved).toBe(4)
+      // g1 → 2 preserved fields (originalEffect + originalTrigger)
+      // g2 → 4 preserved fields (originalEffect + originalOrder + originalDuration + originalTrigger)
+      // Sum: 6 (was 4 before the Phase 16 originalTrigger unconditional fix)
+      expect(opts.diagnostics.extensionsFieldsPreserved).toBe(6)
       // Sanity: every animation carries originalEffect
       expect(result.animations!.every((a) => a.extensions?.originalEffect !== undefined)).toBe(true)
     })
@@ -591,8 +601,9 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
       const ext = result.animations![0].extensions
       expect(ext).toBeDefined()
       expect(Object.keys(ext!).sort()).toContain('originalTrigger')
-      // Counter should now bump: originalEffect (1) + originalTrigger (1) = 2
-      expect(opts.diagnostics.extensionsFieldsPreserved).toBe(2)
+      // Counter bumped: originalEffect (1) + originalOrder (1, row has
+      // order=1) + originalTrigger (1, now unconditional) = 3
+      expect(opts.diagnostics.extensionsFieldsPreserved).toBe(3)
     })
   })
 
