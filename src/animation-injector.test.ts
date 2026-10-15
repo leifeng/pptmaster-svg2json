@@ -540,6 +540,60 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
       // Sanity: every animation carries originalEffect
       expect(result.animations!.every((a) => a.extensions?.originalEffect !== undefined)).toBe(true)
     })
+
+    // Phase 16 micro-fix — D-11 unconditional originalTrigger.
+    // Forward assertion: explicit trigger writes through to extensions.
+    // Reverse assertion: even when trigger is implicit (undefined), the
+    // originalTrigger key is still present in extensions (Object.keys surfaces
+    // keys even when value is undefined) — mirrors the originalEffect contract.
+    it('writes extensions.originalTrigger when trigger is explicit (e.g. with-previous)', () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: { effect: 'entrance_fade', order: 1, trigger: 'with-previous' as const },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      const ext = result.animations![0].extensions
+      expect(ext).toBeDefined()
+      // Forward (value-side): explicit trigger preserved verbatim
+      expect(ext!.originalTrigger).toBe('with-previous')
+    })
+
+    it('writes extensions.originalTrigger unconditionally — Object.keys contains the key even when value is undefined (D-11)', () => {
+      // Pin the unconditional contract (parallel to originalEffect). The
+      // sidecar row omits trigger entirely (implicitly 'after-previous'
+      // downstream) — but extensions must still contain the originalTrigger
+      // key. Value is undefined; JSON.stringify skips undefined values so
+      // serialization is unaffected, but Object.keys MUST count it so the
+      // extensionsFieldsPreserved diagnostic reflects the new intent.
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: { effect: 'entrance_fade', order: 1 }, // no trigger
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      const ext = result.animations![0].extensions
+      expect(ext).toBeDefined()
+      expect(Object.keys(ext!).sort()).toContain('originalTrigger')
+      // Counter should now bump: originalEffect (1) + originalTrigger (1) = 2
+      expect(opts.diagnostics.extensionsFieldsPreserved).toBe(2)
+    })
   })
 
   describe('D-18 trigger_shape fallback (click)', () => {
