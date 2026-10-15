@@ -6,7 +6,9 @@ import type { PPTElement, Slide, SlideBackground } from './slides'
 import type { SvgElement } from './types/ast'
 import { log, logStep } from './utils'
 import { resolve, join, basename, dirname } from 'path'
-import { mkdirSync, writeFileSync, readdirSync } from 'fs'
+import { mkdirSync, writeFileSync, readdirSync, readFileSync, existsSync } from 'fs'
+import { injectAnimations, emptyInjectorDiagnostics } from './animation-injector'
+import type { AnimationsSidecar } from './animation-types'
 
 export interface ConvertOptions {
   targetCanvas?: [number, number]; // Target canvas size [width, height], defaults to [1000, 562.5]
@@ -29,36 +31,20 @@ export interface ConvertResult {
 /**
  * D-04: ConvertDirOptions — configuration surface for `convertDir()` parent-dir mode.
  *
- * `animationsPath` is a Wave 2 seam: Plan 14-01 accepts the option but ignores
- * its content (D-22 strict — no animations injected yet). Plan 14-02 wires
- * the actual sidecar parsing + PPTAnimation[] injection on top.
+ * `animationsPath` is consumed by Plan 14-02 — animations.json path inside parentDir.
  */
 export interface ConvertDirOptions {
   targetCanvas?: [number, number];
-  /** Reserved for Plan 14-02 — animations.json path inside parentDir. */
+  /** Plan 14-02: animations.json path inside parentDir. */
   animationsPath?: string;
 }
 
-export interface InjectorDiagnostics {
-  slidesMatched: number;
-  animationsInjected: number;
-  fieldsPreservedInExtensions: number;
-  unmappedEffectsFallback: number;
-  warnings: string[];
-}
-
 /**
- * Empty diagnostics skeleton for Wave 1 (D-23 prints real numbers in Plan 02).
+ * Back-compat alias — `InjectorDiagnostics` was the Wave 1 skeleton name.
+ * Plan 14-02 re-exports the real accumulator type from `./animation-injector`
+ * under this name so `ConvertDirResult.diagnostics` consumers don't break.
  */
-function emptyInjectorDiagnostics(): InjectorDiagnostics {
-  return {
-    slidesMatched: 0,
-    animationsInjected: 0,
-    fieldsPreservedInExtensions: 0,
-    unmappedEffectsFallback: 0,
-    warnings: [],
-  }
-}
+export type InjectorDiagnostics = import('./animation-injector').InjectDiagnostics
 
 export interface ConvertDirResult {
   success: boolean;
@@ -329,13 +315,29 @@ export async function convertDir(
     .filter(name => name.toLowerCase().endsWith('.svg'))
     .sort()
 
+  // Plan 14-02: read optional animations.json sidecar (ANIM-CLI-02 — missing
+  // is never an error). Malformed JSON prints one stderr warning and proceeds
+  // with sidecar=undefined. The handler never crashes the run.
+  const sidecarPath = options?.animationsPath ?? join(parentDir, 'animations.json')
+  let sidecar: AnimationsSidecar | undefined = undefined
+  if (existsSync(sidecarPath)) {
+    try {
+      sidecar = JSON.parse(readFileSync(sidecarPath, 'utf-8')) as AnimationsSidecar
+    } catch (parseErr) {
+      process.stderr.write(
+        `[animations] WARN: animations.json parse error — proceeding without animations (${String(parseErr)})\n`,
+      )
+      sidecar = undefined
+    }
+  }
+
   const slides: Slide[] = []
   const errors: Array<{ file: string; error: string }> = []
+  const diagnostics = emptyInjectorDiagnostics()
 
   for (const file of files) {
     const fullPath = join(svgOutputDir, file)
     try {
-      const { readFileSync } = await import('fs')
       const svgContent = readFileSync(fullPath, 'utf-8')
       const { slide } = await convertOne(svgContent, {
         targetCanvas: options?.targetCanvas,
@@ -349,7 +351,16 @@ export async function convertDir(
       // already deterministic? But convertOne always uses uuidv4() — so we
       // override here and persist.
       slide.id = slideId
-      slides.push(slide)
+
+      // Plan 14-02: per-slide animation injection (D-22 strict — slide with no
+      // sidecar entry returns unchanged, animations/turningMode stay undefined).
+      const slideWithAnim = injectAnimations(slide, {
+        slideId,
+        sidecar,
+        diagnostics,
+      })
+
+      slides.push(slideWithAnim)
 
       // Write `<file>.svg.json` envelope (same shape as convert() output)
       const canvasWidth = options?.targetCanvas?.[0] ?? 1000
@@ -366,7 +377,7 @@ export async function convertDir(
           shadow: { h: 3, v: 3, blur: 2, color: '#808080' },
           outline: { width: 2, color: '#525252', style: 'solid' },
         },
-        slides: [slide],
+        slides: [slideWithAnim],
       }
       writeFileSync(fullPath + '.svg.json', JSON.stringify(envelope, null, 2), 'utf-8')
     } catch (err) {
@@ -374,11 +385,15 @@ export async function convertDir(
     }
   }
 
+  // Plan 03: replace this block with defaults propagation + printDiagnostics(diagnostics)
+  // — Plan 02 stops here. PrintDiagnostics wiring moves into Plan 03 where the
+  // full integration (per-row defaults + stderr summary) is layered in.
+
   return {
     success: errors.length === 0,
     slides,
     errors,
-    diagnostics: emptyInjectorDiagnostics(),
+    diagnostics,
   }
 }
 
