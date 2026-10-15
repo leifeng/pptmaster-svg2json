@@ -177,6 +177,14 @@ export function createMergedShapeElement(
   viewBox: [number, number],
   targetCanvas: [number, number],
   index: number,
+  /**
+   * D-08: optional pptel id (e.g., `<group_id>__<nanoid(5)>` for the first
+   * child of the group). When supplied, used as the merged PPTShapeElement.id;
+   * otherwise falls back to uuidv4(). The caller (transformer/walk()) populates
+   * this from `firstChildIdByGroup.get(groupId)` so path-merged groups always carry
+   * a meaningful id even when their child paths are all id-less.
+   */
+  fallbackId?: string,
 ): PPTShapeElement {
   // Parse group transform for scale, rotation and translation
   let rotate = 0
@@ -242,7 +250,7 @@ export function createMergedShapeElement(
     }
   }
 
-  const id = uuidv4()
+  const id = fallbackId ?? uuidv4()
   // viewBox should be the scaled bbox dimensions (path coordinate space), NOT canvas-scaled dimensions
   // path is in scaled space (after scalePathCoords), so viewBox should match that space
   const viewBoxW = bbox ? (bbox.width || viewBox[0]) : viewBox[0]

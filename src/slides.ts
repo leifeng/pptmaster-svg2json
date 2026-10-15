@@ -692,6 +692,16 @@ export interface PPTAnimation {
   type: AnimationType
   duration: number
   trigger: AnimationTrigger
+  /**
+   * D-10: flat provenance record. Captures any three-side field that
+   * PPTist's rigid schema cannot express (e.g., `effect_options`,
+   * `repeat_count`, `auto_reverse`, `sound`, original camelCased
+   * `originalEffect` / `originalDuration` per D-11). Populated by Plan 02's
+   * `injectAnimations()`; consumers can read it for debugging or to surface
+   * fields PPTist cannot render. Only written when non-empty to keep JSON
+   * size down.
+   */
+  extensions?: Record<string, any>
 }
 
 export type SlideBackgroundType = 'solid' | 'image' | 'gradient'

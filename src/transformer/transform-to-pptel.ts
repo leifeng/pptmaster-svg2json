@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid'
+import { pptelIdWithFallback } from '../utils/id-generator'
 import { SvgParseResult, SvgElement, TransformResult } from '../types/ast'
 import { mapCoordinates, parseTransform } from '../mapper/coordinate-mapper'
 import { applyTransform, applyRotateWithCenter } from './apply-transform'
@@ -1014,11 +1015,18 @@ export async function transformElement(
   targetCanvas: [number, number] = [1000, 562.5],
   groupId?: string,
   effectiveTransform?: string,
+  /**
+   * D-05~07: caller-computed pptel id. When supplied, replaces uuidv4()
+   * with the deterministic id (preserved svg id / <group_id>__nanoid(5) /
+   * nanoid(10)). When undefined (legacy single-svg mode), falls back to uuidv4().
+   */
+  desiredId?: string,
 ): Promise<PPTElement | PPTElement[] | null> {
   const tag = element.type.toLowerCase()
   // REF-01: Pass effectiveTransform (parent + element transform composed) to mapCoordinates
   const coords = mapCoordinates(element, viewBox, effectiveTransform)
-  const id = uuidv4()
+  // D-05~07: caller-supplied desiredId wins; otherwise legacy uuidv4().
+  const id = desiredId ?? uuidv4()
 
   // Calculate scale ratio from SVG viewBox to target canvas
   const scaleX = targetCanvas[0] / viewBox[2]
@@ -1862,6 +1870,17 @@ export async function transformToPPTElement(
   // REF-03: Preprocess clipPath definitions before transform
   ;(() => { const start = performance.now(); preprocessClipPaths(ast); logEnd('[转换] preprocessClipPaths', Math.round(performance.now() - start)) })()
 
+
+  // D-09: per-transform id registries (shared across `walk()` invocations).
+  // - `idRegistry` maps inner SVG id -> computed pptel id, so downstream code
+  //   (path-merge, future ref resolution) can trace back to the source SVG.
+  // - `firstChildIdByGroup` maps groupId -> the FIRST pptel id assigned under
+  //   that group; used as `createMergedShapeElement(fallbackId)` so path-merged
+  //   groups always carry a meaningful id even when child paths are id-less.
+  // Population rule (D-06 + D-08): the first child under a group (regardless of
+  // whether it has its own svg id) gets `groupId__<nanoid(5)>` IF groupId is set.
+  const idRegistry = new Map<string, string>()
+  const firstChildIdByGroup = new Map<string, string>()
   const elements: PPTElement[] = []
 
   async function walk(
@@ -1940,6 +1959,16 @@ export async function transformToPPTElement(
         if (decision === 'merge' || decision === 'cautious-merge') {
           const commonStyle = extractCommonStyle(gChildren as SvgElement[], effectiveGroupAttrs)
           if (commonStyle) {
+            // D-08: ensure firstChildIdByGroup is populated for this group BEFORE the
+            // merge early-returns. Otherwise the per-child loop below never executes
+            // for merged groups and the registry stays empty for them.
+            // We compute the same desiredId the per-child loop would have, but skipping
+            // the child's own svg id (path-merged children are all path-shaped and we
+            // only care about the group-level fallback here — Plan 14-02's injector
+            // will prefer the original svg id from the registry when present).
+            if (effectiveGroupId !== undefined && !firstChildIdByGroup.has(effectiveGroupId)) {
+              firstChildIdByGroup.set(effectiveGroupId, pptelIdWithFallback(effectiveGroupId, undefined))
+            }
             const mergedElement = createMergedShapeElement(
               gChildren as SvgElement[],
               commonStyle,
@@ -1947,6 +1976,11 @@ export async function transformToPPTElement(
               [viewBox[2], viewBox[3]],
               targetCanvas,
               elements.length,
+              // D-08: pass firstChildIdByGroup lookup as fallbackId. With our
+              // first-child population rule, this is always defined whenever
+              // effectiveGroupId is defined, so the fallbackId ?? uuidv4() branch
+              // in createMergedShapeElement is never triggered for grouped merges.
+              firstChildIdByGroup.get(effectiveGroupId ?? '') ?? '',
             )
             elements.push(mergedElement)
             // Skip individual child processing since we've merged them
@@ -1996,7 +2030,22 @@ export async function transformToPPTElement(
           // REF-01: Pass effectiveTransform to mapCoordinates instead of mutating child.attrs.transform
           // D-38: Use mergedAttrs instead of child.attrs for fill/stroke inheritance
           const mergedElement: SvgElement = { ...child, attrs: mergedAttrs }
-          const pptel = await transformElement(mergedElement, viewBox, elements.length, targetCanvas, effectiveGroupId, effectiveTransform)
+          // D-05~07: compute desired pptel id BEFORE dispatch so transformElement can use it.
+          // Priority chain: original svg id > <groupId>__nanoid(5) > nanoid(10).
+          const desiredId = pptelIdWithFallback(effectiveGroupId, child.attrs.id)
+          // D-09: populate id registry so path-merge / future ref resolution can trace back.
+          if (child.attrs.id !== undefined) {
+            idRegistry.set(child.attrs.id, desiredId)
+          }
+          // D-06 + D-08: record the first pptel id under each group, used by
+          // createMergedShapeElement(fallbackId) below. Populated UNCONDITIONALLY
+          // for the first child (regardless of whether child.attrs.id is set),
+          // so id-less children inside <g id="g1"><path/><path/></g> still yield
+          // a merge element with id `g1__<nanoid(5)>`. ---
+          if (effectiveGroupId !== undefined && !firstChildIdByGroup.has(effectiveGroupId)) {
+            firstChildIdByGroup.set(effectiveGroupId, desiredId)
+          }
+          const pptel = await transformElement(mergedElement, viewBox, elements.length, targetCanvas, effectiveGroupId, effectiveTransform, desiredId)
           if (pptel !== null) {
             if (Array.isArray(pptel)) {
               elements.push(...pptel)
