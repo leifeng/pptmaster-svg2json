@@ -1,0 +1,72 @@
+{
+  "covered": {
+    "03_overview": {
+      "count": 12,
+      "turningMode": "fade"
+    },
+    "05_fever-stages": {
+      "count": 15,
+      "turningMode": "fade"
+    },
+    "06_fever-types": {
+      "count": 15,
+      "turningMode": "fade"
+    },
+    "07_temperature-monitoring": {
+      "count": 16,
+      "turningMode": "fade"
+    },
+    "09_abnormal-pulse": {
+      "count": 17,
+      "turningMode": "fade"
+    },
+    "10_pulse-monitoring": {
+      "count": 17,
+      "turningMode": "fade"
+    },
+    "12_abnormal-respiration": {
+      "count": 25,
+      "turningMode": "fade"
+    },
+    "13_respiration-monitoring": {
+      "count": 17,
+      "turningMode": "fade"
+    },
+    "15_bp-monitoring": {
+      "count": 12,
+      "turningMode": "fade"
+    },
+    "16_bp-assessment": {
+      "count": 16,
+      "turningMode": "fade"
+    },
+    "17_bp-recording": {
+      "count": 17,
+      "turningMode": "fade"
+    },
+    "18_tips-myths": {
+      "count": 10,
+      "turningMode": "fade"
+    },
+    "19_key-points": {
+      "count": 14,
+      "turningMode": "fade"
+    }
+  },
+  "uncovered": {
+    "01_cover": {},
+    "02_toc": {},
+    "04_chapter-temperature": {},
+    "08_chapter-pulse": {},
+    "11_chapter-respiration": {},
+    "14_chapter-bp": {},
+    "20_ending": {}
+  },
+  "total_animations": 203,
+  "covered_count": 13,
+  "uncovered_count": 7,
+  "durations_in_range": true,
+  "effects_in_whitelist": true,
+  "unmapped_effects": 0,
+  "delay_accumulated_seconds": 0
+}
