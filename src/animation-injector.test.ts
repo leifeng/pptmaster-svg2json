@@ -58,6 +58,8 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
         elIdNotFoundWarnings: [],
         defaultsApplied: 0,
         elementsCovered: 0,
+        unmappedEffectCount: 0,
+        delayAccumulatedSeconds: 0,
       })
     })
   })
@@ -582,6 +584,8 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
         elIdNotFoundWarnings: [],
         defaultsApplied: 0,
         elementsCovered: 12,
+        unmappedEffectCount: 2,
+        delayAccumulatedSeconds: 0,
       }
       let captured = ''
       const fakeStream = {
@@ -596,6 +600,8 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
       expect(captured).toContain('24 fields preserved')
       expect(captured).toContain('2 effects fell back')
       expect(captured).toContain('12 PPTElement × row tuples')
+      expect(captured).toContain('2 effects unmapped (fallback)')
+      expect(captured).toContain('0.00s total delay')
     })
 
     it('emits a WARN block when elIdNotFoundWarnings is non-empty', () => {
@@ -607,6 +613,8 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
         elIdNotFoundWarnings: ['slide=s1, group=g1: no match'],
         defaultsApplied: 0,
         elementsCovered: 1,
+        unmappedEffectCount: 0,
+        delayAccumulatedSeconds: 0,
       }
       let captured = ''
       const fakeStream = {
@@ -886,6 +894,182 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
       }
       const result = injectAnimations(slide, opts)
       expect(result.animations![0].trigger).toBe('click')
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Plan 15-01 — D-02 / D-03 / D-13 behavior tests
+  // -------------------------------------------------------------------------
+
+  describe('D-02: defaults.animation.effect cascade (slide-level none)', () => {
+    it('skips animations when defaults.animation.effect === "none" and rows have no own effect', () => {
+      const slide = makeSlide([makeShape('el1', 'g1'), makeShape('el2', 'g2')])
+      // Row WITHOUT explicit effect should skip due to cascade.
+      const sidecar: AnimationsSidecar = {
+        version: 1,
+        defaults: { animation: { effect: 'none' } },
+        slides: {
+          '03_overview': {
+            groups: {
+              g1: { order: 1 } as any, // no effect
+              g2: { order: 2 } as any, // no effect
+            },
+          },
+        },
+      }
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      // D-02: slide's defaults.animation.effect === 'none' AND rows lack effect → no emissions
+      expect(result.animations).toEqual([])
+      expect(opts.diagnostics.animationsInjected).toBe(0)
+      expect(opts.diagnostics.elementsCovered).toBe(0)
+    })
+
+    it('emits when row has own explicit effect despite slide cascade', () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar: AnimationsSidecar = {
+        version: 1,
+        defaults: { animation: { effect: 'none' } },
+        slides: {
+          '03_overview': {
+            groups: {
+              g1: { effect: 'entrance_fade', order: 1 } as any,
+            },
+          },
+        },
+      }
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations!.length).toBe(1)
+      expect(result.animations![0].effect).toBe('fadeIn')
+    })
+  })
+
+  describe('D-03: transition.effect "none" → turningMode "no"', () => {
+    it('maps transition.none to turningMode "no" and preserves auto_advance semantics', () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          transition: { effect: 'none' },
+          groups: { g1: { effect: 'entrance_fade', order: 1 } },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.turningMode).toBe('no')
+    })
+
+    it('defaults.transition.effect "none" propagates as turningMode "no"', () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar: AnimationsSidecar = {
+        version: 1,
+        defaults: { transition: { effect: 'none' } },
+        slides: { '03_overview': { groups: { g1: { effect: 'entrance_fade', order: 1 } } } },
+      }
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.turningMode).toBe('no')
+    })
+  })
+
+  describe('D-13: delay + duration merge', () => {
+    it('adds delay to duration within clamp', () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: { effect: 'entrance_fade', order: 1, delay: 0.5, duration: 0.5 },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations![0].duration).toBe(1000)
+      // Original delay is preserved per D-14
+      expect(result.animations![0].extensions!.originalDelay).toBe(0.5)
+      expect(opts.diagnostics.delayAccumulatedSeconds).toBe(0.5)
+    })
+
+    it('clamps to upper bound when delay+duration overshoots', () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: { effect: 'entrance_fade', order: 1, delay: 100, duration: 0.1 },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations![0].duration).toBe(5000)
+      expect(opts.diagnostics.delayAccumulatedSeconds).toBe(100)
+    })
+
+    it('clamps to lower bound when delay+duration undershoots', () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: { effect: 'entrance_fade', order: 1, delay: 0, duration: 0.05 },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations![0].duration).toBe(100)
+      // delay === 0 still preserved in extensions + counter
+      expect(opts.diagnostics.delayAccumulatedSeconds).toBe(0)
+    })
+
+    it('row.delay alone (no row.duration) merges with effectiveRowDuration', () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar = makeSidecar(
+        {
+          '03_overview': {
+            groups: {
+              g1: { effect: 'entrance_fade', order: 1, delay: 0.5 /* no duration */ },
+            },
+          },
+        },
+        { animation: { duration: 0.45 } },
+      )
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      // 0.5 + 0.45 = 0.95s → 950ms
+      expect(result.animations![0].duration).toBe(950)
+      expect(opts.diagnostics.delayAccumulatedSeconds).toBe(0.5)
     })
   })
 })

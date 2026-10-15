@@ -111,6 +111,19 @@ export interface InjectDiagnostics {
    * contribute. Skipped groups (no matching element) do NOT contribute.
    */
   elementsCovered: number
+  /**
+   * Plan 15-01 / D-12 — duplicate of `unmappedEffects` keyed for the new
+   * `unmappedEffectCount` name used by mapper-level observability. Both
+   * counters track the same fact; keeping the legacy name preserves E2E
+   * backward-compat (tests assert on `unmappedEffects`).
+   */
+  unmappedEffectCount: number
+  /**
+   * Plan 15-01 / D-14 — sum of `row.delay` values across all rows (in
+   * seconds). Surfaces the original delay even after D-13 collapses it into
+   * the animation `duration`. Zero for fixtures that never set `row.delay`.
+   */
+  delayAccumulatedSeconds: number
 }
 
 export function emptyInjectorDiagnostics(): InjectDiagnostics {
@@ -122,6 +135,8 @@ export function emptyInjectorDiagnostics(): InjectDiagnostics {
     elIdNotFoundWarnings: [],
     defaultsApplied: 0,
     elementsCovered: 0,
+    unmappedEffectCount: 0,
+    delayAccumulatedSeconds: 0,
   }
 }
 
@@ -289,6 +304,13 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
       ? 'on-click'
       : (row.trigger ?? effectiveAnimationDefaults?.trigger ?? 'after-previous')
 
+  // Plan 15-01 / D-02 cascade — when slide-level defaults.animation.effect === 'none',
+  // skip rows that don't override the cascade with their own explicit effect.
+  // `effectiveAnimationDefaults?.effect === 'none'` is the only signal — row-level
+  // `effect === 'none'` is handled later via the EFFECT_NONE_SENTINEL path.
+  const animationEffectCascadeNone =
+    effectiveAnimationDefaults?.effect === 'none'
+
   for (const [groupId, groupEntry] of Object.entries(entry.groups)) {
     // Resolve ALL PPTElements whose groupId matches (D-08 + ANIM-MAP-04 + user-intent revision).
     // Each candidate gets its own PPTAnimation per row — N→N coverage rather than 1:1.
@@ -303,8 +325,19 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
 
     const rows = normalizeRows(groupEntry)
     for (const row of rows) {
+      // D-02 row-level override: when cascade is active AND row has no explicit
+      // effect (undefined), skip — the row would inherit the slide's 'none'.
+      // When row.effect is defined (and not 'none'), allow emission as override.
+      if (animationEffectCascadeNone && row.effect === undefined) {
+        continue
+      }
+
       const inferredType: AnimationType = inferAnimationType(row.effect)
-      const { effect, fallback } = mapEffect(row.effect, inferredType)
+      const { effect, fallback } = mapEffect(
+        row.effect,
+        inferredType,
+        opts.diagnostics,
+      )
 
       // Pitfall 5: row.effect === 'none' → mapEffect returns sentinel '__skip__'.
       if (effect === EFFECT_NONE_SENTINEL) {
@@ -320,7 +353,16 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
         row.order,
         previousOrder,
       )
-      const duration = mapDuration(effectiveRowDuration(row))
+      // Plan 15-01 / D-13 — `delay + duration` collapse into a single ms value.
+      // PPTist has no independent `delay` field on PPTAnimation, so the delay is
+      // absorbed into `duration` (clamped [100, 5000]). The original delay is
+      // preserved in `extensions.originalDelay` per D-14 (buildExtensions below).
+      const rowDurationSeconds = effectiveRowDuration(row)
+      const totalSeconds = (row.delay ?? 0) + rowDurationSeconds
+      if (row.delay !== undefined) {
+        opts.diagnostics.delayAccumulatedSeconds += row.delay
+      }
+      const duration = mapDuration(totalSeconds)
 
       // ANIM-DEFAULTS-01 observability: count each row-level substitution.
       // PER-ROW, not per-element: the substitution happens once at row-resolution
@@ -355,7 +397,10 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
         opts.diagnostics.animationsInjected++
         opts.diagnostics.elementsCovered++
         opts.diagnostics.extensionsFieldsPreserved += Object.keys(extensions).length
-        if (fallback) opts.diagnostics.unmappedEffects++
+        if (fallback) {
+          opts.diagnostics.unmappedEffects++
+          opts.diagnostics.unmappedEffectCount++
+        }
       }
 
       previousOrder = row.order
@@ -365,9 +410,16 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
   // D-21 + D-22 + Task 4: three-tier transition resolver. D-22 is enforced
   // by the early-return at the top of this function — defaults only apply
   // when the slide has an actual sidecar entry.
+  //
+  // Plan 15-01 / D-03 — `transition.effect === 'none'` → `turningMode === 'no'`
+  // (preserves auto_advance / sound semantics per ELEMENT_ANIMATIONS.md §2.1).
   const turnEffect = effectiveTransitionEffect(entry, opts.sidecar)
   const turningMode: TurningMode | undefined =
-    turnEffect !== undefined ? mapTransition(turnEffect) : undefined
+    turnEffect === 'none'
+      ? 'no'
+      : turnEffect !== undefined
+        ? mapTransition(turnEffect)
+        : undefined
 
   // SlidesWithAnimation counts slides whose injections actually altered shape:
   // they either grew an animations[] OR a turningMode. Empty silent slides
@@ -398,6 +450,10 @@ import { pptAnimationId as generatePptAnimationId } from './utils/id-generator'
  * Never writes to stdout / console.log. Picocolors adds color to WARN lines
  * for visibility without disturbing the JSON pipelines (stderr is unbuffered
  * and not captured into the .svg.json).
+ *
+ * Plan 15-01 — extended summary line includes:
+ *   - `${unmappedEffectCount} effects unmapped (fallback)` (D-12)
+ *   - `${delayAccumulatedSeconds.toFixed(2)}s total delay` (D-14)
  */
 export function printDiagnostics(
   d: InjectDiagnostics,
@@ -409,7 +465,9 @@ export function printDiagnostics(
         `${d.animationsInjected} PPTAnimation entries ` +
         `(${d.elementsCovered} PPTElement × row tuples), ` +
         `${d.extensionsFieldsPreserved} fields preserved in extensions, ` +
-        `${d.unmappedEffects} effects fell back to defaults\n`,
+        `${d.unmappedEffects} effects fell back to defaults, ` +
+        `${d.unmappedEffectCount} effects unmapped (fallback), ` +
+        `${d.delayAccumulatedSeconds.toFixed(2)}s total delay\n`,
     ),
   )
   if (d.elIdNotFoundWarnings.length > 0) {

@@ -272,6 +272,35 @@ describe('Plan 14-03 — E2E on exampels/202610131101001 (ANIM-DIAG-01)', () => 
       if (!hasFixture || !firstRun) return
       expect(firstRun.diagnostics.slidesWithAnimation).toBe(13)
     })
+
+    it('Plan 15-01: every animation.duration in [100, 5000] ms on fixture (D-13 clamp regression guard)', () => {
+      if (!hasFixture || !firstRun) return
+      for (const slide of firstRun.slides) {
+        for (const a of slide.animations ?? []) {
+          expect(a.duration).toBeGreaterThanOrEqual(100)
+          expect(a.duration).toBeLessThanOrEqual(5000)
+        }
+      }
+    })
+
+    it('Plan 15-01: delayAccumulatedSeconds === 0 on fixture (no fixture row uses delay)', () => {
+      if (!hasFixture || !firstRun) return
+      expect(firstRun.diagnostics.delayAccumulatedSeconds).toBe(0)
+    })
+
+    it('Plan 15-01: no fixture PPTAnimation has originalDelay (no fixture row uses delay)', () => {
+      if (!hasFixture || !firstRun) return
+      for (const slide of firstRun.slides) {
+        for (const a of slide.animations ?? []) {
+          expect(a.extensions?.originalDelay).toBeUndefined()
+        }
+      }
+    })
+
+    it('Plan 15-01: unmappedEffectCount === 0 on fixture (no fixture key triggers fallback)', () => {
+      if (!hasFixture || !firstRun) return
+      expect(firstRun.diagnostics.unmappedEffectCount).toBe(0)
+    })
   })
 
   describe('03_overview specific — group-count invariant (N→N coverage)', () => {
