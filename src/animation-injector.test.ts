@@ -12,6 +12,7 @@ import {
   injectAnimations,
   emptyInjectorDiagnostics,
   printDiagnostics,
+  resolveEffectiveRow,
   type InjectDiagnostics,
 } from './animation-injector'
 import type { AnimationsSidecar } from './animation-types'
@@ -60,6 +61,7 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
         elementsCovered: 0,
         unmappedEffectCount: 0,
         delayAccumulatedSeconds: 0,
+        chromeSkippedGroups: 0,
       })
     })
   })
@@ -586,6 +588,7 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
         elementsCovered: 12,
         unmappedEffectCount: 2,
         delayAccumulatedSeconds: 0,
+        chromeSkippedGroups: 0,
       }
       let captured = ''
       const fakeStream = {
@@ -602,6 +605,7 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
       expect(captured).toContain('12 PPTElement × row tuples')
       expect(captured).toContain('2 effects unmapped (fallback)')
       expect(captured).toContain('0.00s total delay')
+      expect(captured).toContain('0 chrome groups skipped')
     })
 
     it('emits a WARN block when elIdNotFoundWarnings is non-empty', () => {
@@ -615,6 +619,7 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
         elementsCovered: 1,
         unmappedEffectCount: 0,
         delayAccumulatedSeconds: 0,
+        chromeSkippedGroups: 0,
       }
       let captured = ''
       const fakeStream = {
@@ -1070,6 +1075,178 @@ describe('Plan 14-02 — animation-injector (D-22, D-11~13, D-15, Pitfall 5, Tas
       // 0.5 + 0.45 = 0.95s → 950ms
       expect(result.animations![0].duration).toBe(950)
       expect(opts.diagnostics.delayAccumulatedSeconds).toBe(0.5)
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Plan 15-02 / D-15 — resolveEffectiveRow pure-function chain tests
+  // -------------------------------------------------------------------------
+
+  describe('resolveEffectiveRow chain (D-15 — pure inheritance resolver)', () => {
+    it("uses row.effect when row defines one (no slide/deck fallback)", () => {
+      const resolved = resolveEffectiveRow(
+        { effect: 'entrance_fade' } as any,
+        undefined,
+        undefined,
+      )
+      expect(resolved.effect).toBe('entrance_fade')
+    })
+
+    it("falls back to slide.animation.effect when row omits effect", () => {
+      const resolved = resolveEffectiveRow(
+        {} as any,
+        { animation: { effect: 'none' } } as any,
+        undefined,
+      )
+      expect(resolved.effect).toBe('none')
+    })
+
+    it("falls back to deck.animation.effect when row + slide both omit", () => {
+      const resolved = resolveEffectiveRow(
+        {} as any,
+        undefined,
+        { animation: { effect: 'emphasis_pulse' } } as any,
+      )
+      expect(resolved.effect).toBe('emphasis_pulse')
+    })
+
+    it("falls back to CLI implicit 'none' when no source defines effect", () => {
+      const resolved = resolveEffectiveRow({} as any, undefined, undefined)
+      expect(resolved.effect).toBe('none')
+    })
+
+    it("respects row.trigger_shape over row.trigger (D-18 — collapses to 'on-click')", () => {
+      const resolved = resolveEffectiveRow(
+        { trigger_shape: 'g1', trigger: 'with-previous' } as any,
+        undefined,
+        undefined,
+      )
+      expect(resolved.trigger).toBe('on-click')
+      expect(resolved.trigger_shape).toBe('g1')
+    })
+
+    it("returns delay=0 when row.delay undefined (D-13 merge input)", () => {
+      const resolved = resolveEffectiveRow({} as any, undefined, undefined)
+      expect(resolved.delay).toBe(0)
+    })
+
+    it("duration falls back across all tiers (row → slide → deck → 0.45)", () => {
+      // Only deck provides duration
+      const r1 = resolveEffectiveRow(
+        {} as any,
+        undefined,
+        { animation: { duration: 1.2 } } as any,
+      )
+      expect(r1.duration).toBe(1.2)
+
+      // Only slide provides duration
+      const r2 = resolveEffectiveRow(
+        {} as any,
+        { animation: { duration: 0.8 } } as any,
+        undefined,
+      )
+      expect(r2.duration).toBe(0.8)
+
+      // Row explicitly overrides
+      const r3 = resolveEffectiveRow(
+        { duration: 2.5 } as any,
+        { animation: { duration: 0.8 } } as any,
+        { animation: { duration: 1.2 } } as any,
+      )
+      expect(r3.duration).toBe(2.5)
+
+      // Hardcoded fallback when nothing provides
+      const r4 = resolveEffectiveRow({} as any, undefined, undefined)
+      expect(r4.duration).toBe(0.45)
+    })
+
+    it("trigger falls back across all tiers when no trigger_shape (row → slide → deck → 'after-previous')", () => {
+      const r1 = resolveEffectiveRow(
+        {} as any,
+        undefined,
+        { animation: { trigger: 'on-click' as const } } as any,
+      )
+      expect(r1.trigger).toBe('on-click')
+
+      const r2 = resolveEffectiveRow(
+        { trigger: 'with-previous' as const } as any,
+        undefined,
+        undefined,
+      )
+      expect(r2.trigger).toBe('with-previous')
+
+      const r3 = resolveEffectiveRow({} as any, undefined, undefined)
+      expect(r3.trigger).toBe('after-previous')
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Plan 15-02 / D-06 — restart / after_effect / sound preservation
+  // -------------------------------------------------------------------------
+
+  describe('restart / after_effect / sound preservation (D-06)', () => {
+    it('preserves restart, after_effect, sound as camelCased extensions', () => {
+      const slide = makeSlide([makeShape('el1', 'g1')])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            g1: {
+              effect: 'entrance_fade',
+              restart: 'always',
+              after_effect: 'hide',
+              sound: 'sounds/click.wav',
+              order: 1,
+            },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      const ext = result.animations![0].extensions
+      expect(ext).toBeDefined()
+      expect(ext!.restart).toBe('always')
+      expect(ext!.afterEffect).toBe('hide')
+      expect(ext!.sound).toBe('sounds/click.wav')
+      // Snake-case keys MUST NOT leak at top level
+      expect(ext!.after_effect).toBeUndefined()
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Plan 15-02 / D-04 — chromeSkippedGroups counter (always 0 in Phase 15)
+  // -------------------------------------------------------------------------
+
+  describe('chromeSkippedGroups counter (D-04 — forward-compat)', () => {
+    it('starts at 0 from emptyInjectorDiagnostics', () => {
+      const d = emptyInjectorDiagnostics()
+      expect(d.chromeSkippedGroups).toBe(0)
+    })
+
+    it('remains 0 after a normal injection run (chrome helper is not wired in Phase 15)', () => {
+      const slide = makeSlide([
+        makeShape('el1', 'card-temperature'),
+        makeShape('el2', 'stage-1-rise'),
+      ])
+      const sidecar = makeSidecar({
+        '03_overview': {
+          groups: {
+            'card-temperature': { effect: 'entrance_fade', order: 1 },
+            'stage-1-rise': { effect: 'entrance_zoom', order: 2 },
+          },
+        },
+      })
+      const opts = {
+        slideId: '03_overview',
+        sidecar,
+        diagnostics: emptyInjectorDiagnostics(),
+      }
+      const result = injectAnimations(slide, opts)
+      expect(result.animations!.length).toBe(2)
+      expect(opts.diagnostics.chromeSkippedGroups).toBe(0)
     })
   })
 })

@@ -134,6 +134,37 @@ describe('Plan 14-03 — E2E on exampels/202610131101001 (ANIM-DIAG-01)', () => 
     }
   })
 
+  // ---------------------------------------------------------------------------
+  // Plan 15-02 / D-04 — chrome-skip forward-compat assertion.
+  // Iterates ALL group ids across the fixture and verifies NONE of them match
+  // CHROME_REGEX. This pins the Phase 15 behavior: the forward-compat
+  // `chromeSkippedGroups` counter stays at 0 because no fixture group id
+  // triggers the chrome-skip heuristic.
+  // ---------------------------------------------------------------------------
+  describe('Plan 15-02 — chrome helper does not collide with fixture group ids (D-04)', () => {
+    it('every fixture group id is NOT a chrome id (chromeSkippedGroups === 0 guarantee)', () => {
+      if (!hasFixture || !sidecar) return
+      // Lazy-import to avoid circular dep at module load
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { isChromeGroupId } = require('../../dist/src/mappers/animation.js')
+      let chromeCount = 0
+      const chromeIds: string[] = []
+      for (const [, slideEntry] of Object.entries(sidecar.slides)) {
+        if (!slideEntry.groups) continue
+        for (const gid of Object.keys(slideEntry.groups)) {
+          if (isChromeGroupId(gid)) {
+            chromeCount++
+            chromeIds.push(gid)
+          }
+        }
+      }
+      // forward-compat sanity: no fixture group id is chrome-style
+      expect(chromeCount, `unexpected chrome ids: ${chromeIds.join(', ')}`).toBe(0)
+      // And the diagnostics counter stays at 0 in this run
+      expect(firstRun!.diagnostics.chromeSkippedGroups).toBe(0)
+    })
+  })
+
   it('converts all 20 SVG files into slides (parent-dir mode)', () => {
     if (!hasFixture || !firstRun) return
     expect(firstRun.success).toBe(true)

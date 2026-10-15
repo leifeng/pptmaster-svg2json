@@ -14,6 +14,8 @@ import {
   TRANSITION_MAP,
   EFFECT_FALLBACK,
   EFFECT_NONE_SENTINEL,
+  CHROME_REGEX,
+  isChromeGroupId,
   inferAnimationType,
   mapEffect,
   mapTrigger,
@@ -286,5 +288,95 @@ describe('Plan 15-01 — ELEMENT_ANIMATIONS.md §4.6 coverage', () => {
       fallback: true,
     })
     expect(counters.unmappedEffectCount).toBe(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Plan 15-02 / D-04 — chrome-skip heuristic helper (forward-compat)
+// ---------------------------------------------------------------------------
+
+describe('Plan 15-02 — isChromeGroupId (D-04 forward-compat helper)', () => {
+  it('exports CHROME_REGEX with the D-04 literal value', () => {
+    expect(CHROME_REGEX.source).toBe(
+      '^(bg|nav|watermark|logo|pagenumber|.*-header|.*-footer|.*-decor)$',
+    )
+  })
+
+  it("isChromeGroupId('bg') === true (chrome literal)", () => {
+    expect(isChromeGroupId('bg')).toBe(true)
+  })
+
+  it("isChromeGroupId('nav') === true (chrome literal)", () => {
+    expect(isChromeGroupId('nav')).toBe(true)
+  })
+
+  it("isChromeGroupId('logo') === true (chrome literal)", () => {
+    expect(isChromeGroupId('logo')).toBe(true)
+  })
+
+  it("isChromeGroupId('watermark') === true (chrome literal)", () => {
+    expect(isChromeGroupId('watermark')).toBe(true)
+  })
+
+  it("isChromeGroupId('pagenumber') === true (chrome literal)", () => {
+    expect(isChromeGroupId('pagenumber')).toBe(true)
+  })
+
+  it("isChromeGroupId('card-header-arrow') === false (ends with -arrow, not -header)", () => {
+    // Spec lists this case but the regex `.*-header$` requires the FULL string to
+    // end with `-header`. `card-header-arrow` ends with `-arrow`, so it is NOT
+    // chrome by the literal regex. This pins the strict-anchored regex behavior.
+    expect(isChromeGroupId('card-header-arrow')).toBe(false)
+  })
+
+  it("isChromeGroupId('card-header') === true (matches .*-header$)", () => {
+    expect(isChromeGroupId('card-header')).toBe(true)
+  })
+
+  it("isChromeGroupId('slide-header') === true (matches .*-header$)", () => {
+    expect(isChromeGroupId('slide-header')).toBe(true)
+  })
+
+  it("isChromeGroupId('footer-strip') === false (ends with -strip, not -footer)", () => {
+    expect(isChromeGroupId('footer-strip')).toBe(false)
+  })
+
+  it("isChromeGroupId('page-footer') === true (matches .*-footer$)", () => {
+    expect(isChromeGroupId('page-footer')).toBe(true)
+  })
+
+  it("isChromeGroupId('header-bar') === false (ends with -bar, not -header)", () => {
+    expect(isChromeGroupId('header-bar')).toBe(false)
+  })
+
+  it("isChromeGroupId('background-decor') === true (matches .*-decor$)", () => {
+    expect(isChromeGroupId('background-decor')).toBe(true)
+  })
+
+  it("isChromeGroupId('decor') === false (.*-decor requires ≥1 prefix char)", () => {
+    // Pitfall: bare `decor` does NOT match `.*-decor` because `.*` requires
+    // zero or more characters BEFORE the `-decor` suffix. The literal `decor`
+    // has no `-` separator and is therefore not chrome.
+    expect(isChromeGroupId('decor')).toBe(false)
+  })
+
+  it("isChromeGroupId('header') === false (no trailing -header segment)", () => {
+    // `.*-header$` requires the literal `-header` suffix; bare `header`
+    // contains no `-` so it is not chrome.
+    expect(isChromeGroupId('header')).toBe(false)
+  })
+
+  it("isChromeGroupId('card-temperature') === false (semantic group, not chrome)", () => {
+    // Floor-truth: the fixture's semantic group ids like `card-temperature`
+    // are NEVER chrome. This pins the regression for Phase 15 forward-compat.
+    expect(isChromeGroupId('card-temperature')).toBe(false)
+  })
+
+  it("isChromeGroupId('stage-1-rise') === false (semantic group, not chrome)", () => {
+    expect(isChromeGroupId('stage-1-rise')).toBe(false)
+  })
+
+  it("isChromeGroupId('monitor-routine') === false (semantic group, not chrome)", () => {
+    expect(isChromeGroupId('monitor-routine')).toBe(false)
   })
 })
