@@ -83,6 +83,34 @@ function detectBackgroundPatternFill(elements: PPTElement[]): string | undefined
 }
 
 /**
+ * Find the first <g id="content-object-slot-template"> element in SVG AST depth-first.
+ * Returns its data-pptx-bounds parsed as { x, y, width, height } (SVG viewBox space, NOT canvas-scaled).
+ * D-TPL-04: Lives in convertOne() -- does not touch transformToPPTElement() signature.
+ * Per TPL-CB-02: first match wins; subsequent matches ignored.
+ * Returns undefined when: slot missing, bounds attribute missing/malformed, or fewer than 4 numeric tokens.
+ */
+function findContentBounds(
+  root: SvgElement,
+): { x: number; y: number; width: number; height: number } | undefined {
+  const stack: SvgElement[] = [root]
+  while (stack.length > 0) {
+    const node = stack.shift()!
+    if (node.attrs.id === 'content-object-slot-template') {
+      const bounds = node.attrs['data-pptx-bounds']
+      if (typeof bounds !== 'string') return undefined
+      const parts = bounds.trim().split(/\s+/).filter((p) => p.length > 0)
+      if (parts.length !== 4) return undefined
+      const nums = parts.map(Number)
+      if (nums.some((n) => Number.isNaN(n))) return undefined
+      const [x, y, width, height] = nums
+      return { x, y, width, height }
+    }
+    for (const child of node.children) stack.push(child)
+  }
+  return undefined
+}
+
+/**
  * Find background group element in SVG AST that uses pattern fill.
  * Returns the background group element if found (e.g., <g id="bg-texture">).
  */
@@ -253,10 +281,16 @@ async function convertOne(
     })
   }
 
+  // D-TPL-04: extract contentBounds from data-pptx-bounds on first content-object-slot-template
+  const contentBounds = findContentBounds(ast.root)
+
   // Build complete Slide object (PPTist format)
   const slide: Slide = {
     id: uuidv4(),
     elements: slideElements,
+  }
+  if (contentBounds !== undefined) {
+    slide.contentBounds = contentBounds
   }
   if (backgroundImagePng) {
     slide.background = { type: 'image', image: { src: backgroundImagePng, size: 'cover' } }

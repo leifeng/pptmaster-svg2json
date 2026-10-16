@@ -109,3 +109,60 @@ describe('TPL-E2E-02 reverse assertion: templateType is 1 or undefined only', ()
     expect(elements.every(e => e.templateType !== null && e.templateType !== true && e.templateType !== '1' && e.templateType !== 2)).toBe(true)
   })
 })
+
+describe('TPL-CB-01 contentBounds extraction from data-pptx-bounds', () => {
+  it('writes slide.contentBounds from data-pptx-bounds on content-object-slot-template', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720">
+      <g id="content-object-slot-template" data-pptx-bounds="98 180 1084 404"/>
+    </svg>`
+    const { convert } = await import('../src/index')
+    const result = await convert(svg)
+    expect(result.success).toBe(true)
+    expect(result.slide).toBeDefined()
+    expect(result.slide!.contentBounds).toEqual({ x: 98, y: 180, width: 1084, height: 404 })
+  })
+})
+
+describe('TPL-CB-02 only the first content-object-slot-template wins', () => {
+  it('takes first match (depth-first), ignores second', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720">
+      <g id="content-object-slot-template" data-pptx-bounds="10 10 100 100"/>
+      <g id="content-object-slot-template" data-pptx-bounds="20 20 200 200"/>
+    </svg>`
+    const { convert } = await import('../src/index')
+    const result = await convert(svg)
+    expect(result.slide!.contentBounds).toEqual({ x: 10, y: 10, width: 100, height: 100 })
+  })
+})
+
+describe('TPL-CB-03 contentBounds field is omitted when slot is missing/malformed', () => {
+  it('omits contentBounds when no slot element present', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720">
+      <rect width="100" height="100"/>
+    </svg>`
+    const { convert } = await import('../src/index')
+    const result = await convert(svg)
+    expect(result.slide!.contentBounds).toBeUndefined()
+    // TPL-CB-03: field does not appear in JSON output
+    const slideKeys = Object.keys(result.slide as object)
+    expect(slideKeys).not.toContain('contentBounds')
+  })
+
+  it('omits contentBounds when data-pptx-bounds has fewer than 4 numbers', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720">
+      <g id="content-object-slot-template" data-pptx-bounds="98 180 1084"/>
+    </svg>`
+    const { convert } = await import('../src/index')
+    const result = await convert(svg)
+    expect(result.slide!.contentBounds).toBeUndefined()
+  })
+
+  it('omits contentBounds when data-pptx-bounds contains non-numeric tokens', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720">
+      <g id="content-object-slot-template" data-pptx-bounds="abc 180 1084 404"/>
+    </svg>`
+    const { convert } = await import('../src/index')
+    const result = await convert(svg)
+    expect(result.slide!.contentBounds).toBeUndefined()
+  })
+})

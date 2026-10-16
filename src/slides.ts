@@ -785,6 +785,11 @@ export interface Slide {
   turningMode?: TurningMode
   sectionTag?: SectionTag
   type?: SlideType
+  /**
+   * contentBounds: extracted from data-pptx-bounds on first <g id="content-object-slot-template">.
+   * Reserved SVG viewBox coordinates (NOT canvas-scaled). Omitted when slot missing/malformed.
+   */
+  contentBounds?: { x: number; y: number; width: number; height: number }
 }
 
 /**
