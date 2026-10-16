@@ -13,55 +13,11 @@
  *   - D-14: directoryItem.desc / title 缺失 fallback ""
  *   - D-17: 内部复用 getContentKeyFor() lookup
  */
-import type { PPTElement, PPTTextElement } from '../slides'
+// Phase 18 / D-11: PageData / PageDataDirectoryItem interfaces live in src/slides.ts (single source of truth).
+// This file imports & re-exports them so external consumers of this module keep working.
+import type { PPTElement, PPTTextElement, PageData, PageDataDirectoryItem } from '../slides'
 import { getContentKeyFor } from './content-key'
-
-/**
- * PageData: PPTist 端可读的语义字段集合 (Phase 18 / v1.13)
- *
- * 由 buildPageData(elements) 在 convertOne() 末尾聚合;字段为静态 10 项
- * + 可选 directory 数组。每个字段独立存在性 = slide 内是否有 PPTTextElement
- * 命中对应 contentKey。空 slide → 字段省略(D-08 / D-09)。
- *
- * 10 静态字段命名与 v1.12 contentKey 同名字符串完全对齐:
- *   cover_title / cover_subtitle / cover_author
- *   chapter_number / chapter_title / chapter_desc
- *   content_title / content_subtitle
- *   end_title / end_subtitle
- */
-export interface PageData {
-  cover_title?: string
-  cover_subtitle?: string
-  cover_author?: string
-  chapter_number?: string
-  chapter_title?: string
-  chapter_desc?: string
-  content_title?: string
-  content_subtitle?: string
-  end_title?: string
-  end_subtitle?: string
-  /**
-   * TOC 目录数组,按 N 升序(D-04)。每个 item 含 index/title/desc 三字段;
-   * 仅含 fixture 实际命中 contentKey 的 N(D-08 子集发射)。
-   */
-  directory?: PageDataDirectoryItem[]
-}
-
-/**
- * 单条目录条目 (D-12)
- *
- * index: 字符串零填充 "01".."04"(D-13,源自 toc-item-N-number 的 textContent
- *        或 N 派生的 fallback)
- * title: 必填 string(D-14;来自该路径的 string PPTTextElement.textContent)
- * desc: 必填 string(D-14;缺失 fallback "")
- *
- * NOTE: 故意省略 number / 时间戳等额外字段 — 仅暴露 PD-05 锁定的三字段。
- */
-export interface PageDataDirectoryItem {
-  index: string
-  title: string
-  desc: string
-}
+export type { PageData, PageDataDirectoryItem }
 
 /**
  * 目录 N 派生正则:匹配 directory_item_N (title) 或 directory_item_desc_N (desc)。
@@ -88,8 +44,8 @@ function getTextContent(element: PPTElement): string | undefined {
   if (element.type !== 'text') {
     return undefined
   }
-  // @ts-expect-error - textContent field added in 18-02 on PPTBaseElement (18-01 提前实现)
-  return (element as PPTTextElement).textContent as string | undefined
+  // PPTBaseElement.textContent is real since 18-02 (Phase 18 / v1.13 D-02)
+  return (element as PPTTextElement).textContent
 }
 
 /**

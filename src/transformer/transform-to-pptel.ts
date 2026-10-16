@@ -876,12 +876,29 @@ function hasLineBreakTspans(element: SvgElement): boolean {
   return false
 }
 
+/**
+ * Phase 18 / D-01+D-04 rawText 提取 — 直接取 fast-xml-parser 给的 element.text 字段。
+ * 占位符原样保留 — D-05。
+ *
+ * 多行路径由 extractTspansWithPosition() 在 multiline case 内逐 row 处理,
+ * 此处单行 helper 仅用于单行 text case + element.text 直读。
+ */
+function extractRawText(element: SvgElement): string {
+  return element.text ?? ''
+}
+
 interface TspanExtractResult {
   left: number
   top: number
   fontSize: number
   content: string
   htmlContent: string
+  /**
+   * Phase 18 / D-04: original raw text of the tspan/leading-inline element
+   * (preserves placeholders like {{TITLE}} unchanged — D-05).
+   * Used by transformElement() to populate result.textContent in multiline case.
+   */
+  text: string
 }
 
 /**
@@ -933,6 +950,7 @@ function extractTspansWithPosition(
         fontSize,
         content: tspanText || text,
         htmlContent: tspanHtml,
+        text: tspanText || text,
       })
     }
     return results
@@ -971,6 +989,7 @@ function extractTspansWithPosition(
         fontSize: inlineFontSize,
         content: inlineText,
         htmlContent: inlineHtml,
+        text: inlineText,
       })
       continue
     }
@@ -1031,6 +1050,7 @@ function extractTspansWithPosition(
       fontSize: tspanFontSize,
       content: tspanText,
       htmlContent: tspanHtml,
+      text: tspanText,
     })
 
     currentLeft = tspanX
@@ -1829,13 +1849,19 @@ export async function transformElement(
           //   Row 2..N (tspan[dy] descendants)  → directory_item_desc_N (手工派生)
           if (idx === 0) {
             // Row 1: carrier 派生的 directory_item_N(contentKeyValue 来自 17-02 顶部 compute)
-            if (contentKeyValue) result.contentKey = contentKeyValue
+            if (contentKeyValue) {
+              result.contentKey = contentKeyValue
+              // D-04 (Phase 18): each multiline row carries rawText independently
+              result.textContent = tspan.text
+            }
           } else {
-            // Row 2..N: 手工派生 directory_item_desc_N(只对 toc-item-{N}-carrier 父 id 命中)
+            // Row 2..N: 工径派生 directory_item_desc_N(只对 toc-item-{N}-carrier 父 id 命中)
             if (typeof elementId === 'string') {
               const descMatch = /^toc-item-(\d+)-carrier$/.exec(elementId)
               if (descMatch) {
                 result.contentKey = `directory_item_desc_${descMatch[1]}`
+                // D-04 (Phase 18): each multiline row carries rawText independently
+                result.textContent = tspan.text
               }
             }
           }
@@ -1870,7 +1896,11 @@ export async function transformElement(
         if (isTemplate) result.templateType = 1
         // D-13 (Phase 17): inject contentKey only on text case (CK-16 类型守卫).
         // Non-text cases (rect/circle/ellipse/path/polygon/polyline/line/image) never write this.
-        if (contentKeyValue) result.contentKey = contentKeyValue
+        if (contentKeyValue) {
+          result.contentKey = contentKeyValue
+          // D-03 (Phase 18): inject textContent locked to contentKey presence
+          result.textContent = extractRawText(element)
+        }
         return result
       }
     }
