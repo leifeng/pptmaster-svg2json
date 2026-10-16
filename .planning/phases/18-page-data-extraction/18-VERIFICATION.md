@@ -1,6 +1,6 @@
 ---
 phase: 18-page-data-extraction
-verified: 2026-10-16T18:10:00Z
+verified: 2026-10-16T10:12:43Z
 status: passed
 score: 20/20 must-haves verified
 covered_files:
@@ -13,15 +13,16 @@ covered_files:
   - __tests__/page-data-mock.test.ts
   - tests/e2e/green-art-teaching-page-data.test.ts
 covered_digest: v3:sha256:phase-18-aggregate
+re_verification: yes
 ---
 
 # Phase 18: page-data-extraction Verification Report
 
 **Phase Goal:** Transformer 在 transformer 阶段为 v1.12 已锁定 17 个 contentKey (34 entries 实际) 命中的 PPTTextElement 写入 SVG 原始 `textContent`,并在 `convertOne()` 末尾通过 `buildPageData(elements)` 聚合为 `slide.pageData` 字段。TOC 数据按 N 升序聚合为 `directory: [{index, title, desc}]` 数组(仅 fixture 实际命中项)。
 
-**Verified:** 2026-10-16T18:10:00Z
+**Verified:** 2026-10-16T10:12:43Z
 **Status:** passed
-**Re-verification:** No — initial verification
+**Re-verification:** Yes — digest refresh (source files unchanged)
 
 ## Goal Achievement
 
@@ -214,5 +215,5 @@ Phase 18 已完整达成目标。`buildPageData()` 聚合层(251 行纯函数) +
 
 ---
 
-_Verified: 2026-10-16T18:10:00Z_
+_Verified: 2026-10-16T10:12:43Z_
 _Verifier: Claude (gsd-verifier)_
