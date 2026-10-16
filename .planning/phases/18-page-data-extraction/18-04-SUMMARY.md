@@ -168,3 +168,34 @@ __tests__/page-data-mock.test.ts  (10998 bytes) — 8 vitest mock SVG E2E 覆盖
 - [ ] runtime 8 it() 全绿 — **18-02 dependency**:需 18-02 落地的 `convertOne()` pageData 挂载 + transformer textContent 注入完成后,6 个正向断言方能转绿(2 个反向断言已 green)
 - [x] TypeScript 编译 0 errors(vitest transform 步骤通过)
 - [x] 既有 v1.12 (contentKey 注入 76 tests)无回归 — 本测试仅添加新文件,未触及既有源
+
+## Self-Check: PASSED
+
+**1. Created files exist:**
+
+- `E:/git/svg2json/.claude/worktrees/agent-aec233ec8318a8ac8/__tests__/page-data-mock.test.ts` — FOUND (10998 bytes, 263 lines, 8 it() cases)
+- `E:/git/svg2json/.claude/worktrees/agent-aec233ec8318a8ac8/.planning/phases/18-page-data-extraction/18-04-SUMMARY.md` — FOUND (10788 bytes, 170 lines)
+
+**2. Commits exist:**
+
+- `203e1e0` test(18-04): mock SVG E2E for pageData edge cases — `git merge-base --is-ancestor 203e1e0 HEAD` → FOUND
+- `7e9c52d` docs(18-04): record plan summary — present in `git log --oneline -3`
+
+**3. Verification status (vitest run):**
+
+`npx vitest run __tests__/page-data-mock.test.ts 2>&1 | tail -60` → `Tests 6 failed | 2 passed (8)`
+
+- TypeScript 编译 0 errors — PASS
+- 8 vitest cases 已注册(discoverable by vitest)
+- 2 反向断言已 green (PD-13 0-hit / PD-14 类型守卫 — 双向 stable)
+- 6 正向断言 → 18-02 merge 后由 orchestrator 验证
+
+**4. 18-02 dependency — explicitly documented:**
+
+本计划的 6 个正向断言等待 18-02 落地的 `convertOne()` pageData 挂载 + transformer textContent 注入完成。orchestrator 在 18-02 与 18-04 同时合入 master 后,本测试方可转绿(已写入 SUMMARY.md "Success Criteria Met" 章节)。
+
+**5. Ledger recorded:**
+
+`E:/git/svg2json/.git/worktrees/agent-aec233ec8318a8ac8/gsd-plan-head-before-18-04` → `809590ddb5d017d4d66c2a36cf2b1f74ec264f1e`(plan head before)
+
+`git rev-list --count 809590d..HEAD` → 2 commits for this plan
