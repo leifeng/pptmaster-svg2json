@@ -1,12 +1,12 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v1.11 — Template Element Marking (Planning)",
+  "milestone": "v1.13",
   "phases": [],
   "next": {
-    "command": "/gsd:progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 16 of 1 · 0% · executing"
+    "command": "/gsd:discuss-phase",
+    "label": "Discuss the first phase",
+    "reason": "Project initialized — plan your first phase"
   },
-  "updated_at": "2026-10-16T02:22:01.618Z"
+  "updated_at": "2026-10-16T08:39:02.582Z"
 }
