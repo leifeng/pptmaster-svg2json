@@ -37,3 +37,13 @@ Resolved debug sessions. Used by `gsd-debugger` to surface known-pattern hypothe
 - **Files changed:** src/animation-injector.ts, src/animation-injector.test.ts, tests/e2e/202610131101001.test.ts, PPTIST_ANIMATION_MAPPING.md
 - **Why not caught:** Phase 15 Bug 1 修复只针对 originalEffect,parallel字段原样保留;D-11 docstring 行 27-29 平级列出但实际 implementation 漏改;原 unit 测试 `'omits extensions for genuinely empty row'` 的 Object.keys 期望值等于 `['originalEffect']` 隐含 confirmation bias(测试本身误把 bug 当 contract)。
 - **Recurrence guard:** unit test `'writes extensions.originalTrigger unconditionally — Object.keys contains the key even when value is undefined (D-11)'` pin key 在 row.trigger===undefined 时也存在;E2E test `'Phase 16: every covered PPTAnimation extensions contains originalTrigger key (D-11 unconditional)'` 反向断言 runtime fixture 每条 PPTAnimation 的 extensions 都包含 originalTrigger key;既有的 `'omits extensions for genuinely empty row'` 测试 Object.keys 期望 = `['originalEffect', 'originalTrigger']` 同时 pin 老 + 新 contract。后续将 originalDuration / originalType / originalOrder / originalDelay 也采用相同无条件化路径(phase16+ backlog)。
+
+## toc-tspan-not-splitting — text+dy-tspan 只输出 1 个 PPTTextElement
+- **Date:** 2026-10-16
+- **Error patterns:** tspan, dy, multiline, single element, leading inline text lost, preserveOrder, mixed content, isMultiline, extractTspansWithPosition
+- **Root cause:** preserveOrder 解析器 (src/parser/svg-parser.ts:619-621) 把 text 元素的内联文字包装为 `type:'text'` child,但 `extractTspansWithPosition` (src/transformer/transform-to-pptel.ts:910) 用 `element.children.filter(c => c.type === 'tspan')` 只取 tspan,丢弃 leading 内联文字。`<text>leading<tspan dy="...">rest</tspan></text>` 只产出 tspan 那 1 行,leading 行丢失。
+- **Fix:** 修改 extractTspansWithPosition 按文档顺序遍历 element.children:`type:'text'` (且 trim() 非空) → 一行 multiline 继承父 text 样式;`type:'tspan'` → 原逻辑不变。纯空白 text 子元素跳过(与 measureTextElement 的首尾 trim 一致)。
+- **Files changed:** src/transformer/transform-to-pptel.ts, __tests__/text-tspan-mixed-content.test.ts
+- **Why not caught:** Phase 15 (commit 92ac00b) 引入 preserveOrder 解析 + mixed-content 测试,但测试只覆盖 `无 dy 的内联 tspan`(单行路径),未触发 multiline 分支;`hasLineBreakTspans` 在 c60f5cf 修复后已能正确检测 dy,但 extractTspansWithPosition 的 `tspanChildren = filter(tspan)` 没人 review 这个契约错配;exampels/green-art-teaching/templates/02_toc.svg 的真实 carrier 写法一直没 E2E 覆盖。
+- **Recurrence guard:** 新增 regression test `'splits text+dy-tspan into 2 independent PPTTextElements with correct styles'` 验证:leading 行继承父 text fontSize/color/`<strong>`,tspan 行用 tspan 自身样式,第二行 top 偏移 dy*scaleY;mutated 通过(无 fix 时此 test 失败)。`text-tspan-mixed-content.test.ts` 现覆盖 inline + multiline 两条分支(单行路径合并,多行路径拆分),配合 `text-tspan-multiline-y-measurement.test.ts` 的纯-tspans 路径形成三向 pin。
+---
