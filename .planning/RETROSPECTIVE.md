@@ -115,3 +115,49 @@
 ---
 
 *Last updated: 2026-10-15 after v1.10 closeout (verified_closeout)*
+## Milestone: v1.11 — Template Element Marking
+
+**Shipped:** 2026-10-16
+**Phases:** 1 | **Plans:** 3
+
+### What Was Built
+
+- PPTBaseElement.templateType?: 1 字面量字段 — TypeScript 编译期拦截非法赋值,反向断言锁字面量
+- transformElement() 顶部 typeof-guarded isTemplate 计算 + 注入到 8 cases + multiline text + icon + path-merge
+- Slide.contentBounds?: {x, y, width, height} 可选字段 + findContentBounds() DFS helper + convertOne() 集成
+- 13 unit tracer 测试 (TPL-MARK-01/02/03/03a/05 + TPL-NONREN-01 + TPL-CB-01/02/03 + 1 regression)
+- 9 E2E 测试覆盖 20 个 green-art-teaching fixture slides (cover≥5 / toc≥4 / ending≥4 / 04_content 精确 + 反向断言 + 字段缺失断言)
+
+### What Worked
+
+- **顶层 isTemplate 计算 + 统一 case 注入** — 参照既有 `result.groupId = groupId` 写入模式,8 个 case 末尾追加 `if (isTemplate) result.templateType = 1`,集中改动 < 40 行,对称性好
+- **DFS stack-based AST scan** — `findContentBounds()` 用 stack+shift/push 而非 walk 递归,深度嵌套模板(100+ 组)零内存压力
+- **fixture 驱动 E2E 钉字面量** — 04_content.svg 的 `data-pptx-bounds="98 180 1084 404"` 锁定精确数值,反向断言 `templateType ∈ {1, undefined}` + 显式 anti-values (null/true/'1'/2) 防止 widen
+
+### What Was Inefficient
+
+- **text single-line 分支遗漏 templateType 注入** — phase 16-01 实施时 Step 3 的 8 case 注入覆盖了 `case 'line'`(line element)但漏了 `case 'text'` 的 single-line 分支(只注入了 multiline)。E2E Test 4(multiline)先过 → Test 1 顶层 element 通过 → carrier 在 `<g id="*-slot-template">` 子树内的回归测试直到用户手动跑 01_cover.svg 才暴露。`5466417` post-ship fix 补上 + 新增 regression test 锁住。
+- **verification gate 跳过** — phase 16 实施完整跑完但未跑 `/gsd-verify-work`,直接进入 closeout。closeout type 为 override_closeout,审计干净但缺独立 VERIFICATION.md。修复方案是 fix-end-of-stream 而不是 verify,完整覆盖。
+- **debug 流程外的 stales** — `exampels/` 在 `.gitignore` 中,所以 `.svg.json` 是本地产物,phase 16 实施前已生成的 JSON 是 stale 的(无 `templateType` 字段)。用户最初看 stale JSON 误以为 phase 16 bug。修复后重新生成即可。
+
+### Patterns Established
+
+- **typeof 守卫 vs optional chaining** — `typeof elementId === 'string' && elementId.includes('-template')` 等价于 `element.attrs.id?.includes('-template')`,但额外防御 fast-xml-parser 把 id 解析为 number 的情形(`(1).includes(...)` throws TypeError)。语义一致 + 更安全。
+- **DFS stack 优于递归** — `findContentBounds()` 用 `while (stack.length > 0) { const node = stack.shift(); ... }` 而非递归 walk,深度模板零内存压力
+- **explicit `if (x !== undefined)` 守卫** — TPL-CB-03 字面 "字段直接省略",`JSON.stringify` 自动跳过 undefined 字段,但显式 `if` 守卫让"不写"语义可读
+
+### Key Lessons
+
+- **CRITICAL**: 16-01 实施遗漏 text single-line 分支的 templateType 注入。`result.groupId = groupId` 模式在 8 cases 都对,text 的 multiline 也对,但 single-line 分支独立结尾,易遗漏。修复后加入 regression test "TPL-MARK-02 single-line text inside <g id="*-template">" 锁住。
+- **Coverage gap**: 单 E2E 测试覆盖 04_content fixture 是反向断言 (slot 元素不携带 templateType),但正向断言 (slot 子树内 carriers 携带 templateType) 缺失,直到用户手动验 01_cover 才暴露。下次 fixture-driven E2E 应同时覆盖正向 + 反向两边。
+- **Exampels .gitignore 影响**: 本地生成的 .svg.json 是 stale 风险源;考虑在 E2E 测试或 README 里加一句 "如出现 missing-field 错误,跑 convert 重新生成 exampels/"
+
+### Cost Observations
+
+- Model mix: 100% sonnet (planning + execution + post-ship fix)
+- Sessions: 1 `/gsd-execute-phase 16` (inline, no subagent) + 1 `/gsd-debug` (post-ship fix)
+- Notable: phase 16 inline 执行模式(每个 plan 直接改)对小 phase(<5 plans)效率高,但单 line bug 易漏,适合增加 E2E 覆盖 + 更严格的 verify gate
+
+---
+
+*Last updated: 2026-10-16 after v1.11 closeout (override_closeout)*
