@@ -1,16 +1,20 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.12
-milestone_name: Template Content Key Annotation
+milestone_name: Template Content Key Annotation (Planning)
+current_phase: 17
+current_phase_name: planning complete, awaiting plan-phase
 status: planning
-last_updated: "2026-10-16T07:00:00.000Z"
+stopped_at: Phase 17 context gathered
+last_updated: "2026-10-16T07:16:41.938Z"
 last_activity: 2026-10-16
+last_activity_desc: "v1.12 roadmap created (Phase 17: template-content-key)"
+state_head: ee447f669c3034cd5ca8bc4b360e69d6fa31c44c
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 0
 ---
 
 ## Deferred Items
@@ -116,9 +120,9 @@ See: `.planning/PROJECT.md` (updated 2026-10-16)
 
 ## Session
 
-**Last session:** 2026-10-16T07:00:00.000Z
-**Stopped at:** v1.12 roadmap created
-**Resume file:** .planning/REQUIREMENTS.md (Phase 17 mapped, 17/17)
+**Last session:** 2026-10-16T07:16:41.902Z
+**Stopped at:** Phase 17 context gathered
+**Resume file:** .planning/phases/17-template-content-key/17-CONTEXT.md
 
 ## Operator Next Steps
 
