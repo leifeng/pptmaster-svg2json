@@ -144,6 +144,15 @@ interface PPTBaseElement {
   link?: PPTElementLink
   name?: string
   templateType?: 1
+  /**
+   * 模板文本元素语义键 (Phase 17 / v1.12 CK-01 ~ CK-17)
+   *
+   * 由 transformElement() 按 id 映射表注入(详见 src/utils/content-key.ts):
+   *   - 10 静态映射: cover-title-carrier -> cover_title 等
+   *   - 24 动态映射: toc-item-{N}-number/carrier/note-carrier -> directory_item_*_{N}
+   * 仅对 PPTTextElement 写入;未命中映射时整字段省略(undefined 不序列化)。
+   */
+  contentKey?: string
 }
 
 

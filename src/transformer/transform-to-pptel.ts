@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid'
 import { pptelIdWithFallback } from '../utils/id-generator'
+import { getContentKeyFor } from '../utils/content-key'
 import { SvgParseResult, SvgElement, TransformResult } from '../types/ast'
 import { mapCoordinates, parseTransform } from '../mapper/coordinate-mapper'
 import { applyTransform, applyRotateWithCenter } from './apply-transform'
@@ -1063,6 +1064,11 @@ export async function transformElement(
   const tag = element.type.toLowerCase()
   // D-TPL-07 (revised): compute isTemplate from element id + groupId. Excludes content-object-slot-template subtree.
   const elementId = element.attrs.id
+  // D-12 (Phase 17): compute contentKeyValue from id mapping table.
+  // Unmapped ids return undefined (整字段不写入 — D-13 / CK-14 / CK-15 守卫).
+  // elementId 可能为 undefined(无 id 属性的 SVG 元素);空字符串 fallback 不会命中任何映射,
+  // 保持原有"未命中即省略"语义。
+  const contentKeyValue = elementId !== undefined ? getContentKeyFor(elementId) : undefined
   const isTemplate = (
     (typeof elementId === 'string' && elementId.includes('-template')) ||
     (typeof groupId === 'string' && groupId.includes('-template'))
@@ -1847,6 +1853,9 @@ export async function transformElement(
         }
         // D-TPL-01: template mark (single-line text)
         if (isTemplate) result.templateType = 1
+        // D-13 (Phase 17): inject contentKey only on text case (CK-16 类型守卫).
+        // Non-text cases (rect/circle/ellipse/path/polygon/polyline/line/image) never write this.
+        if (contentKeyValue) result.contentKey = contentKeyValue
         return result
       }
     }
