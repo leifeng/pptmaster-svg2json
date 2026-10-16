@@ -15,6 +15,7 @@
 - ✅ **v1.10** — Animation Sidecar Extension (2026-10-15)
 - ✅ **v1.11** — Template Element Marking (2026-10-16)
 - ✅ **v1.12** — Template Content Key Annotation (2026-10-16)
+- 🚧 **v1.13** — Page Data Extraction (Planning)
 
 ## Phases
 
@@ -110,11 +111,31 @@
 
 ## Active
 
-_None — ready for next milestone kickoff via `/gsd-new-milestone`._
+🚧 **v1.13 — Page Data Extraction** (Planning — `Phase 18` ready, awaiting `/gsd-plan-phase 18` execution)
+
+- [ ] **Phase 18: page-data-extraction** — transformer 阶段新增 `PPTBaseElement.textContent` + `slide.pageData` 字段,复用 v1.12 `getContentKeyFor()` 映射;TOC 数据按 N 升序聚合为 `[{index, title, desc}]` 数组
+  - [ ] 18-01: `src/utils/page-data.ts` helper (`buildPageData` 纯函数 + `PageData` / `PageDataDirectoryItem` 类型) + 单元测试
+  - [ ] 18-02: `PPTBaseElement.textContent?: string` 字段 + `transformElement()` 顶部写入 SVG 原始 textContent(单行 + multiline 两 case) + CK-16 类型守卫延续
+  - [ ] 18-03: `slide.pageData?: PageData` 字段 + `convertOne()` 末尾 `buildPageData(elements)` 集成 + mock SVG E2E
+  - [ ] 18-04: 5 fixture svg.json 重生 + fixture E2E `tests/e2e/green-art-teaching-page-data.test.ts` (PD-01 ~ PD-16 + 4 项反向断言 + 无回归 9 v1.12 tests)
 
 ## Phase Details
 
-_Phase details archived to `.planning/milestones/v1.12-ROADMAP.md`._
+### Phase 18: page-data-extraction
+
+**Goal**: Transformer 阶段在 PPTTextElement 上写入 SVG 原始 `textContent`,并在 slide 末尾通过 `buildPageData(elements)` 聚合为 `slide.pageData` 字段。复用 v1.12 已实现的 17 个 contentKey 作为 pageData 字段名映射;TOC 数据按 N 升序聚合为 `directory: [{index, title, desc}]` 数组(仅 fixture 实际命中项)。是 v1.12 contentKey 协议的"数据侧"补全。
+
+**Depends on**: Phase 17 (v1.12 contentKey 注入点 `src/transformer/transform-to-pptel.ts:1535`)
+
+**Requirements**: PD-01, PD-02, PD-03, PD-04, PD-05, PD-06, PD-07, PD-08, PD-09, PD-10, PD-11, PD-12, PD-13, PD-14, PD-15, PD-16, PD-E2E-01, PD-E2E-02, PD-E2E-03, PD-E2E-04
+
+**Success Criteria** (what must be TRUE):
+  1. **静态字段提取** — 对 01_cover / 03_chapter / 04_content / 05_ending 四个 fixture,`slide.pageData` 含 cover_title / cover_subtitle / cover_author / chapter_number / chapter_title / chapter_desc / content_title / content_subtitle / end_title / end_subtitle 十个静态字段(实际命中的子集),值是 SVG 原始 textContent(占位符如 `{{TITLE}}` 原样保留)
+  2. **目录数组聚合** — 对 02_toc fixture,`slide.pageData.directory` 是长度为 4 的数组(N=1..4 实际命中),每项含 `index`(`"01"`..`"04"`)/ `title`(来自 carrier 主行 textContent,如 `{{TOC_ITEM_1_TITLE}}`)/ `desc`(来自 carrier 内 dy=tspan 的 textContent,如 `{{TOC_ITEM_1_DESC}}`)三字段
+  3. **行为守卫** — slide 内无任何 PPTTextElement 命中 v1.12 已实现的 17 个 contentKey → `slide.pageData` 字段整字段省略(不是 `null`/`{}`/`undefined`);非 PPTTextElement 即使 id 命中也不进 pageData(沿用 v1.12 CK-16 模式)
+  4. **不动映射表** — v1.13 不修改 `src/utils/content-key.ts` 的 `STATIC_CONTENT_KEY_MAP` / 动态 entry 生成逻辑;新增的 pageData 完全基于 v1.12 已有的 17 个 contentKey
+
+**Plans**: 0/4 plans (TBD)
 
 ---
 
@@ -134,7 +155,8 @@ _Phase details archived to `.planning/milestones/v1.12-ROADMAP.md`._
 | Phase 15 | v1.10 | Complete | 2026-10-15 |
 | Phase 16 | v1.11 | Complete | 2026-10-16 |
 | Phase 17 | v1.12 | Complete | 2026-10-16 |
+| Phase 18 | v1.13 | Planning | — |
 
 ---
 
-*Roadmap updated: 2026-10-16 after v1.12 milestone ship (Phase 17 template-content-key complete, verified 17/17)*
+*Roadmap updated: 2026-10-16 after v1.13 milestone kickoff (Phase 18 page-data-extraction planned)*
