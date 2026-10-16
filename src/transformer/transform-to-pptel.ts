@@ -50,6 +50,7 @@ function transformIconElement(
   scaleY: number,
   transform: TransformResult,
   id: string,
+  isTemplate: boolean,
 ): PPTShapeElement | null {
   const d = typeof element.attrs.d === 'string' ? element.attrs.d : ''
   const strokeWidth = parseFloat(String(element.attrs['stroke-width'] || '0'))
@@ -116,6 +117,8 @@ function transformIconElement(
   if (element.attrs.shadow) {
     result.shadow = element.attrs.shadow
   }
+  // D-TPL-01: template mark
+  if (isTemplate) result.templateType = 1
   return result
 }
 
@@ -1023,6 +1026,12 @@ export async function transformElement(
   desiredId?: string,
 ): Promise<PPTElement | PPTElement[] | null> {
   const tag = element.type.toLowerCase()
+  // D-TPL-07 (revised): compute isTemplate from element id + groupId. Excludes content-object-slot-template subtree.
+  const elementId = element.attrs.id
+  const isTemplate = (
+    (typeof elementId === 'string' && elementId.includes('-template')) ||
+    (typeof groupId === 'string' && groupId.includes('-template'))
+  ) && elementId !== 'content-object-slot-template' && groupId !== 'content-object-slot-template'
   // REF-01: Pass effectiveTransform (parent + element transform composed) to mapCoordinates
   const coords = mapCoordinates(element, viewBox, effectiveTransform)
   // D-05~07: caller-supplied desiredId wins; otherwise legacy uuidv4().
@@ -1109,6 +1118,8 @@ export async function transformElement(
       if (groupId) {
         result.groupId = groupId
       }
+      // D-TPL-01: template mark
+      if (isTemplate) result.templateType = 1
       return result
     }
 
@@ -1165,6 +1176,8 @@ export async function transformElement(
       if (groupId) {
         result.groupId = groupId
       }
+      // D-TPL-01: template mark
+      if (isTemplate) result.templateType = 1
       return result
     }
 
@@ -1237,6 +1250,8 @@ export async function transformElement(
       if (groupId) {
         result.groupId = groupId
       }
+      // D-TPL-01: template mark
+      if (isTemplate) result.templateType = 1
       return result
     }
 
@@ -1247,7 +1262,7 @@ export async function transformElement(
 
       if (iconW !== undefined && iconH !== undefined) {
         // Icon path: use dedicated method
-        const iconResult = transformIconElement(element, coords, iconW, iconH, scaleX, scaleY, transform, id)
+        const iconResult = transformIconElement(element, coords, iconW, iconH, scaleX, scaleY, transform, id, isTemplate)
         if (iconResult) {
           console.log(`[icon-shape] id=${id} path="${iconResult.path.substring(0, 40)}${iconResult.path.length > 40 ? '...' : ''}" left=${iconResult.left.toFixed(2)} top=${iconResult.top.toFixed(2)} size=${iconResult.width.toFixed(2)}x${iconResult.height.toFixed(2)}`)
           return iconResult
@@ -1333,6 +1348,8 @@ export async function transformElement(
       if (groupId) {
         result.groupId = groupId
       }
+      // D-TPL-01: template mark
+      if (isTemplate) result.templateType = 1
       return result
     }
 
@@ -1389,6 +1406,8 @@ export async function transformElement(
       if (groupId) {
         result.groupId = groupId
       }
+      // D-TPL-01: template mark
+      if (isTemplate) result.templateType = 1
       return result
     }
 
@@ -1445,6 +1464,8 @@ export async function transformElement(
       if (groupId) {
         result.groupId = groupId
       }
+      // D-TPL-01: template mark
+      if (isTemplate) result.templateType = 1
       return result
     }
 
@@ -1506,6 +1527,8 @@ export async function transformElement(
       if (groupId) {
         result.groupId = groupId
       }
+      // D-TPL-01: template mark
+      if (isTemplate) result.templateType = 1
       return result
     }
 
@@ -1758,6 +1781,8 @@ export async function transformElement(
           if (groupId) {
             result.groupId = groupId
           }
+          // D-TPL-05: each multiline line carries templateType independently
+          if (isTemplate) result.templateType = 1
           return result
         })
 
@@ -1828,6 +1853,8 @@ export async function transformElement(
       if (groupId) {
         result.groupId = groupId
       }
+      // D-TPL-01: template mark
+      if (isTemplate) result.templateType = 1
       return result
     }
 
@@ -1982,6 +2009,13 @@ export async function transformToPPTElement(
               // in createMergedShapeElement is never triggered for grouped merges.
               firstChildIdByGroup.get(effectiveGroupId ?? '') ?? '',
             )
+            // D-TPL-03: path-merge inherits templateType from <g id="*-template"> (slot excluded)
+            if (
+              effectiveGroupId?.includes('-template') &&
+              effectiveGroupId !== 'content-object-slot-template'
+            ) {
+              mergedElement.templateType = 1
+            }
             elements.push(mergedElement)
             // Skip individual child processing since we've merged them
             return

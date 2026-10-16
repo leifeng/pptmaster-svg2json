@@ -143,6 +143,7 @@ interface PPTBaseElement {
   rotate: number
   link?: PPTElementLink
   name?: string
+  templateType?: 1
 }
 
 
