@@ -65,7 +65,7 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 
 ### Active
 
-_(None — v1.12 ship complete; ready for next milestone kickoff via `/gsd-new-milestone`.)_
+_(v1.13 Page Data Extraction — requirements 定义中,待写 `.planning/REQUIREMENTS.md`)_
 
 ### Out of Scope
 
@@ -80,7 +80,7 @@ _(None — v1.12 ship complete; ready for next milestone kickoff via `/gsd-new-m
 
 **Existing library** — svg-to-pptel v1.8, published as npm package.
 
-**Current state** — v1.12 milestone SHIPPED 2026-10-16 (verified_closeout — 17/17 must-haves passed, 76 tests passed). Phase 17 (template-content-key) shipped with 4 plans: helper 模块 + 单行 text case 注入 + multiline Row 1 vs Row 2..N 区分 + fixture E2E. 5 files changed +240/-0. 45 单元 + 8 mock SVG E2E + 14 fixture E2E + 9 v1.11 无回归. Now entering next milestone planning.
+**Current state** — v1.12 milestone SHIPPED 2026-10-16 (verified_closeout — 17/17 must-haves passed, 76 tests passed). Now entering v1.13 (Page Data Extraction) kickoff: 基于 v1.12 已实现的 17 个 contentKey,在 transformer 阶段提取 SVG 原始 textContent,输出 `slide.pageData` 字段。Phase 18 (page-data-extraction) 计划中,等待 `/gsd-plan-phase 18` 执行。
 
 **Target canvas** — 1000×562.5 (16:9 aspect ratio).
 
@@ -147,56 +147,61 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: v1.11 — Template Element Marking (Shipped)
+## Current Milestone: v1.13 — Page Data Extraction (Planning)
 
-**Status:** Shipped 2026-10-16 (override_closeout — verification skipped, 22/22 implementation tests passing).
+**Status:** Planning 2026-10-16 (awaiting `/gsd-plan-phase 18` execution).
 
-**Goal:** 在 transformer 阶段识别 SVG 中的"模板元素"(`<element id="*-template">` 或 `<g id="*-template">` 子树),通过 `templateType=1` 标记到 PPTElement;同时把 `content-object-slot-template` 的 `data-pptx-bounds` 解析为 slide 级 `contentBounds` 字段,供 PPTist 端用作"正文/分栏插入区域"提示。
+**Goal:** 基于 v1.12 已实现的 17 个 contentKey,在 transformer 阶段提取 SVG 原始 textContent,输出 `slide.pageData` 字段(sibling of `elements`)。目录数据特殊处理为 `[{index, title, desc}]` 数组(按 N 升序,仅 fixture 命中项)。是 v1.12 `contentKey` 注入的下游"语义数据"扩展。
 
-**Goal:** 自动识别 SVG 中的"模板元素"(`<element id="*-template">` 或 `<g id="*-template">` 子元素),通过 `templateType=1` 标记到 PPTElement;同时把 `content-object-slot-template` 的 `data-pptx-bounds` 解析为 slide 级 `contentBounds` 字段,供 PPTist 端用作"正文/分栏插入区域"提示。
-
-**为什么需要 v1.11:** ppt-master 端在做 PPT 模板与数据分离时,需要知道哪些元素是"模板(背景图、装饰)",哪些是"内容占位(由 PPTist 端填正文/分栏)"。当前 svg2json 输出把这两类元素一视同仁地铺进 `slide.elements[]`,丢失了原始 svg 的语义层级。标记 `templateType=1` 是最小代价恢复语义的方案。
+**为什么需要 v1.13:** v1.12 给 PPTElement 打上 `contentKey` 标记,只告诉 PPTist"这是哪个语义角色"。但 PPTist 在做内容绑定时还需要拿到对应的**实际纯文本数据**(如封面标题文案、目录第 1 条标题 + 描述)。把这些文本从 SVG 原始 `textContent` 提取到 `slide.pageData`,PPTist 端可直接读 `pageData.directory[0].title` 等结构化数据,无需自己再解析 PPTTextElement 的 HTML content。是 v1.12 contentKey 协议的"数据侧"补全。
 
 **Phase 结构:**
-- Phase 16: template-element-marking — transformer 阶段加 templateType=1 + slide-level contentBounds 提取
+- Phase 18: page-data-extraction — transformer 阶段新增 `PPTBaseElement.textContent` + `slide.pageData`,复用 v1.12 `getContentKeyFor()` 映射,TOC 数组按 N 升序聚合
 
 **Reference docs:**
-- 模板来源 fixtures：`E:\git\svg2json\exampels\green-art-teaching\templates\`(纯模板)+ `svg_output\`(带数据最终输出)
-- 三方原始 schema：`E:\git\svg2json\ELEMENT_ANIMATIONS.md`(无关,以前动画 leftover)
-- 映射关系：`E:\git\svg2json\PPTIST_ANIMATION_MAPPING.md`(无关)
-
-**Status:** Milestone kickoff 2026-10-14, awaiting `/gsd-plan-phase 14` execution.
-
-**Goal:** SVG → PPTist JSON 转换时自动消费 `animations.json` sidecar，生成符合 PPTist 运行时需求的 `slide.animations[]` / `slide.turningMode`，并全量保留三方原始字段到 `extensions`。
-
-**Phase structure:**
-- Phase 14: pptist-animation-from-sidecar — 父目录 CLI + id 命名 + 映射 + 兜底 + extensions 全量保留
-
-**Reference docs:**
-- 适配分析：`E:\git\svg2json\animation-adaptation-analysis.md`
-- 三方 spec：`E:\git\ppt-master\docs\animations.md`
-- 实例 sidecar：`E:\git\svg2json\exampels\202610131101001\animations.json`
-
----
-
-## Current Milestone: v1.12 — Template Content Key Annotation
-
-**Status:** Planning (awaiting `/gsd-plan-phase 17` execution).
-
-**Goal:** 在 transformer 阶段识别 SVG 中的"模板文本元素"(已知 13 个 id 模板),通过 `contentKey` 字段标记到 PPTTextElement;该字段供 PPTist 端用作"用户填写正文"的语义绑定键(cover_title / directory_item_1 / chapter_title 等)。是 v1.11 `templateType=1` 标记的下游扩展。
-
-**为什么需要 v1.12:** v1.11 只告诉 PPTist "这是模板元素",但 PPTist 端需要更细的语义角色 — 知道是封面标题、目录第 1 条、章节序号等 — 才能在用户填写内容时自动定位目标元素。`contentKey` 字段是 PPTist 内容绑定协议要求的稳定字符串键。
-
-**Phase 结构:**
-- Phase 17: template-content-key — transformer 阶段按 id 映射表注入 contentKey,覆盖 cover/toc/chapter/content/closing 五大类型 + TOC multiline tspan 边界处理
-
-**Reference docs:**
-- 模板来源 fixtures：`E:\git\svg2json\exampels\green-art-teaching\templates\`(02_toc.svg / 03_cover.svg / ...)
-- v1.11 模板标记实现：`src/transformer/transform-to-pptel.ts:1535` (templateType 注入点)
+- v1.12 contentKey 实现:`src/utils/content-key.ts`(34 entries,10 静态 + 24 动态 N=1..8)
+- v1.12 contentKey 注入点:`src/transformer/transform-to-pptel.ts:1535`
+- 模板 fixtures:`exampels/green-art-teaching/templates/`(01_cover / 02_toc / 03_chapter / 04_content / 05_ending)
+- 注释来源:`exampels/green-art-teaching/templates/01_cover.svg:56-66`(IPageData 协议定义)
 
 ---
 
 ## Previous Milestones
+
+### v1.12 — Template Content Key Annotation (2026-10-16)
+
+**Closeout type:** verified_closeout — 17/17 must-haves passed, 76 tests green (45 unit + 8 mock SVG E2E + 14 fixture E2E + 9 v1.11 regression). Phase 17 implementation complete.
+
+- CK-01~03: cover 3 静态 id → `cover_title` / `cover_subtitle` / `cover_author`
+- CK-04~06: chapter 3 id → `chapter_number` / `chapter_title` / `chapter_desc`
+- CK-07~08: content 2 id → `content_title` / `content_subtitle`
+- CK-09~10: closing 2 id → `end_title` / `end_subtitle`
+- CK-11~13: TOC 3 类动态 N=1..8 (number / carrier / note-carrier) → `directory_item_number_N` / `directory_item_N` / `directory_item_desc_N`
+- CK-14/15/16: 字段省略守卫(未命中/未知/非文本)
+- CK-17: 实际 fixture N=1..4 命中,N=5..8 静默跳过
+
+### v1.11 — Template Element Marking (2026-10-16)
+
+**Closeout type:** override_closeout — verification 跳过 but implementation 22/22 tests passing (13 unit + 9 E2E).
+
+- TPL-MARK-01: renderable element id 含 `-template` → `templateType=1`
+- TPL-MARK-02: `<g id="*-template">` 祖先链传播(任意深度)
+- TPL-MARK-03: `content-object-slot-template` 例外(不向下传播)
+- TPL-CB-01: `data-pptx-bounds` → `slide.contentBounds {x, y, width, height}`
+- TPL-CB-02/03: 首匹配胜出 + 字段缺失省略
+- TPL-E2E-01/02: 20 fixture E2E + 反向断言
+
+### v1.10 — Animation Sidecar Extension (2026-10-15)
+
+**Closeout type:** verified_closeout — audit clean. Phase 15 + 2 post-ship fixes.
+
+- ANIM-NONE-01~03: `effect: "none"` 级联
+- ANIM-EXTS-01/02: 全字段保留到 `extensions`
+- ANIM-MAP-EXT-01/02/03: 53/33/53 完整覆盖映射
+- ANIM-DELAY-01: `delay + duration` 合并 ms
+- ANIM-INHERIT-01: `resolveEffectiveRow` 五层继承链
+- ANIM-CHROME-01: forward-compat helpers
+- Post-ship: `LEGACY_NAME_MAP` (29 entries) + `originalTrigger` unconditional
 
 ### v1.9 — PPTist Animation Sidecar Injection (2026-10-15)
 
@@ -210,20 +215,6 @@ This document evolves at phase transitions and milestone boundaries.
 - ANIM-DEFAULTS-01: per-entry → sidecar defaults inheritance
 - ANIM-DIAG-01: stderr-only diagnostic summary (5 counters)
 - Post-ship fixes: `extensions.originalTrigger` unconditional + 29-entry `LEGACY_NAME_MAP` legacy normalization
-
-### v1.10 — Animation Sidecar Extension (2026-10-15)
-
-**Closeout type:** verified_closeout — all phases verified, audit clean (30 acknowledged carry-over items still suppressed from v1.9 close). Phase 15 implementation complete + 2 post-ship fixes.
-
-- ANIM-NONE-01~03: `effect: "none"` cascade (row / defaults.animation / defaults.transition)
-- ANIM-EXTS-01/02: full field preservation to `extensions` (camelCase top-level, nested verbatim)
-- ANIM-MAP-EXT-01/02/03: 53/33/53 full-coverage mapping tables (`ENTRANCE_MAP` / `EMPHASIS_MAP` / `EXIT_MAP`)
-- ANIM-DELAY-01: `delay + duration` merged into single clamped ms duration
-- ANIM-INHERIT-01: `resolveEffectiveRow` pure-function with 5-layer inheritance chain
-- ANIM-CHROME-01: forward-compat helpers (`CHROME_REGEX` + `isChromeGroupId`)
-- Post-ship fixes:
-  - ANIM-LEGACY-01: 29-entry `LEGACY_NAME_MAP` normalizing fly/zoom/wipe_left etc. → canonical `entrance_*` (commit `913e342`)
-  - ANIM-ORIGTRIG-01: `extensions.originalTrigger` unconditional preservation (commit `9fa7fec`)
 
 ### v1.8 — CLI 字体验证 (2026-08-07)
 
@@ -268,4 +259,4 @@ Research confirmed all target PPTist schema properties already implemented or de
 
 ---
 
-*Last updated: 2026-10-16 after v1.12 milestone ship (Phase 17 template-content-key complete, verified 17/17, 4/4 plans + 76 tests passed)*
+*Last updated: 2026-10-16 after v1.13 milestone kickoff (page-data-extraction planning, awaiting `/gsd-plan-phase 18` execution)*

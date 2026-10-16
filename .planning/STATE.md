@@ -1,19 +1,16 @@
 ---
 gsd_state_version: "1.0"
-milestone: v1.12
-milestone_name: Template Content Key Annotation (Planning)
-status: Awaiting next milestone
-stopped_at: Phase 17 complete — all phases complete
-last_updated: "2026-10-16T08:23:35.543Z"
+milestone: v1.13
+milestone_name: Page Data Extraction
+status: planning
+last_updated: "2026-10-16T08:39:02.576Z"
 last_activity: 2026-10-16
-last_activity_desc: Milestone v1.12 completed and archived
-state_head: 2cf491063221c8bf289684ed4bdb5b74371a9723
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
-current_phase: 17
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 ## Deferred Items
@@ -59,10 +56,10 @@ Closeout type: **override_closeout** (28 v1.x-carried debug sessions + 1 v1.10 p
 
 ## Current Position
 
-Phase: Milestone v1.12 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-10-16 — Milestone v1.12 completed and archived
+Status: Defining requirements
+Last activity: 2026-10-16 — Milestone v1.13 started
 
 ## Project Reference
 
