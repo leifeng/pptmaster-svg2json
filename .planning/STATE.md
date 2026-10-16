@@ -1,19 +1,14 @@
 ---
 gsd_state_version: "1.0"
-milestone: v1.11
-milestone_name: Template Element Marking (Planning)
-current_phase: 16
-current_phase_name: template-element-marking
-status: executing
-stopped_at: Phase 16 context gathered
-last_updated: "2026-10-16T02:22:01.514Z"
+milestone: v1.12
+milestone_name: Template Content Key Annotation
+status: planning
+last_updated: "2026-10-16T06:30:05.444Z"
 last_activity: 2026-10-16
-last_activity_desc: v1.11 milestone kickoff — Template Element Marking requirements scoped
-state_head: e2e6012630cbd00416e5b822586bca6d867d755b
 progress:
-  total_phases: 1
+  total_phases: 0
   completed_phases: 0
-  total_plans: 3
+  total_plans: 0
   completed_plans: 0
   percent: 0
 ---
@@ -61,10 +56,10 @@ Closeout type: **override_closeout** (28 v1.x-carried debug sessions + 1 v1.10 p
 
 ## Current Position
 
-Phase: 16 (template-element-marking) — READY TO EXECUTE
-Plan: not started (run `/gsd-discuss-phase 16` next)
-Status: Ready to execute
-Last activity: 2026-10-16 — v1.11 milestone kickoff (Template Element Marking requirements scoped)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-10-16 — Milestone v1.12 started
 
 ## Project Reference
 
@@ -118,5 +113,4 @@ See: `.planning/PROJECT.md` (updated 2026-10-16)
 
 ## Operator Next Steps
 
-- Run `/gsd-discuss-phase 16` to gather contextual requirements
-- Then `/gsd-plan-phase 16` to draft plan(s)
+- Start the next milestone with /gsd-new-milestone

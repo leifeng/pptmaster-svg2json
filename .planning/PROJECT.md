@@ -60,7 +60,22 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 
 ### Active
 
-_Next milestone TBD — run `/gsd-new-milestone` to kick off._
+- [ ] **CK-01**: 识别 `cover-title-carrier` → 注入 `contentKey: "cover_title"`
+- [ ] **CK-02**: 识别 `cover-subtitle-carrier` → 注入 `contentKey: "cover_subtitle"`
+- [ ] **CK-03**: 识别 `cover-author-carrier` → 注入 `contentKey: "cover_author"`
+- [ ] **CK-04**: 识别 `chapter-number-carrier` → 注入 `contentKey: "chapter_number"`
+- [ ] **CK-05**: 识别 `chapter-title-carrier` → 注入 `contentKey: "chapter_title"`
+- [ ] **CK-06**: 识别 `chapter-desc-carrier` → 注入 `contentKey: "chapter_desc"`
+- [ ] **CK-07**: 识别 `content-title-carrier` → 注入 `contentKey: "content_title"`
+- [ ] **CK-08**: 识别 `content-subtitle-carrier` → 注入 `contentKey: "content_subtitle"`
+- [ ] **CK-09**: 识别 `closing-thanks-carrier` → 注入 `contentKey: "end_title"`
+- [ ] **CK-10**: 识别 `closing-subtitle-carrier` → 注入 `contentKey: "end_subtitle"`
+- [ ] **CK-11**: 识别 `toc-item-{N}-number` (N=1..4,预留 1..8) → 注入 `contentKey: "directory_item_number_N"`
+- [ ] **CK-12**: 识别 `toc-item-{N}-carrier` 文本主体 → 注入 `contentKey: "directory_item_N"`
+- [ ] **CK-13**: 识别 `toc-item-{N}-carrier` 内 `tspan[dy]` → 注入 `contentKey: "directory_item_desc_N"`
+- [ ] **CK-14**: 非模板元素(id 不含 `-template` 或不属于映射表)不输出 `contentKey` 字段(字段直接省略,不是 null)
+- [ ] **CK-15**: 未知 id 静默跳过(不报错,后续可扩展),仅对 13 个已知模板输出 `contentKey`
+- [ ] **CK-16**: contentKey 仅施加于 PPTTextElement 类型元素;其他类型(shape/image/line 等)即使 id 命中映射也忽略
 
 ### Out of Scope
 
@@ -174,6 +189,23 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
+## Current Milestone: v1.12 — Template Content Key Annotation
+
+**Status:** Planning (awaiting `/gsd-plan-phase 17` execution).
+
+**Goal:** 在 transformer 阶段识别 SVG 中的"模板文本元素"(已知 13 个 id 模板),通过 `contentKey` 字段标记到 PPTTextElement;该字段供 PPTist 端用作"用户填写正文"的语义绑定键(cover_title / directory_item_1 / chapter_title 等)。是 v1.11 `templateType=1` 标记的下游扩展。
+
+**为什么需要 v1.12:** v1.11 只告诉 PPTist "这是模板元素",但 PPTist 端需要更细的语义角色 — 知道是封面标题、目录第 1 条、章节序号等 — 才能在用户填写内容时自动定位目标元素。`contentKey` 字段是 PPTist 内容绑定协议要求的稳定字符串键。
+
+**Phase 结构:**
+- Phase 17: template-content-key — transformer 阶段按 id 映射表注入 contentKey,覆盖 cover/toc/chapter/content/closing 五大类型 + TOC multiline tspan 边界处理
+
+**Reference docs:**
+- 模板来源 fixtures：`E:\git\svg2json\exampels\green-art-teaching\templates\`(02_toc.svg / 03_cover.svg / ...)
+- v1.11 模板标记实现：`src/transformer/transform-to-pptel.ts:1535` (templateType 注入点)
+
+---
+
 ## Previous Milestones
 
 ### v1.9 — PPTist Animation Sidecar Injection (2026-10-15)
@@ -246,4 +278,4 @@ Research confirmed all target PPTist schema properties already implemented or de
 
 ---
 
-*Last updated: 2026-10-16 after v1.11 milestone completion (Phase 16 shipped with post-ship fix)*
+*Last updated: 2026-10-16 after v1.12 milestone kickoff (Phase 17 planned for content-key mapping)*
