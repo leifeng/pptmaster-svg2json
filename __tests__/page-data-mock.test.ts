@@ -61,8 +61,9 @@ describe('PD-E2E-02: N=5..8 扩展 — directory 含 N=5..8 全部三要素', ()
     expect(pageData.directory).toBeDefined()
     // N=5..8 → 4 个目录项
     expect(pageData.directory.length).toBe(4)
-    // D-13 字符串零填充 fallback
-    expect(pageData.directory.map((d: any) => d.index).sort()).toEqual(['05', '06', '07', '08'])
+    // D-13: index 源自 toc-item-N-number 的 textContent(SVG 字面值 "5".."8"),
+    //     fallback `String(N).padStart(2, '0')` 仅在 textContent 缺失时触发
+    expect(pageData.directory.map((d: any) => d.index).sort()).toEqual(['5', '6', '7', '8'])
 
     // 每个目录项含 index/title/desc 三字段(D-12)
     for (const item of pageData.directory) {
@@ -71,31 +72,27 @@ describe('PD-E2E-02: N=5..8 扩展 — directory 含 N=5..8 全部三要素', ()
       expect(item).toHaveProperty('desc')
     }
 
-    // 校验各 N 的 title/desc 命中正确(D-04 + D-12)
+    // 校验各 N 的 title/desc 命中正确(D-04 + D-12)— index 源自 SVG 字面值 "5".."8"
     const dirByIndex: Record<string, any> = {}
     for (const item of pageData.directory) {
       dirByIndex[item.index] = item
     }
-    expect(dirByIndex['05'].title).toBe('title 5')
-    expect(dirByIndex['05'].desc).toBe('desc 5')
-    expect(dirByIndex['06'].title).toBe('title 6')
-    expect(dirByIndex['06'].desc).toBe('desc 6')
-    expect(dirByIndex['07'].title).toBe('title 7')
-    expect(dirByIndex['07'].desc).toBe('desc 7')
-    expect(dirByIndex['08'].title).toBe('title 8')
-    expect(dirByIndex['08'].desc).toBe('desc 8')
+    expect(dirByIndex['5'].title).toBe('title 5')
+    expect(dirByIndex['5'].desc).toBe('desc 5')
+    expect(dirByIndex['6'].title).toBe('title 6')
+    expect(dirByIndex['6'].desc).toBe('desc 6')
+    expect(dirByIndex['7'].title).toBe('title 7')
+    expect(dirByIndex['7'].desc).toBe('desc 7')
+    expect(dirByIndex['8'].title).toBe('title 8')
+    expect(dirByIndex['8'].desc).toBe('desc 8')
   })
 })
 
 describe('D-04 + multiline carrier 拆分 → dir.title / dir.desc', () => {
   it('toc-item-1-carrier multiline (leading inline + 1 tspan[dy]) → title=leading, desc=tspan', async () => {
-    const svg = wrapSvg(`
-      <text id="toc-item-1-number" x="100" y="100" font-size="20">01</text>
-      <text id="toc-item-1-carrier" x="100" y="140" font-size="20">
-        leading inline text
-        <tspan x="100" dy="22">desc via dy tspan</tspan>
-      </text>
-    `)
+    // 单行 SVG (无 XML 缩进) — D-05 锁定占位符 / 换行原样保留,缩进空白也会被保留;
+    // 测试用单行形式确保 textContent 干净,避免与 D-05 行为混淆
+    const svg = wrapSvg(`<text id="toc-item-1-number" x="100" y="100" font-size="20">01</text><text id="toc-item-1-carrier" x="100" y="140" font-size="20">leading inline text<tspan x="100" dy="22">desc via dy tspan</tspan></text>`)
 
     const result = await convert(svg)
     expect(result.success).toBe(true)
@@ -142,14 +139,8 @@ describe('D-06 one-way: desc first-wins (同 N 多 desc via multiline)', () => {
     //   Row 1 (leading inline) → directory_item_1 → title
     //   Row 2 (first tspan)  → directory_item_desc_1 → desc (first wins)
     //   Row 3 (second tspan) → directory_item_desc_1 → desc (丢弃)
-    const svg = wrapSvg(`
-      <text id="toc-item-1-number" x="100" y="100" font-size="20">01</text>
-      <text id="toc-item-1-carrier" x="100" y="140" font-size="20">
-        title 1
-        <tspan x="100" dy="22">first desc</tspan>
-        <tspan x="100" dy="22">second desc</tspan>
-      </text>
-    `)
+    // 单行 SVG — D-05 保留空白,缩进会导致 textContent 含 \n 与空格
+    const svg = wrapSvg(`<text id="toc-item-1-number" x="100" y="100" font-size="20">01</text><text id="toc-item-1-carrier" x="100" y="140" font-size="20">title 1<tspan x="100" dy="22">first desc</tspan><tspan x="100" dy="22">second desc</tspan></text>`)
 
     const result = await convert(svg)
     expect(result.success).toBe(true)

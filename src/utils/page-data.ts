@@ -75,7 +75,14 @@ export function buildPageData(elements: PPTElement[]): PageData | undefined {
   const directoryMap = new Map<number, DirectoryAccumulatorEntry>()
 
   for (const element of textElements) {
-    const contentKey = getContentKeyFor(element.id)
+    // 优先用 element.contentKey(transformer 注入的语义角色);fallback 到 id lookup
+    // (兼容 v1.12 之前没有 contentKey 字段的 PPTTextElement;同时 v1.13 multiline Row 2+ 的 id
+    // 是合成的 `${id}-line-${idx}`,不在 contentKey 映射表中,但 contentKey 字段已由 transformer
+    // 正确注入 `directory_item_desc_N` — 必须用 element.contentKey 而非 getContentKeyFor(id))
+    let contentKey: string | undefined = element.contentKey
+    if (contentKey === undefined) {
+      contentKey = getContentKeyFor(element.id)
+    }
     if (contentKey === undefined) {
       continue
     }
