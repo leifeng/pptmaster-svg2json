@@ -5,6 +5,7 @@ import { renderSvgToPng } from './text-measurer'
 import type { PPTElement, Slide, SlideBackground } from './slides'
 import type { SvgElement } from './types/ast'
 import { log, logStep } from './utils'
+import { buildPageData } from './utils/page-data'
 import { resolve, join, basename, dirname } from 'path'
 import { mkdirSync, writeFileSync, readdirSync, readFileSync, existsSync } from 'fs'
 import { injectAnimations, emptyInjectorDiagnostics, printDiagnostics } from './animation-injector'
@@ -291,6 +292,12 @@ async function convertOne(
   }
   if (contentBounds !== undefined) {
     slide.contentBounds = contentBounds
+  }
+  // D-15 (Phase 18): aggregate pageData from contentKey-tagged PPTTextElements
+  // site mirrors v1.11 contentBounds aggregation (TPL-CB-03 field omission contract).
+  const pageData = buildPageData(slideElements)
+  if (pageData !== undefined) {
+    slide.pageData = pageData
   }
   if (backgroundImagePng) {
     slide.background = { type: 'image', image: { src: backgroundImagePng, size: 'cover' } }

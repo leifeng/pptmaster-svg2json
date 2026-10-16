@@ -153,6 +153,18 @@ interface PPTBaseElement {
    * 仅对 PPTTextElement 写入;未命中映射时整字段省略(undefined 不序列化)。
    */
   contentKey?: string
+  /**
+   * 模板文本元素原始 SVG textContent (Phase 18 / v1.13 D-02)
+   *
+   * 由 transformElement() 按 D-01 锁定范围写入 — 仅当 PPTTextElement 命中 v1.12
+   * 已实现 contentKey 时同步追加(互锁 — D-03 与 contentKey 同生命周期);未命中时
+   * 整字段省略(undefined 不序列化)。
+   *
+   * - 单行 text case:整 <text> 元素的 fast-xml-parser 原始 textContent
+   * - multiline tspan[dy] Row 1 / Row 2..N:各自 tspan 元素原始 textContent
+   * - 占位符(如 {{TITLE}})原样保留 — D-05
+   */
+  textContent?: string
 }
 
 
@@ -799,6 +811,39 @@ export interface Slide {
    * Reserved SVG viewBox coordinates (NOT canvas-scaled). Omitted when slot missing/malformed.
    */
   contentBounds?: { x: number; y: number; width: number; height: number }
+  /**
+   * pageData: v1.13 / Phase 18 聚合的语义字段集合 (D-08 / D-11 / D-15)
+   *
+   * 由 convertOne() 末尾通过 buildPageData(elements) 写入;仅含 slide 内
+   * PPTTextElement 命中 v1.12 已实现 contentKey 的字段(D-08 子集发射)。
+   * 0 命中时整字段省略 — D-09 守卫(不是 null / {} / undefined 占位)。
+   */
+  pageData?: PageData
+}
+
+/**
+ * Phase 18 / v1.13 pageData 聚合结构 — 详见 src/utils/page-data.ts。
+ * 此处重复声明(D-11 锁定位置)以保持 src/slides.ts 类型自包含,page-data.ts
+ * 倒过来从 slides.ts 引用,避免循环依赖。
+ */
+export interface PageData {
+  cover_title?: string
+  cover_subtitle?: string
+  cover_author?: string
+  chapter_number?: string
+  chapter_title?: string
+  chapter_desc?: string
+  content_title?: string
+  content_subtitle?: string
+  end_title?: string
+  end_subtitle?: string
+  directory?: PageDataDirectoryItem[]
+}
+
+export interface PageDataDirectoryItem {
+  index: string   // 字符串零填充 "01".."04"(D-13)
+  title: string
+  desc: string
 }
 
 /**
