@@ -2,17 +2,18 @@
 gsd_state_version: "1.0"
 milestone: v1.13
 milestone_name: Page Data Extraction (Planning)
-current_phase_name: defining requirements
-status: planning
+current_phase: 18
+current_phase_name: page-data-extraction
+status: executing
 stopped_at: Phase 18 context gathered
-last_updated: "2026-10-16T08:55:04.321Z"
+last_updated: "2026-10-16T09:15:01.505Z"
 last_activity: 2026-10-16
 last_activity_desc: Milestone v1.13 started
-state_head: 67c8eeccb0ae1877d0dabe6286a83752a78703bf
+state_head: 980d6e7ef5274efcdd53b4a3d3738d7350f5ff94
 progress:
   total_phases: 1
   completed_phases: 0
-  total_plans: 0
+  total_plans: 4
   completed_plans: 0
 ---
 
@@ -59,9 +60,9 @@ Closeout type: **override_closeout** (28 v1.x-carried debug sessions + 1 v1.10 p
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 18 (page-data-extraction) — READY TO EXECUTE
 Plan: —
-Status: Defining requirements
+Status: Ready to execute
 Last activity: 2026-10-16 — Milestone v1.13 started
 
 ## Project Reference
@@ -69,11 +70,26 @@ Last activity: 2026-10-16 — Milestone v1.13 started
 See: `.planning/PROJECT.md` (updated 2026-10-16)
 
 **Core value:** Accurately convert SVG visual elements to PowerPoint JSON with correct coordinates, transforms, and styles — preserving downstream-required semantic annotations (animations, template markers, content slots).
-**Current focus:** Phase 17 — template-content-key (v1.12 milestone)
+**Current focus:** Phase 18 — page-data-extraction (v1.13 milestone) — READY TO EXECUTE (4 plans / 4 waves / 7 tasks planned)
 
 ## Accumulated Context
 
-### Decisions (v1.12 kickoff — pending Phase 17 plan-phase)
+### Decisions (v1.13 kickoff — Phase 18 planned)
+
+- **PD-DEC-01**: `textContent` 字段窄范围 — 仅当 PPTTextElement 命中 v1.12 已实现 17 个 contentKey (34 entries) 时写入。互锁写入(contentKey ⇔ textContent)— D-01..D-03
+- **PD-DEC-02**: 数据聚合走 `buildPageData(elements)` 纯函数,在 `convertOne()` 末尾调用,返回 undefined 时 pageData 整字段省略 — D-09 / D-15
+- **PD-DEC-03**: TOC 数组 N 升序,`directoryItem.index` 为字符串零填充 `"01".."04"`,`index/title/desc` 三字段,`directory_item_number_N` 不进 pageData — D-04 / D-10 / D-12 / D-13
+- **PD-DEC-04**: helper 文件 `src/utils/page-data.ts`(与 v1.12 content-key.ts 同位置规范)— D-11 / D-16 / D-17
+- **PD-DEC-05**: One-way / costly 决策:D-06 同 N 多 desc first-wins(不可逆)+ D-07 title first-wins(costly)+ D-08 子集发射(field omission)+ D-09 整字段省略 + D-10 number 不进
+- **PD-DEC-06**: 测试策略(四类全覆盖)— D-18 + D-19 + D-20;详见各 PLAN.md 文件
+
+完整 20 个 D-* 决策 + 5 个 Claude's Discretion 默认见 `.planning/phases/18-page-data-extraction/18-CONTEXT.md`。
+
+### Override Decisions
+
+- **OVR-PD18-D18** (2026-10-16): D-18 规定 18-03=mock SVG E2E / 18-04=fixture SVG E2E;planner 实际执行 18-03=fixture 重生 + fixture E2E / 18-04=mock SVG E2E。偏差源自 fixture 重生必须在 fixture E2E 之前的工程约束(D-19 锁 5 fixture 重生)。**Functional coverage 完全等价**(4 类测试都在,只是 plan 号反),D-18 自身标注 `Reversibility: reversible — 仅测试策略`。**Override status: accepted by user during /gsd-plan-phase 18**(Phase 18 planning,decision-coverage-plan gate 19/20 pass,D-18 uncovered;用户选择 "Proceed anyway")。**Verify-phase 必须在 re-surface 此 override 并确认功能交付没受影响**。
+
+### Decisions (v1.12 kickoff — Phase 17 SHIPPED, inherited by Phase 18)
 
 - **CK-DEC-01**: 13-id 映射表走静态常量 `CONTENT_KEY_MAP: Record<string, string>` — 13 个 entry 一一对应;非映射 id 通过 `!== undefined` 守卫,字段直接省略(不是 null)
 - **CK-DEC-02**: TOC N∈1..4 走 `toc-item-N-{number,carrier}` 模板字符串生成 entry;N∈5..8 静默跳过(`undefined → 不写字段`)— 未来扩展只需补 entry
@@ -115,7 +131,7 @@ See: `.planning/PROJECT.md` (updated 2026-10-16)
 
 ---
 
-*State last updated: 2026-10-16 after v1.12 roadmap creation (Phase 17 scoped)*
+*State last updated: 2026-10-16 after v1.13 Phase 18 plan-phase completion (4 plans / 4 waves / 7 tasks planned; D-18 override recorded above)*
 
 ## Session
 
