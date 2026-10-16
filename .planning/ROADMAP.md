@@ -113,7 +113,7 @@
 
 🚧 **v1.13 — Page Data Extraction** (Planning — `Phase 18` ready, awaiting `/gsd-plan-phase 18` execution)
 
-- [ ] **Phase 18: page-data-extraction** — transformer 阶段新增 `PPTBaseElement.textContent` + `slide.pageData` 字段,复用 v1.12 `getContentKeyFor()` 映射;TOC 数据按 N 升序聚合为 `[{index, title, desc}]` 数组
+- [x] **Phase 18: page-data-extraction** — transformer 阶段新增 `PPTBaseElement.textContent` + `slide.pageData` 字段,复用 v1.12 `getContentKeyFor()` 映射;TOC 数据按 N 升序聚合为 `[{index, title, desc}]` 数组 (completed 2026-10-16)
   - [ ] 18-01: `src/utils/page-data.ts` helper (`buildPageData` 纯函数 + `PageData` / `PageDataDirectoryItem` 类型) + 单元测试
   - [ ] 18-02: `PPTBaseElement.textContent?: string` 字段 + `transformElement()` 顶部写入 SVG 原始 textContent(单行 + multiline 两 case) + CK-16 类型守卫延续
   - [ ] 18-03: `slide.pageData?: PageData` 字段 + `convertOne()` 末尾 `buildPageData(elements)` 集成 + mock SVG E2E
@@ -135,7 +135,7 @@
   3. **行为守卫** — slide 内无任何 PPTTextElement 命中 v1.12 已实现的 17 个 contentKey → `slide.pageData` 字段整字段省略(不是 `null`/`{}`/`undefined`);非 PPTTextElement 即使 id 命中也不进 pageData(沿用 v1.12 CK-16 模式)
   4. **不动映射表** — v1.13 不修改 `src/utils/content-key.ts` 的 `STATIC_CONTENT_KEY_MAP` / 动态 entry 生成逻辑;新增的 pageData 完全基于 v1.12 已有的 17 个 contentKey
 
-**Plans**: 0/4 plans (TBD)
+**Plans**: 4/4 plans complete (TBD)
 
 ---
 

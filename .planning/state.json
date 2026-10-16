@@ -1,12 +1,12 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v1.13",
+  "milestone": "v1.13 — Page Data Extraction (Planning)",
   "phases": [],
   "next": {
-    "command": "/gsd:discuss-phase",
-    "label": "Discuss the first phase",
-    "reason": "Project initialized — plan your first phase"
+    "command": "/gsd:new-milestone",
+    "label": "Start a new milestone",
+    "reason": "All phases complete — start a new milestone"
   },
-  "updated_at": "2026-10-16T08:39:02.582Z"
+  "updated_at": "2026-10-16T10:15:06.143Z"
 }

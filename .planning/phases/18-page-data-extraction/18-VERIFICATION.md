@@ -4,15 +4,23 @@ verified: 2026-10-16T10:12:43Z
 status: passed
 score: 20/20 must-haves verified
 covered_files:
-  - src/utils/page-data.ts
-  - src/slides.ts
-  - src/transformer/transform-to-pptel.ts
-  - src/index.ts
+  - .planning/phases/18-page-data-extraction/18-01-PLAN.md
+  - .planning/phases/18-page-data-extraction/18-01-SUMMARY.md
+  - .planning/phases/18-page-data-extraction/18-02-PLAN.md
+  - .planning/phases/18-page-data-extraction/18-02-SUMMARY.md
+  - .planning/phases/18-page-data-extraction/18-03-PLAN.md
+  - .planning/phases/18-page-data-extraction/18-03-SUMMARY.md
+  - .planning/phases/18-page-data-extraction/18-04-PLAN.md
+  - .planning/phases/18-page-data-extraction/18-04-SUMMARY.md
+  - __tests__/page-data-mock.test.ts
   - __tests__/page-data.test.ts
   - __tests__/text-content-extraction.test.ts
-  - __tests__/page-data-mock.test.ts
+  - src/index.ts
+  - src/slides.ts
+  - src/transformer/transform-to-pptel.ts
+  - src/utils/page-data.ts
   - tests/e2e/green-art-teaching-page-data.test.ts
-covered_digest: v3:sha256:phase-18-aggregate
+covered_digest: v3:sha256:c2392890889d33b5178fe5a922e249ece9b1586eb438a7bf3dc2694d805b21aa
 re_verification: yes
 ---
 

@@ -9,37 +9,37 @@ Requirements for the v1.13 milestone. Each maps to roadmap phases.
 
 ### Cover Page (静态字段映射)
 
-- [ ] **PD-01**: `slide.pageData.cover_title` 提取 `cover-title-carrier` PPTTextElement 的 SVG 原始 `textContent`(如 `{{TITLE}}` 占位符原样保留)
-- [ ] **PD-02**: `slide.pageData.cover_subtitle` 提取 `cover-subtitle-carrier` PPTTextElement 的 SVG 原始 `textContent`
-- [ ] **PD-03**: `slide.pageData.cover_author` 提取 `cover-author-carrier` PPTTextElement 的 SVG 原始 `textContent`
+- [x] **PD-01**: `slide.pageData.cover_title` 提取 `cover-title-carrier` PPTTextElement 的 SVG 原始 `textContent`(如 `{{TITLE}}` 占位符原样保留)
+- [x] **PD-02**: `slide.pageData.cover_subtitle` 提取 `cover-subtitle-carrier` PPTTextElement 的 SVG 原始 `textContent`
+- [x] **PD-03**: `slide.pageData.cover_author` 提取 `cover-author-carrier` PPTTextElement 的 SVG 原始 `textContent`
 
 ### TOC Page (数组聚合)
 
-- [ ] **PD-04**: `slide.pageData.directory` 是数组,按 N 升序排列(1..N),只包含 fixture 实际命中 contentKey 的 N 项(空数组不输出字段)
-- [ ] **PD-05**: 每个 `directory_item` 包含三个字段:`index`(来自 `toc-item-N-number` 的 textContent,如 `"01"`) / `title`(来自 `toc-item-N-carrier` 主行的 textContent) / `desc`(来自 `toc-item-N-carrier-line-1` 即带 `dy` 属性的 tspan 的 textContent)
+- [x] **PD-04**: `slide.pageData.directory` 是数组,按 N 升序排列(1..N),只包含 fixture 实际命中 contentKey 的 N 项(空数组不输出字段)
+- [x] **PD-05**: 每个 `directory_item` 包含三个字段:`index`(来自 `toc-item-N-number` 的 textContent,如 `"01"`) / `title`(来自 `toc-item-N-carrier` 主行的 textContent) / `desc`(来自 `toc-item-N-carrier-line-1` 即带 `dy` 属性的 tspan 的 textContent)
 
 ### Chapter Page
 
-- [ ] **PD-06**: `slide.pageData.chapter_number` 提取 `chapter-number-carrier` PPTTextElement 的 SVG 原始 `textContent`
-- [ ] **PD-07**: `slide.pageData.chapter_title` 提取 `chapter-title-carrier` PPTTextElement 的 SVG 原始 `textContent`
-- [ ] **PD-08**: `slide.pageData.chapter_desc` 提取 `chapter-desc-carrier` PPTTextElement 的 SVG 原始 `textContent`
+- [x] **PD-06**: `slide.pageData.chapter_number` 提取 `chapter-number-carrier` PPTTextElement 的 SVG 原始 `textContent`
+- [x] **PD-07**: `slide.pageData.chapter_title` 提取 `chapter-title-carrier` PPTTextElement 的 SVG 原始 `textContent`
+- [x] **PD-08**: `slide.pageData.chapter_desc` 提取 `chapter-desc-carrier` PPTTextElement 的 SVG 原始 `textContent`
 
 ### Content Page
 
-- [ ] **PD-09**: `slide.pageData.content_title` 提取 `content-title-carrier` PPTTextElement 的 SVG 原始 `textContent`
-- [ ] **PD-10**: `slide.pageData.content_subtitle` 提取 `content-subtitle-carrier` PPTTextElement 的 SVG 原始 `textContent`
+- [x] **PD-09**: `slide.pageData.content_title` 提取 `content-title-carrier` PPTTextElement 的 SVG 原始 `textContent`
+- [x] **PD-10**: `slide.pageData.content_subtitle` 提取 `content-subtitle-carrier` PPTTextElement 的 SVG 原始 `textContent`
 
 ### Closing Page
 
-- [ ] **PD-11**: `slide.pageData.end_title` 提取 `closing-thanks-carrier` PPTTextElement 的 SVG 原始 `textContent`
-- [ ] **PD-12**: `slide.pageData.end_subtitle` 提取 `closing-subtitle-carrier` PPTTextElement 的 SVG 原始 `textContent`
+- [x] **PD-11**: `slide.pageData.end_title` 提取 `closing-thanks-carrier` PPTTextElement 的 SVG 原始 `textContent`
+- [x] **PD-12**: `slide.pageData.end_subtitle` 提取 `closing-subtitle-carrier` PPTTextElement 的 SVG 原始 `textContent`
 
 ### Behavioral Guarantees
 
-- [ ] **PD-13**: slide 内无 PPTTextElement 命中任何 v1.12 已实现 contentKey → `slide.pageData` 字段整个省略(同 v1.12 CK-14 模式,字段直接不出现,不是 `null`/`{}`)
-- [ ] **PD-14**: 非 PPTTextElement 即使 id 命中 contentKey 映射表,也不进 `pageData`(沿用 v1.12 CK-16)
-- [ ] **PD-15**: v1.13 不动 v1.12 contentKey 映射表 — 仅基于已实现的 17 个 contentKey 进行 pageData 提取;`01_cover.svg` 注释中提到的 `directory_title` / `content_description` / `content_item_*` 不在 v1.13 范围
-- [ ] **PD-16**: `PPTBaseElement` 新增 `textContent?: string` 字段,transformer 阶段对 PPTTextElement 写入 SVG 原始 `textContent`(包含 `<text>` 元素和 `<tspan>` 子元素);非 PPTTextElement 不写此字段
+- [x] **PD-13**: slide 内无 PPTTextElement 命中任何 v1.12 已实现 contentKey → `slide.pageData` 字段整个省略(同 v1.12 CK-14 模式,字段直接不出现,不是 `null`/`{}`)
+- [x] **PD-14**: 非 PPTTextElement 即使 id 命中 contentKey 映射表,也不进 `pageData`(沿用 v1.12 CK-16)
+- [x] **PD-15**: v1.13 不动 v1.12 contentKey 映射表 — 仅基于已实现的 17 个 contentKey 进行 pageData 提取;`01_cover.svg` 注释中提到的 `directory_title` / `content_description` / `content_item_*` 不在 v1.13 范围
+- [x] **PD-16**: `PPTBaseElement` 新增 `textContent?: string` 字段,transformer 阶段对 PPTTextElement 写入 SVG 原始 `textContent`(包含 `<text>` 元素和 `<tspan>` 子元素);非 PPTTextElement 不写此字段
 
 ### Test Coverage
 
@@ -65,22 +65,22 @@ Explicit exclusions to prevent scope creep.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PD-01      | Phase 18 | Pending |
-| PD-02      | Phase 18 | Pending |
-| PD-03      | Phase 18 | Pending |
-| PD-04      | Phase 18 | Pending |
-| PD-05      | Phase 18 | Pending |
-| PD-06      | Phase 18 | Pending |
-| PD-07      | Phase 18 | Pending |
-| PD-08      | Phase 18 | Pending |
-| PD-09      | Phase 18 | Pending |
-| PD-10      | Phase 18 | Pending |
-| PD-11      | Phase 18 | Pending |
-| PD-12      | Phase 18 | Pending |
-| PD-13      | Phase 18 | Pending |
-| PD-14      | Phase 18 | Pending |
-| PD-15      | Phase 18 | Pending |
-| PD-16      | Phase 18 | Pending |
+| PD-01      | Phase 18 | Complete |
+| PD-02      | Phase 18 | Complete |
+| PD-03      | Phase 18 | Complete |
+| PD-04      | Phase 18 | Complete |
+| PD-05      | Phase 18 | Complete |
+| PD-06      | Phase 18 | Complete |
+| PD-07      | Phase 18 | Complete |
+| PD-08      | Phase 18 | Complete |
+| PD-09      | Phase 18 | Complete |
+| PD-10      | Phase 18 | Complete |
+| PD-11      | Phase 18 | Complete |
+| PD-12      | Phase 18 | Complete |
+| PD-13      | Phase 18 | Complete |
+| PD-14      | Phase 18 | Complete |
+| PD-15      | Phase 18 | Complete |
+| PD-16      | Phase 18 | Complete |
 | PD-E2E-01  | Phase 18 | Pending |
 | PD-E2E-02  | Phase 18 | Pending |
 | PD-E2E-03  | Phase 18 | Pending |
