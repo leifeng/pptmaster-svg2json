@@ -1,5 +1,14 @@
 # Milestones
 
+## v1.12 Template Content Key Annotation (Shipped: 2026-10-16)
+
+**Phases completed:** 1 phases, 4 plans, 0 tasks
+
+**Key accomplishments:**
+- (none recorded)
+
+---
+
 ## v1.11 Template Element Marking (Shipped: 2026-10-16)
 
 **Phases completed:** 1 phases, 3 plans, 3 tasks

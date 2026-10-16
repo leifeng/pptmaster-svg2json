@@ -14,9 +14,21 @@
 - ✅ **v1.9** — PPTist Animation Sidecar Injection (2026-10-15)
 - ✅ **v1.10** — Animation Sidecar Extension (2026-10-15)
 - ✅ **v1.11** — Template Element Marking (2026-10-16)
-- 🚧 **v1.12** — Template Content Key Annotation (Planning)
+- ✅ **v1.12** — Template Content Key Annotation (2026-10-16)
 
 ## Phases
+
+<details>
+<summary>✅ v1.12 — Template Content Key Annotation (Phase 17) — SHIPPED 2026-10-16</summary>
+
+- [x] Phase 17: template-content-key (4/4 plans) — completed 2026-10-16
+  - 17-01: `src/utils/content-key.ts` helper (10 静态 + 24 动态 N=1..8 × 3 类 = 34 entries) + 单元测试 45 it() (10 静态 + 24 动态 + 4 reverse + 3 boundary + 4 invariant)
+  - 17-02: `PPTBaseElement.contentKey?: string` 字段 + `transformElement()` 顶部 compute + 单行 text case 末尾写入 + CK-16 类型守卫(8 个非文本 case 不写)
+  - 17-03: multiline text case `tspanElements.map` Row 1 (→ `directory_item_N`) vs Row 2..N (→ `directory_item_desc_N`) 区分 + mock SVG E2E 8 it() (N=5..8 三类 + tspan[dy] 拆分 + reverse + 类型守卫 + 白名单)
+  - 17-04: 20 fixture svg.json 重生 + fixture E2E 14 it() (CK-01 ~ CK-17 全 slide 反向断言)
+  - **Closeout type:** verified_closeout — verifier passed 17/17 must-haves;76 tests passed (45 unit + 8 mock + 14 fixture + 9 v1.11 无回归);30 acknowledged carry-over items still suppressed from v1.9
+
+</details>
 
 <details>
 <summary>✅ v1.11 — Template Element Marking (Phase 16) — SHIPPED 2026-10-16</summary>
@@ -98,38 +110,11 @@
 
 ## Active
 
-🚧 **v1.12 — Template Content Key Annotation** (Planning — `Phase 17` plans ready, ready to execute)
-
-- [ ] **Phase 17: template-content-key** — transformer 阶段按 id 映射表在 PPTTextElement 上注入 `contentKey`(13 已知模板 + TOC multiline tspan 拆分 + 4 项行为守卫)
-  - [ ] 17-01: `src/utils/content-key.ts` helper (10 static + 1..8 dynamic pre-compute) + unit tests
-  - [ ] 17-02: `PPTBaseElement.contentKey` 字段 + transformer 顶部 compute + 单行 text case 写入 (TRACER: 01_cover.svg)
-  - [ ] 17-03: multiline text case Row 1 vs Row 2..N 区分 + mock SVG E2E (TRACER: 02_toc.svg)
-  - [ ] 17-04: fixture JSON 基线重生 20 个 SVG + fixture E2E
+_None — ready for next milestone kickoff via `/gsd-new-milestone`._
 
 ## Phase Details
 
-### Phase 17: template-content-key
-
-**Goal**: Transformer 识别 SVG 中"模板文本元素"(已知 13 个 id 模板),通过 `contentKey` 字段标记到 PPTTextElement,供 PPTist 端用作"用户填写正文"的语义绑定键(cover_title / directory_item_1 / chapter_title 等)。是 v1.11 `templateType=1` 标记的下游语义扩展。
-
-**Depends on**: Phase 16 (v1.11 templateType=1 注入点复用 — `src/transformer/transform-to-pptel.ts:1535`)
-
-**Requirements**: CK-01, CK-02, CK-03, CK-04, CK-05, CK-06, CK-07, CK-08, CK-09, CK-10, CK-11, CK-12, CK-13, CK-14, CK-15, CK-16, CK-17
-
-**Success Criteria** (what must be TRUE):
-  1. 封面三类文本元素带语义键 — `cover-title-carrier` / `cover-subtitle-carrier` / `cover-author-carrier` 三个 id 命中的 PPTTextElement,分别在 JSON 输出携带 `contentKey: "cover_title"` / `"cover_subtitle"` / `"cover_author"`
-  2. 章节/正文/结尾共七类文本元素带语义键 — `chapter-number-carrier` / `chapter-title-carrier` / `chapter-desc-carrier` / `content-title-carrier` / `content-subtitle-carrier` / `closing-thanks-carrier` / `closing-subtitle-carrier` 七个 id 命中 PPTTextElement 时分别注入 `chapter_number` / `chapter_title` / `chapter_desc` / `content_title` / `content_subtitle` / `end_title` / `end_subtitle`
-  3. 目录项编号与正文主体带语义键 — 对 N∈1..4,`toc-item-{N}-number` 与 `toc-item-{N}-carrier` 的主体文本(leading inline text)在 PPTTextElement 上分别携带 `contentKey: "directory_item_number_N"` 与 `"directory_item_N"`
-  4. 目录项描述行作为独立 PPTTextElement 携带 desc 语义键 — 当 `toc-item-{N}-carrier` 内部出现 `<tspan dy="...">` 时,每个带 dy 的 tspan 单独渲染为 PPTTextElement 并携带 `contentKey: "directory_item_desc_N"`,N 与父 carrier 保持一致;N∈5..8 的 carrier 整体不携带 `contentKey`(不影响已实现 N∈1..4 行为)
-  5. 非映射 id、非文本元素、未知模板静默跳过 — id 不在 13 个映射表内的 PPTTextElement 或 id 命中但元素类型非 text(shape/image/line)时,输出 JSON 中该元素`不出现` `contentKey` 字段(整字段省略,不是 `null`/`undefined`/`""`);未来新增模板 id 无需改代码即被静默跳过
-
-**Plans**: 4 plans
-
-Plans:
-- [ ] 17-01-PLAN.md — `src/utils/content-key.ts` helper(10 静态 + 1..8 动态预生成 + `getContentKeyFor` + `CONTENT_KEY_VALUES`)+ 单元测试 34 正向 + ≥ 5 reverse/boundary(D-07 one-way checkpoint 在前)
-- [ ] 17-02-PLAN.md — `PPTBaseElement.contentKey?: string` 字段 + `transformElement()` 顶部 compute + 单行 text case 末尾写入;TRACER 跑 `01_cover.svg` 验证 3 cover 静态映射(D-01 one-way checkpoint 在前)
-- [ ] 17-03-PLAN.md — multiline text case `tspanElements.map` 块 Row 1 / Row 2..N 区分注入 contentKey;TRACER 跑 `02_toc.svg` 验证 Row 1 + Row 2 desc + mock SVG E2E 覆盖 N=5..8 动态 + reverse + 类型守卫(D-09 one-way checkpoint 在前)
-- [ ] 17-04-PLAN.md — fixture JSON 基线重生 20 个 SVG + fixture E2E `tests/e2e/green-art-teaching-content-key.test.ts`(CK-14/15/16/17 全 slide 反向断言)
+_Phase details archived to `.planning/milestones/v1.12-ROADMAP.md`._
 
 ---
 
@@ -148,8 +133,8 @@ Plans:
 | Phase 14 | v1.9 | Complete | 2026-10-15 |
 | Phase 15 | v1.10 | Complete | 2026-10-15 |
 | Phase 16 | v1.11 | Complete | 2026-10-16 |
-| Phase 17 | v1.12 | Planning | - |
+| Phase 17 | v1.12 | Complete | 2026-10-16 |
 
 ---
 
-*Roadmap updated: 2026-10-16 after v1.12 milestone kickoff (Phase 17 planned for content-key annotation)*
+*Roadmap updated: 2026-10-16 after v1.12 milestone ship (Phase 17 template-content-key complete, verified 17/17)*

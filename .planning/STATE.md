@@ -2,19 +2,18 @@
 gsd_state_version: "1.0"
 milestone: v1.12
 milestone_name: Template Content Key Annotation (Planning)
-current_phase: 17
-current_phase_name: template-content-key
-status: planning
-stopped_at: Phase 17 context gathered
-last_updated: "2026-10-16T07:39:46.235Z"
+status: Awaiting next milestone
+stopped_at: Phase 17 complete — all phases complete
+last_updated: "2026-10-16T08:23:35.543Z"
 last_activity: 2026-10-16
-last_activity_desc: "v1.12 roadmap created (Phase 17: template-content-key)"
-state_head: a545e47efba599c8147634c7cd48da9bda93fba5
+last_activity_desc: Milestone v1.12 completed and archived
+state_head: 2cf491063221c8bf289684ed4bdb5b74371a9723
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 0
+  completed_plans: 4
+current_phase: 17
 ---
 
 ## Deferred Items
@@ -60,10 +59,10 @@ Closeout type: **override_closeout** (28 v1.x-carried debug sessions + 1 v1.10 p
 
 ## Current Position
 
-Phase: 17 (template-content-key) — READY TO EXECUTE
+Phase: Milestone v1.12 complete
 Plan: —
-Status: Roadmap defined — 17/17 v1.12 requirements mapped to Phase 17
-Last activity: 2026-10-16 — v1.12 roadmap created (Phase 17: template-content-key)
+Status: Awaiting next milestone
+Last activity: 2026-10-16 — Milestone v1.12 completed and archived
 
 ## Project Reference
 
@@ -121,9 +120,9 @@ See: `.planning/PROJECT.md` (updated 2026-10-16)
 ## Session
 
 **Last session:** 2026-10-16T07:16:41.902Z
-**Stopped at:** Phase 17 context gathered
+**Stopped at:** Phase 17 complete — all phases complete
 **Resume file:** .planning/phases/17-template-content-key/17-CONTEXT.md
 
 ## Operator Next Steps
 
-- Start Phase 17 planning with `/gsd-plan-phase 17`
+- Start the next milestone with /gsd-new-milestone

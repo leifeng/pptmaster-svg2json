@@ -9,41 +9,41 @@ Requirements for the v1.12 milestone. Each maps to roadmap phases.
 
 ### Cover Page
 
-- [ ] **CK-01**: Element with id `cover-title-carrier` is rendered as PPTTextElement with `contentKey: "cover_title"`
-- [ ] **CK-02**: Element with id `cover-subtitle-carrier` is rendered as PPTTextElement with `contentKey: "cover_subtitle"`
-- [ ] **CK-03**: Element with id `cover-author-carrier` is rendered as PPTTextElement with `contentKey: "cover_author"`
+- [x] **CK-01**: Element with id `cover-title-carrier` is rendered as PPTTextElement with `contentKey: "cover_title"`
+- [x] **CK-02**: Element with id `cover-subtitle-carrier` is rendered as PPTTextElement with `contentKey: "cover_subtitle"`
+- [x] **CK-03**: Element with id `cover-author-carrier` is rendered as PPTTextElement with `contentKey: "cover_author"`
 
 ### TOC Page
 
-- [ ] **CK-11**: Element with id `toc-item-{N}-number` (N ∈ 1..4, extensible to 1..8) is rendered as PPTTextElement with `contentKey: "directory_item_number_N"`
-- [ ] **CK-12**: Element with id `toc-item-{N}-carrier` (text body, leading inline text) is rendered as PPTTextElement with `contentKey: "directory_item_N"`
-- [ ] **CK-13**: Inside `toc-item-{N}-carrier`, each `<tspan>` carrying a `dy` attribute (the desc line) is rendered as a separate PPTTextElement with `contentKey: "directory_item_desc_N"` (N matches the parent carrier)
+- [x] **CK-11**: Element with id `toc-item-{N}-number` (N ∈ 1..4, extensible to 1..8) is rendered as PPTTextElement with `contentKey: "directory_item_number_N"`
+- [x] **CK-12**: Element with id `toc-item-{N}-carrier` (text body, leading inline text) is rendered as PPTTextElement with `contentKey: "directory_item_N"`
+- [x] **CK-13**: Inside `toc-item-{N}-carrier`, each `<tspan>` carrying a `dy` attribute (the desc line) is rendered as a separate PPTTextElement with `contentKey: "directory_item_desc_N"` (N matches the parent carrier)
 
 ### Chapter Page
 
-- [ ] **CK-04**: Element with id `chapter-number-carrier` is rendered as PPTTextElement with `contentKey: "chapter_number"`
-- [ ] **CK-05**: Element with id `chapter-title-carrier` is rendered as PPTTextElement with `contentKey: "chapter_title"`
-- [ ] **CK-06**: Element with id `chapter-desc-carrier` is rendered as PPTTextElement with `contentKey: "chapter_desc"`
+- [x] **CK-04**: Element with id `chapter-number-carrier` is rendered as PPTTextElement with `contentKey: "chapter_number"`
+- [x] **CK-05**: Element with id `chapter-title-carrier` is rendered as PPTTextElement with `contentKey: "chapter_title"`
+- [x] **CK-06**: Element with id `chapter-desc-carrier` is rendered as PPTTextElement with `contentKey: "chapter_desc"`
 
 ### Content Page
 
-- [ ] **CK-07**: Element with id `content-title-carrier` is rendered as PPTTextElement with `contentKey: "content_title"`
-- [ ] **CK-08**: Element with id `content-subtitle-carrier` is rendered as PPTTextElement with `contentKey: "content_subtitle"`
+- [x] **CK-07**: Element with id `content-title-carrier` is rendered as PPTTextElement with `contentKey: "content_title"`
+- [x] **CK-08**: Element with id `content-subtitle-carrier` is rendered as PPTTextElement with `contentKey: "content_subtitle"`
 
 ### Closing Page
 
-- [ ] **CK-09**: Element with id `closing-thanks-carrier` is rendered as PPTTextElement with `contentKey: "end_title"`
-- [ ] **CK-10**: Element with id `closing-subtitle-carrier` is rendered as PPTTextElement with `contentKey: "end_subtitle"`
+- [x] **CK-09**: Element with id `closing-thanks-carrier` is rendered as PPTTextElement with `contentKey: "end_title"`
+- [x] **CK-10**: Element with id `closing-subtitle-carrier` is rendered as PPTTextElement with `contentKey: "end_subtitle"`
 
 ### Behavioral Guarantees
 
-- [ ] **CK-14**: Non-mapped ids (not in the 13-template table) do NOT emit a `contentKey` field — the field is omitted entirely, never set to `null`/`undefined`/`""`
-- [ ] **CK-15**: Unknown template ids silently skip — no error, no warning — to allow future template additions without code changes
-- [ ] **CK-16**: `contentKey` is only attached to PPTTextElement; non-text elements (shape/image/line) carrying matching ids are ignored even if id is in the mapping table
+- [x] **CK-14**: Non-mapped ids (not in the 13-template table) do NOT emit a `contentKey` field — the field is omitted entirely, never set to `null`/`undefined`/`""`
+- [x] **CK-15**: Unknown template ids silently skip — no error, no warning — to allow future template additions without code changes
+- [x] **CK-16**: `contentKey` is only attached to PPTTextElement; non-text elements (shape/image/line) carrying matching ids are ignored even if id is in the mapping table
 
 ### Coverage Scope
 
-- [ ] **CK-17**: N range 1..4 supported (current set); N ∈ 5..8 silently skipped (no `contentKey`) until mapping table is extended
+- [x] **CK-17**: N range 1..4 supported (current set); N ∈ 5..8 silently skipped (no `contentKey`) until mapping table is extended
 
 ## Out of Scope
 
@@ -61,23 +61,23 @@ Explicit exclusions to prevent scope creep.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CK-01      | Phase 17 | Pending |
-| CK-02      | Phase 17 | Pending |
-| CK-03      | Phase 17 | Pending |
-| CK-04      | Phase 17 | Pending |
-| CK-05      | Phase 17 | Pending |
-| CK-06      | Phase 17 | Pending |
-| CK-07      | Phase 17 | Pending |
-| CK-08      | Phase 17 | Pending |
-| CK-09      | Phase 17 | Pending |
-| CK-10      | Phase 17 | Pending |
-| CK-11      | Phase 17 | Pending |
-| CK-12      | Phase 17 | Pending |
-| CK-13      | Phase 17 | Pending |
-| CK-14      | Phase 17 | Pending |
-| CK-15      | Phase 17 | Pending |
-| CK-16      | Phase 17 | Pending |
-| CK-17      | Phase 17 | Pending |
+| CK-01      | Phase 17 | Complete |
+| CK-02      | Phase 17 | Complete |
+| CK-03      | Phase 17 | Complete |
+| CK-04      | Phase 17 | Complete |
+| CK-05      | Phase 17 | Complete |
+| CK-06      | Phase 17 | Complete |
+| CK-07      | Phase 17 | Complete |
+| CK-08      | Phase 17 | Complete |
+| CK-09      | Phase 17 | Complete |
+| CK-10      | Phase 17 | Complete |
+| CK-11      | Phase 17 | Complete |
+| CK-12      | Phase 17 | Complete |
+| CK-13      | Phase 17 | Complete |
+| CK-14      | Phase 17 | Complete |
+| CK-15      | Phase 17 | Complete |
+| CK-16      | Phase 17 | Complete |
+| CK-17      | Phase 17 | Complete |
 
 **Coverage:**
 - v1.12 requirements: 17 total
