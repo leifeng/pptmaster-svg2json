@@ -62,10 +62,18 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 - ✓ **CK-14 / CK-15**: 非映射 id 整字段省略(`undefined` 不序列化,不是 null/空串)— v1.12
 - ✓ **CK-16**: contentKey 仅施加于 PPTTextElement 类型,非文本元素即使 id 命中也忽略 — v1.12
 - ✓ **CK-17**: 动态 N=1..8 上限锁定,fixture 实际 N=1..4 命中 — v1.12
+- ✓ **PD-01 ~ PD-03**: cover 3 字段(`cover_title` / `cover_subtitle` / `cover_author`)从 SVG 原始 textContent 提取 — v1.13
+- ✓ **PD-04 ~ PD-05**: TOC 数组 `[{index, title, desc}]` 按 N 升序 + 三字段语义绑定 — v1.13
+- ✓ **PD-06 ~ PD-08**: chapter 3 字段(`chapter_number` / `chapter_title` / `chapter_desc`)— v1.13
+- ✓ **PD-09 ~ PD-10**: content 2 字段(`content_title` / `content_subtitle`)— v1.13
+- ✓ **PD-11 ~ PD-12**: closing 2 字段(`end_title` / `end_subtitle`)— v1.13
+- ✓ **PD-13 / PD-14**: 0-hit slide 整字段省略 + 非 PPTTextElement 类型守卫 — v1.13
+- ✓ **PD-15 / PD-16**: 不动 v1.12 映射表 + `PPTBaseElement.textContent?: string` 互锁写入 — v1.13
+- ✓ **PD-E2E-01 ~ PD-E2E-04**: 5 fixture E2E + directory 数组验证 + 反向白名单 + 76 v1.12 测试零回归 — v1.13
 
 ### Active
 
-_(v1.13 Page Data Extraction — requirements 定义中,待写 `.planning/REQUIREMENTS.md`)_
+_(无 — 等待下一个 milestone 启动 — `/gsd-new-milestone`)_
 
 ### Out of Scope
 
@@ -80,7 +88,7 @@ _(v1.13 Page Data Extraction — requirements 定义中,待写 `.planning/REQUIR
 
 **Existing library** — svg-to-pptel v1.8, published as npm package.
 
-**Current state** — v1.12 milestone SHIPPED 2026-10-16 (verified_closeout — 17/17 must-haves passed, 76 tests passed). Now entering v1.13 (Page Data Extraction) kickoff: 基于 v1.12 已实现的 17 个 contentKey,在 transformer 阶段提取 SVG 原始 textContent,输出 `slide.pageData` 字段。Phase 18 (page-data-extraction) 计划中,等待 `/gsd-plan-phase 18` 执行。
+**Current state** — v1.13 milestone SHIPPED 2026-10-16 (verified_closeout — 20/20 must-haves passed, 50 Phase 18 tests + 76 v1.12 regression tests green). 后续 milestone 等待 `/gsd-new-milestone` 启动。
 
 **Target canvas** — 1000×562.5 (16:9 aspect ratio).
 
@@ -147,26 +155,37 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: v1.13 — Page Data Extraction (Planning)
+## Current Milestone: _(none — awaiting next milestone kickoff via `/gsd-new-milestone`)_
 
-**Status:** Planning 2026-10-16 (awaiting `/gsd-plan-phase 18` execution).
-
-**Goal:** 基于 v1.12 已实现的 17 个 contentKey,在 transformer 阶段提取 SVG 原始 textContent,输出 `slide.pageData` 字段(sibling of `elements`)。目录数据特殊处理为 `[{index, title, desc}]` 数组(按 N 升序,仅 fixture 命中项)。是 v1.12 `contentKey` 注入的下游"语义数据"扩展。
-
-**为什么需要 v1.13:** v1.12 给 PPTElement 打上 `contentKey` 标记,只告诉 PPTist"这是哪个语义角色"。但 PPTist 在做内容绑定时还需要拿到对应的**实际纯文本数据**(如封面标题文案、目录第 1 条标题 + 描述)。把这些文本从 SVG 原始 `textContent` 提取到 `slide.pageData`,PPTist 端可直接读 `pageData.directory[0].title` 等结构化数据,无需自己再解析 PPTTextElement 的 HTML content。是 v1.12 contentKey 协议的"数据侧"补全。
-
-**Phase 结构:**
-- Phase 18: page-data-extraction — transformer 阶段新增 `PPTBaseElement.textContent` + `slide.pageData`,复用 v1.12 `getContentKeyFor()` 映射,TOC 数组按 N 升序聚合
-
-**Reference docs:**
-- v1.12 contentKey 实现:`src/utils/content-key.ts`(34 entries,10 静态 + 24 动态 N=1..8)
-- v1.12 contentKey 注入点:`src/transformer/transform-to-pptel.ts:1535`
-- 模板 fixtures:`exampels/green-art-teaching/templates/`(01_cover / 02_toc / 03_chapter / 04_content / 05_ending)
-- 注释来源:`exampels/green-art-teaching/templates/01_cover.svg:56-66`(IPageData 协议定义)
+**Status:** Planning 2026-10-16 (next milestone not yet started).
 
 ---
 
 ## Previous Milestones
+
+### v1.13 — Page Data Extraction (2026-10-16)
+
+**Closeout type:** verified_closeout — 20/20 must-haves passed, 50 Phase 18 tests green (19 unit + 15 mock E2E + 16 fixture E2E) + 76/76 v1.12 contentKey regression tests untouched.
+
+- PD-01~03: cover 3 静态字段从 SVG textContent 提取到 `slide.pageData.{cover_title|subtitle|author}`
+- PD-04~05: TOC 数组 `[{index, title, desc}]` 按 N 升序,3 字段来自 PDF textContent
+- PD-06~08: chapter 3 静态字段
+- PD-09~10: content 2 静态字段
+- PD-11~12: closing 2 静态字段(`closing-thanks-carrier` → `end_title` 命名映射)
+- PD-13: 0-hit slide 整字段省略(`undefined` 不暴露 `null`/`{}`)
+- PD-14: 非 PPTTextElement 即使 id 命中 contentKey 也不进 pageData
+- PD-15: v1.13 不动 `src/utils/content-key.ts`(完全复用 34 entries)
+- PD-16: `PPTBaseElement.textContent?: string` 字段互锁写入(仅 PPTTextElement + contentKey 命中时)
+- PD-E2E-01~04: 5 fixture E2E(directory length=4 + 反向白名单 + 4 项 D-20 反向断言 + v1.12 76 tests 无回归)
+
+**Implementation highlights:**
+- `src/utils/page-data.ts` 新增(251 行) — `buildPageData(elements)` 纯函数 + `PageData` / `PageDataDirectoryItem` 类型
+- `src/slides.ts` +45 行 — `PPTBaseElement.textContent?` + `Slide.pageData?` + 2 个新 interface
+- `src/transformer/transform-to-pptel.ts` +36 行 — `extractRawText()` helper + 单行 + multiline 每 row textContent 互锁写入
+- `src/index.ts` +7 行 — `convertOne()` 末尾 `buildPageData()` 挂载 + D-09 守卫
+- 4 个新测试文件:`__tests__/page-data.test.ts` (19) + `text-content-extraction.test.ts` (7) + `page-data-mock.test.ts` (8) + `tests/e2e/green-art-teaching-page-data.test.ts` (16)
+
+**Post-ship fix (2026-10-16):** `page-data.ts` 改用 `element.contentKey` 优先 `getContentKeyFor(id)` lookup(commit `dc7d948`),因为 multiline Row 2+ 的合成 id (`toc-item-N-carrier-line-N`) 不在 v1.12 映射表中,但 `element.contentKey` 字段已由 transformer 正确注入 `directory_item_desc_N`。
 
 ### v1.12 — Template Content Key Annotation (2026-10-16)
 
@@ -259,4 +278,4 @@ Research confirmed all target PPTist schema properties already implemented or de
 
 ---
 
-*Last updated: 2026-10-16 after v1.13 milestone kickoff (page-data-extraction planning, awaiting `/gsd-plan-phase 18` execution)*
+*Last updated: 2026-10-16 after v1.13 milestone SHIPPED (page-data-extraction verified, 50/50 tests green, archived to `.planning/milestones/v1.13-*.md`)*

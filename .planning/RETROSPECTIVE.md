@@ -161,3 +161,72 @@
 ---
 
 *Last updated: 2026-10-16 after v1.11 closeout (override_closeout)*
+
+---
+
+## Milestone: v1.13 — Page Data Extraction
+
+**Shipped:** 2026-10-16
+**Closeout type:** verified_closeout (20/20 must-haves, 50/50 Phase 18 tests green + 76/76 v1.12 contentKey regression)
+**Phases:** 1 | **Plans:** 4 | **Tasks:** 7
+
+### What Was Built
+
+- `src/utils/page-data.ts` 新建 251 行 helper — `buildPageData(elements)` 纯函数 + `PageData` / `PageDataDirectoryItem` 接口
+- `src/slides.ts` +45 行 — `PPTBaseElement.textContent?: string` + `Slide.pageData?: PageData` 字段 + 2 个新 interface
+- `src/transformer/transform-to-pptel.ts` +36 行 — `extractRawText()` helper + 单行 + multiline 每 row 互锁写入 + `TspanExtractResult.text` 字段补全
+- `src/index.ts` +7 行 — `convertOne()` 末尾 `buildPageData(elements)` 挂载(D-09 守卫)
+- 4 个新测试文件:unit (19) + mock E2E textContent (7) + mock E2E pageData (8) + fixture E2E (16)
+
+### What Worked
+
+- **Wave-based parallel execution**: Wave 2 跑 18-02 + 18-04 parallel,虽然 18-04 的测试在 master base 上 fail(因 18-02 未合并),但 dispatch 后由 orchestrator 合并时 18-02 已先合,worktree 串行 dispatch 模式有效避免 `.git/config.lock` 竞争
+- **D-11 单一来源 PageData interface**: `src/slides.ts` 内定义 + `src/utils/page-data.ts` 倒过来 import type,避免循环依赖
+- **OVR-PD18-D18 plan 号反转被 verifier 接受**:planner 把 18-03/04 顺序反了(应为 fixture 重生在 mock E2E 之前),但功能覆盖等价 — verifier 重读 surface 后通过
+
+### What Was Inefficient
+
+- **`buildPageData` 优先 `element.contentKey` vs `getContentKeyFor(id)` lookup 漏判**: 18-04 mock 测试在 master base 上 fail(3 个) — multiline Row 2+ 的合成 id(`toc-item-N-carrier-line-N`)不在 v1.12 映射表中。诊断 + 修复 + 测试更新 = 1 个 fix commit(因为 dispatch 时无法预知)
+- **Verification digest refresh 失败**: 第一次 verifier 写 VERIFICATION.md 时 `covered_digest` 留了占位符 `v3:sha256:phase-18-aggregate`,`gsd_run query phase.complete` 报 stale;re-verifier 也无法刷新。最终手动查 `gsd_run query verification fingerprint` 拿到真实 digest 写回 — 这个 future verifier 应该直接 compute 真实 hash,而不是留占位
+- **fixture 重生 commit 不入 git**: `.gitignore` 第 5 行 `/exampels` 排除整个目录,但 18-03 plan Task 1 原本要 git commit 5 fixture baseline(参考 17-04 之前 plan 的 fixture commit pattern)。agent 按 17-04 precedent 跳过 commit,改让 E2E 测试 in-memory 验证 — 等价但偏离 plan 文字描述,需在 SUMMARY 显式记录 deviation
+
+### Patterns Established
+
+- **Wave 串行 dispatch + 1 个 executor per wave** 适用于单 plan;**Wave 并行 dispatch 时 1 Agent per message + run_in_background:true** 适用多 plan(避免 worktree contention)
+- **`element.contentKey` 优先 id lookup** 用于聚合 helper — 多行 / 合成 id 元素不能被 id lookup 漏掉
+- **D-09 守卫 + 字段省略 contract**: 0-hit slide `pageData` 整字段省略(`undefined` 不暴露 `null`/`{}`)— 与 v1.11 contentBounds / v1.12 contentKey 同模式
+
+### Key Lessons
+
+- Verification 自动 compute SHA-256 应写入 frontmatter,不留占位 — `gsd_run query verification fingerprint` 输出真实 digest 可直接用
+- Plan frontmatter `files_modified` 字段要包括 `__tests__/` 路径 — gsd_run verification fingerprint 默认包含所有 plan 修改文件,缺漏会导致 digest 错位
+- `.gitignore` 排除 fixture 后,plan 中 fixture 重生 commit 步骤需要明确"skip git commit,保留 in-memory E2E" 或 "通过 git add -f 强制跟踪" 二选一
+
+### Cost Observations
+
+- Model mix: 100% sonnet(执行 + verifier + 修复)
+- Sessions: 5 `Agent()` dispatch(18-01 / 18-02 / 18-04 / 18-03 / re-verifier)+ 1 内联 18-04 fix commit
+- Notable: 18-02 单 plan 跑 38 分钟(最复杂,改 3 个 src 文件 + 1 个新测试),其他 plan 平均 4-8 分钟;并行 dispatch Wave 2 总耗时约 38 分钟(取决于最慢的 18-02),串行会 ~50+ 分钟
+
+---
+
+## Cross-Milestone Trends (updated)
+
+| Metric | v1.9 | v1.10 | v1.11 | v1.12 | v1.13 |
+|---|---|---|---|---|---|
+| Phases | 1 | 1 | 1 | 1 | 1 |
+| Plans | 3 | 2 | 3 | 4 | 4 |
+| Feat+test commits | 9 + 2 post-ship | 2 plans + 2 post-ship | 3 + 1 post-ship | 4 | 4 + 1 fix |
+| Tests passing | 116 | 116 + post-ship | 22 + 9 (override) | 76 | 50 + 76 regression |
+| Closeout type | override_closeout | verified_closeout | override_closeout | verified_closeout | verified_closeout |
+| Open debug sessions carried | 30 ack | 30 ack (carried) | 30 ack (carried) | 30 ack (carried) | 30 ack (carried) |
+
+### v1.13 Trends
+
+- **连续第三个 verified_closeout**: v1.11 是 override(v1.11.1 single-line 漏 templateType 注入),v1.12 和 v1.13 都 verified — pattern 表明 v1.11 后端到端 + reverse assertion 模板成熟
+- **Regression 测试无 cost**: 76 v1.12 contentKey 测试 + 9 v1.11 template-marking 测试 + v1.9 animation 测试全部 untouched,Phase 18 只新增自己的 50 个测试
+- **Wave 并行效率稳定**: 4 plans × 1 phase → 3 waves(1+2+1),Wave 2 串行 dispatch(1+1)实际并行,Wall 总 50 分钟 vs 串行估算 70+ 分钟
+
+---
+
+*Last updated: 2026-10-16 after v1.13 closeout (verified_closeout)*

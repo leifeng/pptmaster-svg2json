@@ -1,5 +1,14 @@
 # Milestones
 
+## v1.13 Page Data Extraction (Shipped: 2026-10-16)
+
+**Phases completed:** 1 phases, 4 plans, 7 tasks
+
+**Key accomplishments:**
+- Pinned v1.13 pageData injection against the real 20-slide green-art-teaching fixture set with 16 reverse-and-positive assertions — zero source changes, fixture baselines validated via convertDir() in-memory.
+
+---
+
 ## v1.12 Template Content Key Annotation (Shipped: 2026-10-16)
 
 **Phases completed:** 1 phases, 4 plans, 0 tasks
