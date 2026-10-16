@@ -14,6 +14,7 @@
 - ✅ **v1.9** — PPTist Animation Sidecar Injection (2026-10-15)
 - ✅ **v1.10** — Animation Sidecar Extension (2026-10-15)
 - ✅ **v1.11** — Template Element Marking (2026-10-16)
+- 🚧 **v1.12** — Template Content Key Annotation (Planning)
 
 ## Phases
 
@@ -97,7 +98,28 @@
 
 ## Active
 
-_Next milestone TBD — run `/gsd-new-milestone` to kick off._
+🚧 **v1.12 — Template Content Key Annotation** (Planning — `Phase 17` ready to plan)
+
+- [ ] **Phase 17: template-content-key** — transformer 阶段按 id 映射表在 PPTTextElement 上注入 `contentKey`(13 已知模板 + TOC multiline tspan 拆分 + 4 项行为守卫)
+
+## Phase Details
+
+### Phase 17: template-content-key
+
+**Goal**: Transformer 识别 SVG 中"模板文本元素"(已知 13 个 id 模板),通过 `contentKey` 字段标记到 PPTTextElement,供 PPTist 端用作"用户填写正文"的语义绑定键(cover_title / directory_item_1 / chapter_title 等)。是 v1.11 `templateType=1` 标记的下游语义扩展。
+
+**Depends on**: Phase 16 (v1.11 templateType=1 注入点复用 — `src/transformer/transform-to-pptel.ts:1535`)
+
+**Requirements**: CK-01, CK-02, CK-03, CK-04, CK-05, CK-06, CK-07, CK-08, CK-09, CK-10, CK-11, CK-12, CK-13, CK-14, CK-15, CK-16, CK-17
+
+**Success Criteria** (what must be TRUE):
+  1. 封面三类文本元素带语义键 — `cover-title-carrier` / `cover-subtitle-carrier` / `cover-author-carrier` 三个 id 命中的 PPTTextElement,分别在 JSON 输出携带 `contentKey: "cover_title"` / `"cover_subtitle"` / `"cover_author"`
+  2. 章节/正文/结尾共七类文本元素带语义键 — `chapter-number-carrier` / `chapter-title-carrier` / `chapter-desc-carrier` / `content-title-carrier` / `content-subtitle-carrier` / `closing-thanks-carrier` / `closing-subtitle-carrier` 七个 id 命中 PPTTextElement 时分别注入 `chapter_number` / `chapter_title` / `chapter_desc` / `content_title` / `content_subtitle` / `end_title` / `end_subtitle`
+  3. 目录项编号与正文主体带语义键 — 对 N∈1..4,`toc-item-{N}-number` 与 `toc-item-{N}-carrier` 的主体文本(leading inline text)在 PPTTextElement 上分别携带 `contentKey: "directory_item_number_N"` 与 `"directory_item_N"`
+  4. 目录项描述行作为独立 PPTTextElement 携带 desc 语义键 — 当 `toc-item-{N}-carrier` 内部出现 `<tspan dy="...">` 时,每个带 dy 的 tspan 单独渲染为 PPTTextElement 并携带 `contentKey: "directory_item_desc_N"`,N 与父 carrier 保持一致;N∈5..8 的 carrier 整体不携带 `contentKey`(不影响已实现 N∈1..4 行为)
+  5. 非映射 id、非文本元素、未知模板静默跳过 — id 不在 13 个映射表内的 PPTTextElement 或 id 命中但元素类型非 text(shape/image/line)时,输出 JSON 中该元素`不出现` `contentKey` 字段(整字段省略,不是 `null`/`undefined`/`""`);未来新增模板 id 无需改代码即被静默跳过
+
+**Plans**: TBD
 
 ---
 
@@ -116,7 +138,8 @@ _Next milestone TBD — run `/gsd-new-milestone` to kick off._
 | Phase 14 | v1.9 | Complete | 2026-10-15 |
 | Phase 15 | v1.10 | Complete | 2026-10-15 |
 | Phase 16 | v1.11 | Complete | 2026-10-16 |
+| Phase 17 | v1.12 | Planning | - |
 
 ---
 
-*Roadmap reorganized: 2026-10-16 after v1.11 milestone completion (Phase 16 shipped with post-ship fix)*
+*Roadmap updated: 2026-10-16 after v1.12 milestone kickoff (Phase 17 planned for content-key annotation)*

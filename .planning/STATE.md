@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 milestone: v1.12
 milestone_name: Template Content Key Annotation
 status: planning
-last_updated: "2026-10-16T06:30:05.444Z"
+last_updated: "2026-10-16T07:00:00.000Z"
 last_activity: 2026-10-16
 progress:
-  total_phases: 0
+  total_phases: 1
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -56,21 +56,30 @@ Closeout type: **override_closeout** (28 v1.x-carried debug sessions + 1 v1.10 p
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Phase 17 (planning complete, awaiting plan-phase)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-10-16 — Milestone v1.12 started
+Status: Roadmap defined — 17/17 v1.12 requirements mapped to Phase 17
+Last activity: 2026-10-16 — v1.12 roadmap created (Phase 17: template-content-key)
 
 ## Project Reference
 
 See: `.planning/PROJECT.md` (updated 2026-10-16)
 
 **Core value:** Accurately convert SVG visual elements to PowerPoint JSON with correct coordinates, transforms, and styles — preserving downstream-required semantic annotations (animations, template markers, content slots).
-**Current focus:** Phase 16 — template-element-marking
+**Current focus:** Phase 17 — template-content-key (v1.12 milestone)
 
 ## Accumulated Context
 
-### Decisions (v1.11 kickoff — pending Phase 16 plan-phase)
+### Decisions (v1.12 kickoff — pending Phase 17 plan-phase)
+
+- **CK-DEC-01**: 13-id 映射表走静态常量 `CONTENT_KEY_MAP: Record<string, string>` — 13 个 entry 一一对应;非映射 id 通过 `!== undefined` 守卫,字段直接省略(不是 null)
+- **CK-DEC-02**: TOC N∈1..4 走 `toc-item-N-{number,carrier}` 模板字符串生成 entry;N∈5..8 静默跳过(`undefined → 不写字段`)— 未来扩展只需补 entry
+- **CK-DEC-03**: 复用 v1.11 `templateType=1` 注入点 (`transform-to-pptel.ts:1535`) — contentKey 是 templateType=1 的"下游语义角色",两字段同生命周期写
+- **CK-DEC-04**: TOC 多行 tspan 拆分策略 — carrier 内 leading inline text 单独发射 PPTTextElement(`directory_item_N`);带 `dy=` 的 tspan 各自发射 PPTTextElement(`directory_item_desc_N`,N 与父 carrier 共享);不带 dy 的子 tpan 不发射 desc(同前面 tspan 内容已并入第一行)
+- **CK-DEC-05**: contentKey 仅对 `type === "text"` PPTElement 施加 — 类型守卫 `instanceof PPTTextElement` 或 `(el.type === "text")` 在 transformElement() 顶部拦截
+- **CK-DEC-06**: 未知 id 永不报错也不警告 — 映射表之外 id 走 `=== undefined` 分支,字段省略;兼容未来 svg 新增 template 元素无静默
+
+### Decisions (v1.11 kickoff — inherited)
 
 - **TPL-DEC-01**: renderable element scope = `type ∈ {shape, text, image, path}`;非 renderable 节点不进 elements[],templateType 不写
 - **TPL-DEC-02**: `<g id="*-template">` 子树传播范围 = renderable 后代(不只直接子元素);group 容器自身不进 elements 但作为祖先链 mark 广播器
@@ -95,22 +104,22 @@ See: `.planning/PROJECT.md` (updated 2026-10-16)
 
 ### Blockers/Concerns
 
-(None — v1.11 kickoff clean)
+(None — v1.12 kickoff clean; v1.11 templateType 注入点已就位可直接复用)
 
 ### Quick Tasks Completed
 
-(None yet for v1.11 — phase 16 plans TBD)
+(None yet for v1.12 — Phase 17 plans TBD)
 
 ---
 
-*State last updated: 2026-10-16 after v1.11 milestone kickoff (planning)*
+*State last updated: 2026-10-16 after v1.12 roadmap creation (Phase 17 scoped)*
 
 ## Session
 
-**Last session:** 2026-10-16T01:58:47.993Z
-**Stopped at:** Phase 16 context gathered
-**Resume file:** .planning/phases/16-template-element-marking/16-CONTEXT.md
+**Last session:** 2026-10-16T07:00:00.000Z
+**Stopped at:** v1.12 roadmap created
+**Resume file:** .planning/REQUIREMENTS.md (Phase 17 mapped, 17/17)
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Start Phase 17 planning with `/gsd-plan-phase 17`
