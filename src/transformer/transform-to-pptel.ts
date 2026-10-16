@@ -1824,6 +1824,21 @@ export async function transformElement(
           }
           // D-TPL-05: each multiline line carries templateType independently
           if (isTemplate) result.templateType = 1
+          // D-09 (Phase 17): multiline Row 1 vs Row 2..N 区分 contentKey 注入
+          //   Row 1 (leading inline text, idx=0) → directory_item_N (走 getContentKeyFor)
+          //   Row 2..N (tspan[dy] descendants)  → directory_item_desc_N (手工派生)
+          if (idx === 0) {
+            // Row 1: carrier 派生的 directory_item_N(contentKeyValue 来自 17-02 顶部 compute)
+            if (contentKeyValue) result.contentKey = contentKeyValue
+          } else {
+            // Row 2..N: 手工派生 directory_item_desc_N(只对 toc-item-{N}-carrier 父 id 命中)
+            if (typeof elementId === 'string') {
+              const descMatch = /^toc-item-(\d+)-carrier$/.exec(elementId)
+              if (descMatch) {
+                result.contentKey = `directory_item_desc_${descMatch[1]}`
+              }
+            }
+          }
           return result
         })
 
