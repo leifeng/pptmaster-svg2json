@@ -1,5 +1,16 @@
 # Milestones
 
+## v1.11 Template Element Marking (Shipped: 2026-10-16)
+
+**Phases completed:** 1 phases, 3 plans, 3 tasks
+
+**Key accomplishments:**
+- Transformer marks renderable PPTElement with templateType?: 1 literal based on -template id propagation; excludes content-object-slot-template subtree per D-TPL-07 revised.
+- Slide.contentBounds optional field extracted from data-pptx-bounds on first content-object-slot-template; field omitted when missing/malformed per TPL-CB-03.
+- E2E suite of 9 tests pins templateType + contentBounds behavior on 20 green-art-teaching fixture slides as v1.11 release gate.
+
+---
+
 ## v1.10 Animation Sidecar Extension (Shipped: 2026-10-15)
 
 **Phases completed:** 1 phases, 2 plans, 0 tasks

@@ -48,18 +48,19 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 - ✓ **ANIM-CHROME-01** — `CHROME_REGEX` + `isChromeGroupId()` forward-compat helpers (not wired into iteration) — v1.10
 - ✓ **ANIM-LEGACY-01** — 29-entry LEGACY_NAME_MAP normalizing bare names (`fly`/`zoom`/`wipe_left`/etc.) to canonical `entrance_*` — v1.10 post-ship
 - ✓ **ANIM-ORIGTRIG-01** — `extensions.originalTrigger` unconditional preservation per D-11 spec intent — v1.10 post-ship
+- ✓ **TPL-MARK-01** — renderable element id contains `-template` → `templateType=1` — v1.11
+- ✓ **TPL-MARK-02** — `<g id="*-template">` ancestor chain propagation to renderable children (any depth) — v1.11
+- ✓ **TPL-MARK-03** — `content-object-slot-template` exception (excludes both elementId and groupId match) — v1.11
+- ✓ **TPL-CB-01** — `data-pptx-bounds` on `<g id="content-object-slot-template">` → slide.contentBounds `{x, y, width, height}` — v1.11
+- ✓ **TPL-CB-02** — first match wins (DFS depth-first) — v1.11
+- ✓ **TPL-CB-03** — field omitted when slot missing/malformed (no null leakage) — v1.11
+- ✓ **TPL-NONREN-01** — `<defs>` / `<linearGradient>` etc. skipped before templateType assignment — v1.11
+- ✓ **TPL-E2E-01** — 20-fixture E2E coverage with exact bounds + counts — v1.11
+- ✓ **TPL-E2E-02** — reverse assertion: templateType ∈ {1, undefined} only (with explicit anti-values null/true/'1'/2) — v1.11
 
 ### Active
 
-#### v1.11 — Template Element Marking
-
-- [ ] **TPL-MARK-01**: transformer 阶段,renderable 元素 (`type ∈ {shape, text, image, path}`) 其 SVG 原始 id 包含 `-template` 子串 → 输出 `templateType=1`
-- [ ] **TPL-MARK-02**: renderable 元素若位于 `<g id="*-template">` 子树内(任一层级祖先包含 template id),→ `templateType=1`(group descendant 传播)
-- [ ] **TPL-MARK-03**: `id === "content-object-slot-template"` 例外 — 即使匹配 `-template`,**不**写 `templateType=1`
-- [ ] **TPL-CB-01**: `<g id="content-object-slot-template">` 的 `data-pptx-bounds` 属性(空格分隔四数 `x y w h`)→ 解析为 slide 顶层 `contentBounds: { x, y, width, height }` 字段
-- [ ] **TPL-CB-02**: 单 slide 多 `content-object-slot-template` 时,仅取第一个出现的 bounds
-- [ ] **TPL-NONREN-01**: 非 renderable 元素类型 (e.g. `<defs>`, `<style>`, `<clipPath>` 等元数据容器) 不写 `templateType`
-- [ ] **TPL-E2E-01**: E2E 测试对 `exampels/green-art-teaching/svg_output/*.svg.json` 校验:每个 slide 的 template-marked element 数 > 0 + 单个 `content-object-slot-template` slide 有 `contentBounds` 字段(其他 cover/chapter/ending slide 不强求)
+_Next milestone TBD — run `/gsd-new-milestone` to kick off._
 
 ### Out of Scope
 
@@ -74,7 +75,7 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 
 **Existing library** — svg-to-pptel v1.8, published as npm package.
 
-**Current state** — v1.10 milestone SHIPPED 2026-10-15 (verified_closeout). 30 acknowledged carry-over items from v1.9 close still suppressed. Phase 15 (Animation Sidecar Extension) shipped with 2 plans + 2 post-ship fixes (legacy-name-normalization, preserve-original-trigger), 18 files changed +3446/-113. 116 animation tests passing. Now entering v1.11 planning for template element marking (fixture: `exampels/green-art-teaching/templates/` vs `svg_output/`).
+**Current state** — v1.11 milestone SHIPPED 2026-10-16 (override_closeout — verification skipped but 22/22 implementation tests passing including 9 E2E). Phase 16 (template-element-marking) shipped with 3 plans + 1 post-ship fix (single-line text templateType injection missed in 16-01 implementation). 5 files changed +854/-1. 13 unit + 9 E2E tests passing. Now entering next milestone planning.
 
 **Target canvas** — 1000×562.5 (16:9 aspect ratio).
 
@@ -122,6 +123,12 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 | v1.10: ANIM-CHROME-01 forward-compat | `CHROME_REGEX` + `isChromeGroupId()` 助手导出但不接入 | ✓ Complete (forward-compat) |
 | v1.10 post-fix: LEGACY_NAME_MAP | 29 项裸名归一(镜像 ELEMENT_ANIMATIONS.md §4.7 lines 490-520) | ✓ Complete (post-ship) |
 | v1.10 post-fix: originalTrigger unconditional | 无条件保留 row.trigger,与 originalEffect 行为对齐 | ✓ Complete (post-ship) |
+| v1.11: `templateType?: 1` literal field | 字面量类型让 TypeScript 编译期拦截非法赋值,反向断言锁字面量 | ✓ Complete |
+| v1.11: typeof-guarded `.includes('-template')` | 防御 fast-xml-parser 在 attributeValueParsing 模式下把 id 解析为 number 的情形 | ✓ Complete |
+| v1.11: D-TPL-07 (revised) slot subtree 例外 | elementId 和 groupId 命中 `-template` 时,若等于 `content-object-slot-template` 则不写 — slot 子树不向下传播 | ✓ Complete |
+| v1.11: convertOne 内 `findContentBounds()` DFS | 不动 `transformToPPTElement()` 签名 → 所有现有调用点/单元测试零回归 | ✓ Complete |
+| v1.11: 严格 `/\\s+/` 解析 `data-pptx-bounds` | `Number()` + `Number.isNaN` 三重过滤拒绝 "98abc" 前缀解析泄漏 | ✓ Complete |
+| v1.11: `Object.keys(slide)` 字段缺失断言 | 比 `slide.contentBounds === undefined` 更贴近 TPL-CB-03 "字段直接省略"字面要求 | ✓ Complete |
 
 ## Evolution
 
@@ -135,9 +142,11 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: v1.11 — Template Element Marking (Planning)
+## Current Milestone: v1.11 — Template Element Marking (Shipped)
 
-**Status:** Planning — `exampels\green-art-teaching` provides the canonical fixture pair (templates/ for pure templates without data, svg_output/ for data-filled final files). Phase 16 forthcoming.
+**Status:** Shipped 2026-10-16 (override_closeout — verification skipped, 22/22 implementation tests passing).
+
+**Goal:** 在 transformer 阶段识别 SVG 中的"模板元素"(`<element id="*-template">` 或 `<g id="*-template">` 子树),通过 `templateType=1` 标记到 PPTElement;同时把 `content-object-slot-template` 的 `data-pptx-bounds` 解析为 slide 级 `contentBounds` 字段,供 PPTist 端用作"正文/分栏插入区域"提示。
 
 **Goal:** 自动识别 SVG 中的"模板元素"(`<element id="*-template">` 或 `<g id="*-template">` 子元素),通过 `templateType=1` 标记到 PPTElement;同时把 `content-object-slot-template` 的 `data-pptx-bounds` 解析为 slide 级 `contentBounds` 字段,供 PPTist 端用作"正文/分栏插入区域"提示。
 
@@ -237,4 +246,4 @@ Research confirmed all target PPTist schema properties already implemented or de
 
 ---
 
-*Last updated: 2026-10-16 after v1.11 milestone kickoff (planning)*
+*Last updated: 2026-10-16 after v1.11 milestone completion (Phase 16 shipped with post-ship fix)*

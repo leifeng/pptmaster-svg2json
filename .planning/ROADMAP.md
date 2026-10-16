@@ -13,9 +13,21 @@
 - ✅ **v1.8** — CLI 字体验证 (2026-08-07)
 - ✅ **v1.9** — PPTist Animation Sidecar Injection (2026-10-15)
 - ✅ **v1.10** — Animation Sidecar Extension (2026-10-15)
-- 🚧 **v1.11** — Template Element Marking (Planning)
+- ✅ **v1.11** — Template Element Marking (2026-10-16)
 
 ## Phases
+
+<details>
+<summary>✅ v1.11 — Template Element Marking (Phase 16) — SHIPPED 2026-10-16</summary>
+
+- [x] Phase 16: template-element-marking (3/3 plans) — completed 2026-10-16
+  - 16-01: PPTBaseElement.templateType?: 1 字面量字段 + transformElement() 顶部 typeof-guarded isTemplate 注入(8 cases + multiline + icon + path-merge)
+  - 16-02: Slide.contentBounds?: {x, y, width, height} 可选字段 + findContentBounds() DFS helper + convertOne() 集成
+  - 16-03: 9 E2E 测试 on `exampels/green-art-teaching` 20 fixture slides(cover≥5 / toc≥4 / ending≥4 / 04_content 精确 contentBounds + 反向断言 + 字段缺失断言)
+  - **Post-ship fix (2026-10-16):** text single-line 分支补 templateType 注入(`5466417`)— 16-01 实施遗漏
+  - **Closeout type:** override_closeout — verification 跳过但 implementation 测试 22/22 通过(13 unit + 9 E2E);30 acknowledged carry-over items still suppressed from v1.9
+
+</details>
 
 <details>
 <summary>✅ v1.10 — Animation Sidecar Extension (Phase 15) — SHIPPED 2026-10-15</summary>
@@ -85,27 +97,7 @@
 
 ## Active
 
-### 🚧 v1.11 — Template Element Marking
-
-### Phase 16: template-element-marking
-
-**Goal:** transformer 阶段识别 SVG 中"模板元素"(id 含 `-template` 或祖先 `<g id="*-template">` 子树),通过 `templateType=1` 标记到 PPTElement;同时把 `content-object-slot-template` 元素的 `data-pptx-bounds` 解析为 slide 级 `contentBounds` 字段
-**Requirements:** TPL-MARK-01/02/03, TPL-CB-01/02/03, TPL-NONREN-01/02, TPL-E2E-01/02
-**Plans:** ~3 plans
-
-**Wave 1** *(pending)*
-- [ ] 16-01-PLAN.md — transformer id-tag propagation: 把 SVG 元素 id 与 group 祖先链传到底层 transformToPPTElement;renderable element 加 templateType?:1
-
-**Wave 2** *(pending)*
-- [ ] 16-02-PLAN.md — slide-level contentBounds 字段提取: 从 SVG 元素中找 `id="content-object-slot-template"`,读 `data-pptx-bounds` 空格分隔四数 → `{x, y, width, height}` 写入 slide 顶层
-
-**Wave 3** *(pending)*
-- [ ] 16-03-PLAN.md — E2E 测试 on `exampels/green-art-teaching/svg_output/*.svg.json`:每个 slide 的 template-marked element 数 + contentBounds 存在性 + 反向断言
-
-**Reference:**
-- Fixture 模板(纯模板,无数据填充):`E:\git\svg2json\exampels\green-art-teaching\templates\*.svg`
-- Fixture 输出(带数据填充的最终 SVG):`E:\git\svg2json\exampels\green-art-teaching\svg_output\*.svg`
-- 已知元素类型清单:`renderable` = `type ∈ {shape, text, image, path}` —— 其它 SVG 节点不进 slide.elements[]
+_Next milestone TBD — run `/gsd-new-milestone` to kick off._
 
 ---
 
@@ -123,8 +115,8 @@
 | Phase 13 | v1.8 | Complete | 2026-08-06 |
 | Phase 14 | v1.9 | Complete | 2026-10-15 |
 | Phase 15 | v1.10 | Complete | 2026-10-15 |
-| Phase 16 | v1.11 | Planning | — |
+| Phase 16 | v1.11 | Complete | 2026-10-16 |
 
 ---
 
-*Roadmap reorganized: 2026-10-16 during v1.11 milestone kickoff (Planning)*
+*Roadmap reorganized: 2026-10-16 after v1.11 milestone completion (Phase 16 shipped with post-ship fix)*
