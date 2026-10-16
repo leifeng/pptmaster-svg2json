@@ -43,10 +43,10 @@ Requirements for the v1.13 milestone. Each maps to roadmap phases.
 
 ### Test Coverage
 
-- [ ] **PD-E2E-01**: 5 fixture E2E 覆盖(`exampels/green-art-teaching/templates/01_cover.svg` / `02_toc.svg` / `03_chapter.svg` / `04_content.svg` / `05_ending.svg`),每个 fixture 验证 `slide.pageData` 存在且与 v1.12 contentKey 注入的 PPTElement 互相对应
-- [ ] **PD-E2E-02**: `02_toc.svg` 验证 `pageData.directory` 数组长度=4(N=1..4 实际命中),每个 item 的 `index`/`title`/`desc` 都来自 SVG 原始 textContent(占位符原样保留)
-- [ ] **PD-E2E-03**: 反向白名单断言 — 所有 fixture 的 `pageData` 字段名都来自 v1.12 已实现的 17 个 contentKey 集合,无意外值
-- [ ] **PD-E2E-04**: 无回归 — v1.12 contentKey 注入点(76 tests passed)零影响,既不破坏 contentKey 字段,也不影响 templateType 注入
+- [x] **PD-E2E-01**: 5 fixture E2E 覆盖(`exampels/green-art-teaching/templates/01_cover.svg` / `02_toc.svg` / `03_chapter.svg` / `04_content.svg` / `05_ending.svg`),每个 fixture 验证 `slide.pageData` 存在且与 v1.12 contentKey 注入的 PPTElement 互相对应
+- [x] **PD-E2E-02**: `02_toc.svg` 验证 `pageData.directory` 数组长度=4(N=1..4 实际命中),每个 item 的 `index`/`title`/`desc` 都来自 SVG 原始 textContent(占位符原样保留)
+- [x] **PD-E2E-03**: 反向白名单断言 — 所有 fixture 的 `pageData` 字段名都来自 v1.12 已实现的 17 个 contentKey 集合,无意外值
+- [x] **PD-E2E-04**: 无回归 — v1.12 contentKey 注入点(76 tests passed)零影响,既不破坏 contentKey 字段,也不影响 templateType 注入
 
 ## Out of Scope
 
@@ -81,10 +81,10 @@ Explicit exclusions to prevent scope creep.
 | PD-14      | Phase 18 | Complete |
 | PD-15      | Phase 18 | Complete |
 | PD-16      | Phase 18 | Complete |
-| PD-E2E-01  | Phase 18 | Pending |
-| PD-E2E-02  | Phase 18 | Pending |
-| PD-E2E-03  | Phase 18 | Pending |
-| PD-E2E-04  | Phase 18 | Pending |
+| PD-E2E-01  | Phase 18 | Complete |
+| PD-E2E-02  | Phase 18 | Complete |
+| PD-E2E-03  | Phase 18 | Complete |
+| PD-E2E-04  | Phase 18 | Complete |
 
 **Coverage:**
 - v1.13 requirements: 20 total (16 functional + 4 E2E)
@@ -93,4 +93,4 @@ Explicit exclusions to prevent scope creep.
 
 ---
 *Requirements defined: 2026-10-16 for v1.13 milestone*
-*Last updated: 2026-10-16 after initial definition*
+*Last updated: 2026-10-16 after v1.13 milestone completion (all 20 PD requirements verified)*
