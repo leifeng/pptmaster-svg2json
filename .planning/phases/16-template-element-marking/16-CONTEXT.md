@@ -48,7 +48,7 @@ Downstream agents MUST read `.planning/REQUIREMENTS.md` before planning or imple
 
 - **D-TPL-04:** `contentBounds` 提取逻辑放在 `convertOne()` 内(`src/index.ts`),从 AST root.children 单独扫一遍 — **Reversibility:** reversible — rationale: convertOne 是构造 Slide 的位置,已有 AST 访问权;不动 `transformToPPTElement()` 签名 → 所有现有调用点、单元测试、`convertDir()` 都无需修改;若将来 extract 逻辑需要复用,可再升级为独立 helper 模块
 - **D-TPL-06:** templateType 应用逻辑在 `transformElement()` 顶部统一计算 `isTemplate`,然后注入到每个 switch case 的 result(rect/circle/ellipse/path/polygon/polyline/line/text/image);path-merge 分支(在 `transformToPPTElement()` `walk()` 的 group-merge 块)显式判断 `<g id="*-template">` 后给 mergedElement 加 `templateType=1` — **Reversibility:** reversible — 内部重构,不暴露在 Slide 输出 schema
-- **D-TPL-07:** 计算 `isTemplate` 的判定:`element.attrs.id` 含子串 `-template` **或** `groupId` 含子串 `-template` — **Reversibility:** reversible — 实现细节;不暴露 schema
+- **D-TPL-07 (revised):** 计算 `isTemplate` 的判定:(`element.attrs.id` 含子串 `-template` **或** `groupId` 含子串 `-template`) **AND** `element.attrs.id !== 'content-object-slot-template'` **AND** `groupId !== 'content-object-slot-template'`(slot 子树不向下传播 templateType — TPL-MARK-03 语义的延伸,否则 04_content.svg slot 内 30+ 个 children 会被错误标 templateType=1) — **Reversibility:** reversible — 实现细节;不暴露 schema
 
 ### Claude's Discretion
 
@@ -104,7 +104,7 @@ None — `cross_reference_todos` 步骤未匹配到本 phase 的 todos
 - **multiline text 拆行**: `transformElement()` text case 中 `tspanElements.map(...)` 返回 `PPTTextElement[]` — D-TPL-05 注入后每行 result 同样写 templateType
 
 ### Integration Points
-- **`transformElement()` 顶部** (line 1011-1029): 此处统一计算 `isTemplate` = `(element.attrs.id?.includes('-template') || groupId?.includes('-template')) && element.attrs.id !== 'content-object-slot-template'`,在所有 switch case 内应用前先确定
+- **`transformElement()` 顶部** (line 1011-1029): 此处统一计算 `isTemplate` = `(element.attrs.id?.includes('-template') || groupId?.includes('-template')) && element.attrs.id !== 'content-object-slot-template' && groupId !== 'content-object-slot-template'`,在所有 switch case 内应用前先确定(slot 子树不向下传播 — 见 D-TPL-07 revised)
 - **`walk()` path-merge 块** (line 1928-1992): mergedElement 推送前,加 `if (effectiveGroupId?.includes('-template')) mergedElement.templateType = 1`
 - **`convertOne()` Slide 装配** (line 257-265): 在 `slide.elements` 装配完后,从 `ast.root` 扫描第一个 `id === "content-object-slot-template"` 的元素,读 `data-pptx-bounds` 解析四数,写入 `slide.contentBounds = {x, y, width, height}`(若 slot 缺失则跳过此赋值,JSON 字段不出现 — TPL-CB-03)
 - **`Slide` 类型扩展** (`src/slides.ts:777`): 在 `Slide` 接口内 `elements?: PPTElement[]` 之后新增 `contentBounds?: { x: number; y: number; width: number; height: number }`(可选字段,TPL-CB-03 锁"字段直接省略")
