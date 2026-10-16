@@ -1810,6 +1810,8 @@ export async function transformElement(
         if (groupId) {
           result.groupId = groupId
         }
+        // D-TPL-01: template mark (single-line text)
+        if (isTemplate) result.templateType = 1
         return result
       }
     }

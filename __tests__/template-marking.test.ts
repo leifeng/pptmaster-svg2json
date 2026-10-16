@@ -166,3 +166,19 @@ describe('TPL-CB-03 contentBounds field is omitted when slot is missing/malforme
     expect(result.slide!.contentBounds).toBeUndefined()
   })
 })
+
+describe('TPL-MARK-02 single-line text inside <g id="*-template">', () => {
+  it('marks single-line text in template group with templateType=1 (regression for -16-01 missing injection)', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">
+      <g id="cover-title-slot-template">
+        <text id="cover-title-carrier" x="100" y="50" font-size="14" text-anchor="middle">{{TITLE}}</text>
+      </g>
+    </svg>`
+    const result = parseSvg(svg)
+    const elements = await transformToPPTElement(result)
+    const t = elements.find(e => e.type === 'text') as PPTTextElement
+    expect(t).toBeDefined()
+    expect(t.groupId).toBe('cover-title-slot-template')
+    expect(t.templateType).toBe(1)
+  })
+})
