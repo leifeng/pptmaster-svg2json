@@ -940,8 +940,43 @@ function extractTspansWithPosition(
   let currentTop = baseTop
   let currentLeft = baseLeft
 
-  for (const tspan of tspanChildren) {
-    const hasX = tspan.attrs['x'] !== undefined
+  // 修复 toc-tspan-not-splitting.md：preserveOrder 解析器（src/parser/svg-parser.ts:619-621）
+  // 把 text 元素的内联文字包装为 `type:'text'` 子元素，导致 `<text>leading<tspan dy="...">rest</tspan></text>`
+  // 的 leading 行（继承父 text 样式）此前被丢弃，只产出 tspan 那 1 行。
+  // 现在按文档顺序遍历 children：
+  //   - `type:'text'` 子元素 → 一行 multiline，继承父 text 的 fontFamily/fontWeight/fontStyle/decoration
+  //   - `type:'tspan'` 子元素 → 一行 multiline，用 tspan 自身样式，dy 从上一行累加
+  // 也支持 leading text + tspan + text + tspan + ... 的混合多行排版。
+  for (const child of element.children) {
+    if (child.type === 'text' && child.text !== undefined) {
+      // 跳过纯空白片段：preserveOrder 解析器会把 XML 缩进噪声（'\n      ' / '\n    '）
+      // 也包成 'text' 子元素，纯空白既无视觉内容也不应成为独立 multiline 行。
+      // 与 measureTextElement 的首尾 trim 一致（见 tspan-dy-multiline-y-too-large.md）。
+      if (child.text.trim() === '') continue
+      // 内联文字片段：当作一行，继承父 text 样式（fontFamily/fontWeight/fontStyle/decoration）
+      const inlineFontSize = fontSize
+      const { html: inlineHtml, text: inlineText } = buildTextContentFromElement(
+        child,
+        inlineFontSize,
+        scaleY,
+        fontFamily,
+        parentFontWeight,
+        parentFontStyle,
+        parentTextDecoration,
+      )
+      results.push({
+        left: currentLeft,
+        top: currentTop,
+        fontSize: inlineFontSize,
+        content: inlineText,
+        htmlContent: inlineHtml,
+      })
+      continue
+    }
+
+    if (child.type !== 'tspan') continue
+
+    const hasX = child.attrs['x'] !== undefined
     // tspanX calculation:
     // - parentX is the parent text element's x in SVG coordinates
     // - baseLeft is the parent text's transformed left position (after translate + scale)
@@ -949,12 +984,12 @@ function extractTspansWithPosition(
     // - For tspan, effective x = tspanX + offset (then scaled)
     // Formula: effectiveX = (tspanX - parentX) * scaleX + baseLeft
     const tspanX = hasX
-      ? (parseFloat(String(tspan.attrs['x'])) - parentX) * scaleX + baseLeft
+      ? (parseFloat(String(child.attrs['x'])) - parentX) * scaleX + baseLeft
       : currentLeft
-    const tspanDy = tspan.attrs['dy'] !== undefined ? parseFloat(String(tspan.attrs['dy'])) : 0
+    const tspanDy = child.attrs['dy'] !== undefined ? parseFloat(String(child.attrs['dy'])) : 0
     // Inherit font-size from parent if not specified on tspan
-    const tspanFontSize = tspan.attrs['font-size'] !== undefined
-      ? parseFloat(String(tspan.attrs['font-size']))
+    const tspanFontSize = child.attrs['font-size'] !== undefined
+      ? parseFloat(String(child.attrs['font-size']))
       : fontSize
     const scaledFontSize = tspanFontSize * scaleY
 
@@ -963,7 +998,7 @@ function extractTspansWithPosition(
     // text-font-weight-loss-rootcause.md：父级 isBold 信息从此处传递，避免 transformTextElement 与
     // serializeRichText 重复包 <strong>。
     const { html: tspanHtml, text: tspanText } = buildTextContentFromElement(
-      tspan,
+      child,
       tspanFontSize,
       scaleY,
       fontFamily,
@@ -981,7 +1016,7 @@ function extractTspansWithPosition(
     // REF-04: Handle pixel baseline-shift values
     // baseline-shift="-5px" with scaleY=0.78125 → top offset = -5 * 0.78125 = -3.90625
     // Negative pixel value raises the text (smaller top = higher on canvas)
-    const baselineShift = tspan.attrs['baseline-shift']
+    const baselineShift = child.attrs['baseline-shift']
     if (baselineShift && /^-?\d+(\.\d+)?px$/.test(String(baselineShift))) {
       const pixelValue = parseFloat(String(baselineShift))
       const scaledOffset = pixelValue * scaleY

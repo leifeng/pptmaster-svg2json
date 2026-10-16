@@ -80,4 +80,48 @@ describe('mixed text and tspan content order', () => {
     const hasStrongOrBold = /<strong/i.test(textElements[0].content) || /font-weight:\s*bold/i.test(textElements[0].content)
     expect(hasStrongOrBold).toBe(true)
   })
+
+  // 回归 toc-tspan-not-splitting.md：
+  // <text> 含 leading 内联文字 + dy-tspans 时，preserveOrder 解析器把 leading 文字
+  // 包装为 `type:'text'` 子元素；原 extractTspansWithPosition 只过滤 tspan 子元素，
+  // 导致 leading 那行被丢弃、整段只产出 1 个 PPTTextElement（且用 tspan 的样式）。
+  // 修复后应拆为 2 个独立 PPTTextElement：第 1 行用父 text 样式，第 2 行用 tspan 样式。
+  it('splits text+dy-tspan into 2 independent PPTTextElements with correct styles', async () => {
+    const svg = wrapSvg(
+      '<text x="572" y="185.77" font-size="32" font-weight="bold" fill="#408062">'
+      + '{{TOC_ITEM_1_TITLE}}'
+      + '<tspan x="572" dy="32.33" font-size="18" font-weight="normal" fill="#6BA389" letter-spacing="2">'
+      + '{{TOC_ITEM_1_DESC}}'
+      + '</tspan>'
+      + '</text>',
+    )
+
+    const result = await convert(svg)
+    expect(result.success).toBe(true)
+    const presentation = JSON.parse(result.output!)
+    const textElements = presentation.slides[0].elements.filter((el: any) => el.type === 'text')
+
+    // 必须拆为 2 个独立 text 元素（leading 一行 + tspan 一行）
+    expect(textElements.length).toBe(2)
+
+    // 第一行：leading 内联文字，父 text 样式
+    const firstLine = textElements[0]
+    expect(plainText(firstLine.content)).toBe('{{TOC_ITEM_1_TITLE}}')
+    expect(firstLine.defaultFontSize).toBeCloseTo(32 * 0.78125, 5)
+    expect(firstLine.defaultColor).toBe('#408062')
+    // 父 text 是 bold，所以 leading 行包 <strong>
+    expect(firstLine.content).toMatch(/<strong/i)
+
+    // 第二行：tspan 样式
+    const secondLine = textElements[1]
+    expect(plainText(secondLine.content)).toBe('{{TOC_ITEM_1_DESC}}')
+    expect(secondLine.defaultFontSize).toBeCloseTo(18 * 0.78125, 5)
+    expect(secondLine.defaultColor).toBe('#408062')
+    // tspan 的 fill #6BA389 应出现在 inline span style
+    expect(secondLine.content).toContain('#6BA389')
+
+    // 第二行 top 应比第一行大 dy * scaleY
+    const dy = 32.33 * 0.78125
+    expect(secondLine.top - firstLine.top).toBeCloseTo(dy, 1)
+  })
 })
