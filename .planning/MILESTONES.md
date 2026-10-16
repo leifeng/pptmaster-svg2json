@@ -5,7 +5,11 @@
 **Phases completed:** 1 phases, 4 plans, 0 tasks
 
 **Key accomplishments:**
-- (none recorded)
+- `src/utils/content-key.ts` helper 模块 — 10 静态 (cover/chapter/content/closing) + 24 动态 (toc-item-{N}-number/carrier/note-carrier N=1..8) = 34 entries,导出 `getContentKeyFor(id)` 与 `CONTENT_KEY_VALUES` (length=34 unique frozen)
+- `PPTBaseElement.contentKey?: string` 字段 + `transformElement()` 顶部 compute `contentKeyValue = getContentKeyFor(elementId)` + 单行 text case 末尾 `if (contentKeyValue) result.contentKey = contentKeyValue`(CK-16 类型守卫:8 个非文本 case 不写)
+- multiline text case `tspanElements.map` Row 1 (→ `directory_item_N`) vs Row 2..N (→ `directory_item_desc_N`) 区分 — 02_toc.svg 4 Row 1 + 4 Row 2 desc 全部命中
+- 三层测试覆盖 (76 tests passed): 45 单元 (`content-key.test.ts`) + 8 mock SVG E2E (`content-key-mock.test.ts`) + 14 fixture E2E (`green-art-teaching-content-key.test.ts`) + 9 v1.11 template-marking 无回归
+- verifier 17/17 must-haves passed,verified_closeout;30 acknowledged carry-over items still suppressed
 
 ---
 

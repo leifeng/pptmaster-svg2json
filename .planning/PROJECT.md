@@ -57,25 +57,15 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 - ✓ **TPL-NONREN-01** — `<defs>` / `<linearGradient>` etc. skipped before templateType assignment — v1.11
 - ✓ **TPL-E2E-01** — 20-fixture E2E coverage with exact bounds + counts — v1.11
 - ✓ **TPL-E2E-02** — reverse assertion: templateType ∈ {1, undefined} only (with explicit anti-values null/true/'1'/2) — v1.11
+- ✓ **CK-01 ~ CK-10**: 10 静态映射(cover/chapter/content/closing)→ 对应 contentKey 注入 PPTTextElement — v1.12
+- ✓ **CK-11 ~ CK-13**: TOC 动态 N=1..8 三类(number/carrier/note-carrier)+ multiline tspan[dy] 拆分 → directory_item_*_N 注入 — v1.12
+- ✓ **CK-14 / CK-15**: 非映射 id 整字段省略(`undefined` 不序列化,不是 null/空串)— v1.12
+- ✓ **CK-16**: contentKey 仅施加于 PPTTextElement 类型,非文本元素即使 id 命中也忽略 — v1.12
+- ✓ **CK-17**: 动态 N=1..8 上限锁定,fixture 实际 N=1..4 命中 — v1.12
 
 ### Active
 
-- [ ] **CK-01**: 识别 `cover-title-carrier` → 注入 `contentKey: "cover_title"`
-- [ ] **CK-02**: 识别 `cover-subtitle-carrier` → 注入 `contentKey: "cover_subtitle"`
-- [ ] **CK-03**: 识别 `cover-author-carrier` → 注入 `contentKey: "cover_author"`
-- [ ] **CK-04**: 识别 `chapter-number-carrier` → 注入 `contentKey: "chapter_number"`
-- [ ] **CK-05**: 识别 `chapter-title-carrier` → 注入 `contentKey: "chapter_title"`
-- [ ] **CK-06**: 识别 `chapter-desc-carrier` → 注入 `contentKey: "chapter_desc"`
-- [ ] **CK-07**: 识别 `content-title-carrier` → 注入 `contentKey: "content_title"`
-- [ ] **CK-08**: 识别 `content-subtitle-carrier` → 注入 `contentKey: "content_subtitle"`
-- [ ] **CK-09**: 识别 `closing-thanks-carrier` → 注入 `contentKey: "end_title"`
-- [ ] **CK-10**: 识别 `closing-subtitle-carrier` → 注入 `contentKey: "end_subtitle"`
-- [ ] **CK-11**: 识别 `toc-item-{N}-number` (N=1..4,预留 1..8) → 注入 `contentKey: "directory_item_number_N"`
-- [ ] **CK-12**: 识别 `toc-item-{N}-carrier` 文本主体 → 注入 `contentKey: "directory_item_N"`
-- [ ] **CK-13**: 识别 `toc-item-{N}-carrier` 内 `tspan[dy]` → 注入 `contentKey: "directory_item_desc_N"`
-- [ ] **CK-14**: 非模板元素(id 不含 `-template` 或不属于映射表)不输出 `contentKey` 字段(字段直接省略,不是 null)
-- [ ] **CK-15**: 未知 id 静默跳过(不报错,后续可扩展),仅对 13 个已知模板输出 `contentKey`
-- [ ] **CK-16**: contentKey 仅施加于 PPTTextElement 类型元素;其他类型(shape/image/line 等)即使 id 命中映射也忽略
+_(None — v1.12 ship complete; ready for next milestone kickoff via `/gsd-new-milestone`.)_
 
 ### Out of Scope
 
@@ -90,7 +80,7 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 
 **Existing library** — svg-to-pptel v1.8, published as npm package.
 
-**Current state** — v1.11 milestone SHIPPED 2026-10-16 (override_closeout — verification skipped but 22/22 implementation tests passing including 9 E2E). Phase 16 (template-element-marking) shipped with 3 plans + 1 post-ship fix (single-line text templateType injection missed in 16-01 implementation). 5 files changed +854/-1. 13 unit + 9 E2E tests passing. Now entering next milestone planning.
+**Current state** — v1.12 milestone SHIPPED 2026-10-16 (verified_closeout — 17/17 must-haves passed, 76 tests passed). Phase 17 (template-content-key) shipped with 4 plans: helper 模块 + 单行 text case 注入 + multiline Row 1 vs Row 2..N 区分 + fixture E2E. 5 files changed +240/-0. 45 单元 + 8 mock SVG E2E + 14 fixture E2E + 9 v1.11 无回归. Now entering next milestone planning.
 
 **Target canvas** — 1000×562.5 (16:9 aspect ratio).
 
@@ -278,4 +268,4 @@ Research confirmed all target PPTist schema properties already implemented or de
 
 ---
 
-*Last updated: 2026-10-16 after v1.12 milestone kickoff (Phase 17 planned for content-key mapping)*
+*Last updated: 2026-10-16 after v1.12 milestone ship (Phase 17 template-content-key complete, verified 17/17, 4/4 plans + 76 tests passed)*
