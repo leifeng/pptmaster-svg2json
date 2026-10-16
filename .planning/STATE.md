@@ -1,20 +1,14 @@
 ---
 gsd_state_version: "1.0"
-milestone: v1.10
-status: Awaiting next milestone
-stopped_at: v1.10 milestone complete and archived (verified_closeout) — Phase 15 plus 2 post-ship fixes
-last_updated: "2026-10-15T17:50:00.000Z"
-last_activity: 2026-10-15
-last_activity_desc: Milestone v1.10 completed and archived (verified_closeout)
-state_head: 1c031a2ee6ab6286972185addd508ad42f4a9954
-progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-milestone_name: Animation Sidecar Extension
-_phase: 1
-current_phase: null
+milestone: v1.11
+milestone_name: Template Element Marking
+current_phase: 16
+status: planning
+stopped_at: planning
+last_updated: "2026-10-16T..."
+last_activity: 2026-10-16
+last_activity_desc: v1.11 milestone kickoff — Template Element Marking requirements scoped
+state_head: 3b984dc...
 ---
 
 ## Deferred Items
@@ -60,21 +54,29 @@ Closeout type: **override_closeout** (28 v1.x-carried debug sessions + 1 v1.10 p
 
 ## Current Position
 
-Phase: Milestone v1.10 complete
-Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-10-15 — Milestone v1.10 completed and archived
+Phase: Phase 16 — template-element-marking (v1.11 Planning)
+Plan: not started (run `/gsd-discuss-phase 16` next)
+Status: planning
+Last activity: 2026-10-16 — v1.11 milestone kickoff (Template Element Marking requirements scoped)
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-10-14)
+See: `.planning/PROJECT.md` (updated 2026-10-16)
 
-**Core value:** Accurately convert SVG visual elements to PowerPoint JSON with correct coordinates, transforms, and styles.
-**Current focus:** Phase 14 — pptist-animation-from-sidecar
+**Core value:** Accurately convert SVG visual elements to PowerPoint JSON with correct coordinates, transforms, and styles — preserving downstream-required semantic annotations (animations, template markers, content slots).
+**Current focus:** Phase 16 — template-element-marking
 
 ## Accumulated Context
 
-### Decisions (v1.9 kickoff)
+### Decisions (v1.11 kickoff — pending Phase 16 plan-phase)
+
+- **TPL-DEC-01**: renderable element scope = `type ∈ {shape, text, image, path}`;非 renderable 节点不进 elements[],templateType 不写
+- **TPL-DEC-02**: `<g id="*-template">` 子树传播范围 = renderable 后代(不只直接子元素);group 容器自身不进 elements 但作为祖先链 mark 广播器
+- **TPL-DEC-03**: `content-object-slot-template` 是例外(无 templateType) — 数据证据:`exampels/green-art-teaching/svg_output/04_content.svg` 中此 id 持有 `data-pptx-bounds="98 180 1084 404"`,作为正文/分栏插入区域范围
+- **TPL-DEC-04**: `data-pptx-bounds` 解析为 `slide.contentBounds: {x, y, width, height}`;空格分隔(纸面 PPTist 协议)
+- **TPL-DEC-05**: 同 slide 多个 `content-object-slot-template` → 仅第一个;否则 JSON 字段不出现
+
+### Decisions (v1.9 kickoff — inherited)
 
 - **ANIM-DEC-01**: PPTAnimation 扩展 `extensions?: Record<string, any>` 字段 — 三方未映射字段全量保留到 extensions，JSON 无损
 - **ANIM-DEC-02**: id 命名 `<group_id>__<nanoid(8)>` — 双下划线分隔避开 PPTist nanoid(10) 冲突；跨 g 唯一
@@ -91,22 +93,23 @@ See: `.planning/PROJECT.md` (updated 2026-10-14)
 
 ### Blockers/Concerns
 
-(None — v1.9 kickoff clean)
+(None — v1.11 kickoff clean)
 
 ### Quick Tasks Completed
 
-(继承自 v1.8 state — 暂无 v1.9 quick tasks)
+(None yet for v1.11 — phase 16 plans TBD)
 
 ---
 
-*State last updated: 2026-10-14 after v1.9 milestone kickoff*
+*State last updated: 2026-10-16 after v1.11 milestone kickoff (planning)*
 
 ## Session
 
-**Last session:** 2026-10-15T01:56:53.878Z
-**Stopped at:** Phase 15 complete — all phases complete
-**Resume file:** .planning/phases/14-pptist-animation-from-sidecar/14-CONTEXT.md
+**Last session:** 2026-10-16 (v1.11 milestone kickoff)
+**Stopped at:** v1.11 kickoff complete — awaiting Phase 16 plan-phase
+**Resume file:** .planning/PROJECT.md
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Run `/gsd-discuss-phase 16` to gather contextual requirements
+- Then `/gsd-plan-phase 16` to draft plan(s)

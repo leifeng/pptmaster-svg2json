@@ -51,7 +51,15 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 
 ### Active
 
-(None — awaiting next milestone kickoff via `/gsd-new-milestone`)
+#### v1.11 — Template Element Marking
+
+- [ ] **TPL-MARK-01**: transformer 阶段,renderable 元素 (`type ∈ {shape, text, image, path}`) 其 SVG 原始 id 包含 `-template` 子串 → 输出 `templateType=1`
+- [ ] **TPL-MARK-02**: renderable 元素若位于 `<g id="*-template">` 子树内(任一层级祖先包含 template id),→ `templateType=1`(group descendant 传播)
+- [ ] **TPL-MARK-03**: `id === "content-object-slot-template"` 例外 — 即使匹配 `-template`,**不**写 `templateType=1`
+- [ ] **TPL-CB-01**: `<g id="content-object-slot-template">` 的 `data-pptx-bounds` 属性(空格分隔四数 `x y w h`)→ 解析为 slide 顶层 `contentBounds: { x, y, width, height }` 字段
+- [ ] **TPL-CB-02**: 单 slide 多 `content-object-slot-template` 时,仅取第一个出现的 bounds
+- [ ] **TPL-NONREN-01**: 非 renderable 元素类型 (e.g. `<defs>`, `<style>`, `<clipPath>` 等元数据容器) 不写 `templateType`
+- [ ] **TPL-E2E-01**: E2E 测试对 `exampels/green-art-teaching/svg_output/*.svg.json` 校验:每个 slide 的 template-marked element 数 > 0 + 单个 `content-object-slot-template` slide 有 `contentBounds` 字段(其他 cover/chapter/ending slide 不强求)
 
 ### Out of Scope
 
@@ -66,7 +74,7 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 
 **Existing library** — svg-to-pptel v1.8, published as npm package.
 
-**Current state** — v1.10 milestone SHIPPED 2026-10-15 (verified_closeout). Phase 15 (Animation Sidecar Extension) shipped with 2 plans + 2 post-ship fixes (legacy-name-normalization, preserve-original-trigger), 18 files changed +3446/-113. Audit clean — 30 acknowledged carry-over items from v1.9 close still suppressed. 116 animation tests passing (66 unit + 50 E2E).
+**Current state** — v1.10 milestone SHIPPED 2026-10-15 (verified_closeout). 30 acknowledged carry-over items from v1.9 close still suppressed. Phase 15 (Animation Sidecar Extension) shipped with 2 plans + 2 post-ship fixes (legacy-name-normalization, preserve-original-trigger), 18 files changed +3446/-113. 116 animation tests passing. Now entering v1.11 planning for template element marking (fixture: `exampels/green-art-teaching/templates/` vs `svg_output/`).
 
 **Target canvas** — 1000×562.5 (16:9 aspect ratio).
 
@@ -127,16 +135,21 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: Awaiting next milestone kickoff
+## Current Milestone: v1.11 — Template Element Marking (Planning)
 
-**Status:** v1.10 SHIPPED 2026-10-15 (verified_closeout, 30 carried-forward acknowledged items suppressed from v1.9 close). Use `/gsd-new-milestone` to start v1.11+.
+**Status:** Planning — `exampels\green-art-teaching` provides the canonical fixture pair (templates/ for pure templates without data, svg_output/ for data-filled final files). Phase 16 forthcoming.
 
-**Goal:** Carry forward into v1.11+ — see `RETROSPECTIVE.md` for cross-milestone trends and ideas for next iteration.
+**Goal:** 自动识别 SVG 中的"模板元素"(`<element id="*-template">` 或 `<g id="*-template">` 子元素),通过 `templateType=1` 标记到 PPTElement;同时把 `content-object-slot-template` 的 `data-pptx-bounds` 解析为 slide 级 `contentBounds` 字段,供 PPTist 端用作"正文/分栏插入区域"提示。
+
+**为什么需要 v1.11:** ppt-master 端在做 PPT 模板与数据分离时,需要知道哪些元素是"模板(背景图、装饰)",哪些是"内容占位(由 PPTist 端填正文/分栏)"。当前 svg2json 输出把这两类元素一视同仁地铺进 `slide.elements[]`,丢失了原始 svg 的语义层级。标记 `templateType=1` 是最小代价恢复语义的方案。
+
+**Phase 结构:**
+- Phase 16: template-element-marking — transformer 阶段加 templateType=1 + slide-level contentBounds 提取
 
 **Reference docs:**
-- 三方原始 schema：`E:\git\svg2json\ELEMENT_ANIMATIONS.md`
-- 映射关系：`E:\git\svg2json\PPTIST_ANIMATION_MAPPING.md`
-- 实例 sidecar：`E:\git\svg2json\exampels\ppt169_attention_is_all_you_need\animations.json`
+- 模板来源 fixtures：`E:\git\svg2json\exampels\green-art-teaching\templates\`(纯模板)+ `svg_output\`(带数据最终输出)
+- 三方原始 schema：`E:\git\svg2json\ELEMENT_ANIMATIONS.md`(无关,以前动画 leftover)
+- 映射关系：`E:\git\svg2json\PPTIST_ANIMATION_MAPPING.md`(无关)
 
 **Status:** Milestone kickoff 2026-10-14, awaiting `/gsd-plan-phase 14` execution.
 
@@ -224,4 +237,4 @@ Research confirmed all target PPTist schema properties already implemented or de
 
 ---
 
-*Last updated: 2026-10-15 after v1.10 milestone closeout (verified_closeout)*
+*Last updated: 2026-10-16 after v1.11 milestone kickoff (planning)*

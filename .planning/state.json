@@ -1,12 +1,12 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v1.9 — PPTist Animation Sidecar Injection",
+  "milestone": "v1.9",
   "phases": [],
   "next": {
     "command": "/gsd:progress",
     "label": "Show progress",
     "reason": "Unsure of state — showing progress"
   },
-  "updated_at": "2026-10-15T09:42:16.943Z"
+  "updated_at": "2026-10-15T09:50:34.341Z"
 }

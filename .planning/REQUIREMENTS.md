@@ -1,0 +1,70 @@
+# Requirements: svg-to-pptel
+
+**Defined:** 2026-10-16
+**Core Value:** Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, transform, and style maps correctly to the target canvas, while preserving downstream-required semantic annotations (animations, template markers, content slots).
+
+## v1.11 Requirements
+
+Requirements for Template Element Marking. Each maps to Phase 16.
+
+### Template Marking (TPL-MARK)
+
+- [ ] **TPL-MARK-01**: transformer 阶段,renderable PPTElement (`type ∈ {shape, text, image, path}`) 其 SVG 原始 id 包含 `-template` 子串 → 输出元素上 `templateType=1` (top-level 数值字段,可选)
+- [ ] **TPL-MARK-02**: renderable 元素若位于祖先链中任一 `<g id="*-template">` 之下(不只直接父级)→ 同样 `templateType=1`(group descendant 传播)
+- [ ] **TPL-MARK-03**: `id === "content-object-slot-template"` 的 renderable 元素**例外** — 即使匹配 `-template`,**不**写 `templateType=1`(语义上是"内容插入位"而非模板)
+
+### Content Bounds Extraction (TPL-CB)
+
+- [ ] **TPL-CB-01**: 任意 SVG 元素若 `id === "content-object-slot-template"`,读其 `data-pptx-bounds` 属性(空格分隔四数 `x y w h`),解析为 slide 顶层 `contentBounds: { x, number; y, number; width, number; height, number }`
+- [ ] **TPL-CB-02**: 单 slide 中多个 `<element id="content-object-slot-template">` 时,仅取第一个出现的 bounds(其余忽略)
+- [ ] **TPL-CB-03**: 不存在 `content-object-slot-template` 的 slide 输出 `contentBounds: undefined` (字段直接省略,不在 JSON 中出现)
+
+### Scope Boundaries (TPL-NONREN)
+
+- [ ] **TPL-NONREN-01**: 非 renderable 元素(`<defs>` / `<style>` / `<clipPath>` / `<mask>` / `<pattern>` / `<filter>` / `<linearGradient>` / `<radialGradient>` 等元数据节点,本身在 svg2json 输出被吸收进 SVG-level 结构)不写 `templateType` —— 因为它们不进 `slide.elements[]`
+- [ ] **TPL-NONREN-02**: `<g>` 容器本身不进 elements(子元素入),但 `<g id="*-template">` 的"子元素 broadcast"仍生效(由 TPL-MARK-02 保证)
+
+### Verification (TPL-E2E)
+
+- [ ] **TPL-E2E-01**: E2E 测试对 `exampels/green-art-teaching/svg_output/*.svg.json` 遍历:
+  - `01_cover.svg.json`: template-marked element 数 ≥ 5(`hero-master-backdrop-template` / `hero-master-hills-template` / `cover-grain-spray-template` / `cover-band-far-template` / `cover-band-near-template` / `cover-author-plate-template`)
+  - `02_toc.svg.json`: 同上,template-marked 数 ≥ 4 (toc cards 装饰元素)
+  - `04_content.svg.json`: 有 `contentBounds` 字段(单数 `{ x: 98, y: 180, width: 1084, height: 404 }`),且 `content-object-slot-template` 自身不携带 `templateType`
+  - `20_ending.svg.json`: ending-specific 装饰元素 template-marked
+- [ ] **TPL-E2E-02**: 反向断言:PPTElement 上 `templateType` 仅取 `1` 或 `undefined`(不允许其它值)
+
+## Out of Scope
+
+Explicitly excluded. Documented to prevent scope creep.
+
+| Feature | Reason |
+|---------|--------|
+| 对 `<linearGradient>` / `<radialGradient>` 等 gradient 节点 templateType 标记 | 这些节点不进 slide.elements[],只进 slide.theme.themeColors;语义上不存在"模板"维度 |
+| 对 `<style>` / `<defs>` 节点 templateType 标记 | 元数据容器,不影响 PPTist 渲染 |
+| 输出端转换时应用 slot 注入(填充实际数据) | svg2json 边界只到 JSON;运行时 PPT 渲染由 PPTist / ppt-master 负责 |
+| `data-pptx-bounds` 之外的属性保留 (`data-pptx-placeholder` / `data-pptx-layer` / `data-pptx-editable`) | 用户没要求;若需要后续 milestone 单独做 |
+| 对存在多个 `-template` id 但都不等于 `content-object-slot-template` 的 slide 拿第一个的 bounds 落地 | 严格贴 user 描述,只 `content-object-slot-template` 取 bounds |
+| 改动 svg2json 已有的 group 子树并入/合并行为(path-merge 等) | v1.11 仅做"加标记字段"的语义增强,不改变 shape 拓扑 |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| TPL-MARK-01 | Phase 16 | Pending |
+| TPL-MARK-02 | Phase 16 | Pending |
+| TPL-MARK-03 | Phase 16 | Pending |
+| TPL-CB-01 | Phase 16 | Pending |
+| TPL-CB-02 | Phase 16 | Pending |
+| TPL-CB-03 | Phase 16 | Pending |
+| TPL-NONREN-01 | Phase 16 | Pending |
+| TPL-NONREN-02 | Phase 16 | Pending |
+| TPL-E2E-01 | Phase 16 | Pending |
+| TPL-E2E-02 | Phase 16 | Pending |
+
+**Coverage:**
+- v1.11 requirements: 10 total
+- Mapped to phases: 10
+- Unmapped: 0 ✓
+
+---
+*Requirements defined: 2026-10-16 during v1.11 milestone kickoff (Template Element Marking)*
