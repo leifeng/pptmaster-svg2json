@@ -98,9 +98,13 @@
 
 ## Active
 
-🚧 **v1.12 — Template Content Key Annotation** (Planning — `Phase 17` ready to plan)
+🚧 **v1.12 — Template Content Key Annotation** (Planning — `Phase 17` plans ready, ready to execute)
 
 - [ ] **Phase 17: template-content-key** — transformer 阶段按 id 映射表在 PPTTextElement 上注入 `contentKey`(13 已知模板 + TOC multiline tspan 拆分 + 4 项行为守卫)
+  - [ ] 17-01: `src/utils/content-key.ts` helper (10 static + 1..8 dynamic pre-compute) + unit tests
+  - [ ] 17-02: `PPTBaseElement.contentKey` 字段 + transformer 顶部 compute + 单行 text case 写入 (TRACER: 01_cover.svg)
+  - [ ] 17-03: multiline text case Row 1 vs Row 2..N 区分 + mock SVG E2E (TRACER: 02_toc.svg)
+  - [ ] 17-04: fixture JSON 基线重生 20 个 SVG + fixture E2E
 
 ## Phase Details
 
@@ -119,7 +123,13 @@
   4. 目录项描述行作为独立 PPTTextElement 携带 desc 语义键 — 当 `toc-item-{N}-carrier` 内部出现 `<tspan dy="...">` 时,每个带 dy 的 tspan 单独渲染为 PPTTextElement 并携带 `contentKey: "directory_item_desc_N"`,N 与父 carrier 保持一致;N∈5..8 的 carrier 整体不携带 `contentKey`(不影响已实现 N∈1..4 行为)
   5. 非映射 id、非文本元素、未知模板静默跳过 — id 不在 13 个映射表内的 PPTTextElement 或 id 命中但元素类型非 text(shape/image/line)时,输出 JSON 中该元素`不出现` `contentKey` 字段(整字段省略,不是 `null`/`undefined`/`""`);未来新增模板 id 无需改代码即被静默跳过
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 17-01-PLAN.md — `src/utils/content-key.ts` helper(10 静态 + 1..8 动态预生成 + `getContentKeyFor` + `CONTENT_KEY_VALUES`)+ 单元测试 34 正向 + ≥ 5 reverse/boundary(D-07 one-way checkpoint 在前)
+- [ ] 17-02-PLAN.md — `PPTBaseElement.contentKey?: string` 字段 + `transformElement()` 顶部 compute + 单行 text case 末尾写入;TRACER 跑 `01_cover.svg` 验证 3 cover 静态映射(D-01 one-way checkpoint 在前)
+- [ ] 17-03-PLAN.md — multiline text case `tspanElements.map` 块 Row 1 / Row 2..N 区分注入 contentKey;TRACER 跑 `02_toc.svg` 验证 Row 1 + Row 2 desc + mock SVG E2E 覆盖 N=5..8 动态 + reverse + 类型守卫(D-09 one-way checkpoint 在前)
+- [ ] 17-04-PLAN.md — fixture JSON 基线重生 20 个 SVG + fixture E2E `tests/e2e/green-art-teaching-content-key.test.ts`(CK-14/15/16/17 全 slide 反向断言)
 
 ---
 
