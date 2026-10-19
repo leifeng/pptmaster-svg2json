@@ -1,19 +1,16 @@
 ---
 gsd_state_version: "1.0"
-milestone: v1.13
-milestone_name: Page Data Extraction (Planning)
-status: Awaiting next milestone
-stopped_at: Phase 18 complete — all phases complete
-last_updated: "2026-10-16T10:23:01.930Z"
-last_activity: 2026-10-16
-last_activity_desc: Milestone v1.13 completed and archived
-state_head: 2f2278d435bdff9ef99ea79a274e27ae1e3caac1
+milestone: v1.14
+milestone_name: Replace nanoid with uuid
+status: planning
+last_updated: "2026-10-19T02:53:58.832Z"
+last_activity: 2026-10-19
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
-current_phase: 18
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 ## Deferred Items
@@ -59,10 +56,10 @@ Closeout type: **override_closeout** (28 v1.x-carried debug sessions + 1 v1.10 p
 
 ## Current Position
 
-Phase: Milestone v1.13 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-10-16 — Milestone v1.13 completed and archived
+Status: Defining requirements
+Last activity: 2026-10-19 — Milestone v1.14 started
 
 ## Project Reference
 

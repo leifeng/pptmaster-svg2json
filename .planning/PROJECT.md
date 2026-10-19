@@ -73,7 +73,12 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 
 ### Active
 
-_(无 — 等待下一个 milestone 启动 — `/gsd-new-milestone`)_
+- [ ] **NU-01**: `src/utils/id-generator.ts` 的 `nanoid/non-secure` import 替换为 `uuid` 的 `v4`(uuidv4().substring(0,5) / substring(0,10)) — v1.14
+- [ ] **NU-02**: `package.json` 删除 `nanoid` 直接依赖;`uuid` 已在 dependencies 保留 — v1.14
+- [ ] **NU-03**: `src/id-injection.test.ts` 测试断言正则更新为 uuid 字符集(移除 `nanoid` 命名,改用 `UUID_SUFFIX_*_RE`)— v1.14
+- [ ] **NU-04**: `tests/e2e/202610131101001.test.ts` 的 `length===10` 断言保持(substring(0,10) 仍是 10 字符)— v1.14
+- [ ] **NU-05**: `.planning/codebase/CONVENTIONS.md`、`STATE.md`、v1.9 milestones/14-*.md、`PPTIST_ANIMATION_MAPPING.md` 同步更新 nanoid → uuid 提及 — v1.14
+- [ ] **NU-06**: 重跑 `npm install` 重生成 `package-lock.json`(移除 nanoid 块,保留 transitive)— v1.14
 
 ### Out of Scope
 
@@ -92,7 +97,7 @@ _(无 — 等待下一个 milestone 启动 — `/gsd-new-milestone`)_
 
 **Target canvas** — 1000×562.5 (16:9 aspect ratio).
 
-**Tech stack:** TypeScript strict mode, CommonJS, fast-xml-parser, cac, picocolors, uuid, @resvg/resvg-js
+**Tech stack:** TypeScript strict mode, CommonJS, fast-xml-parser, cac, picocolors, uuid, @resvg/resvg-js _(v1.14: nanoid 已删除)_
 
 **Three-party spec source:** `E:\git\ppt-master\docs\animations.md` (52 transition + 203 effect keys)
 **Sidecar instance data:** `E:\git\svg2json\exampels\202610131101001\animations.json` (13 slide overrides)
@@ -101,7 +106,7 @@ _(无 — 等待下一个 milestone 启动 — `/gsd-new-milestone`)_
 
 - **Target canvas**: 1000×562.5 — hard-coded, not configurable
 - **TypeScript**: Strict mode, compiled to CommonJS
-- **Dependencies**: fast-xml-parser, cac, picocolors, uuid, @resvg/resvg-js
+- **Dependencies**: fast-xml-parser, cac, picocolors, uuid, @resvg/resvg-js _(v1.14 起无 nanoid)_
 - **Fonts**: Source Han Sans CN Regular (single font, validated at CLI startup)
 - **Three-party fidelity**: animations.json 全量字段保留（不丢字段），即使 PPTist 不识别也写到 extensions
 
@@ -142,6 +147,8 @@ _(无 — 等待下一个 milestone 启动 — `/gsd-new-milestone`)_
 | v1.11: convertOne 内 `findContentBounds()` DFS | 不动 `transformToPPTElement()` 签名 → 所有现有调用点/单元测试零回归 | ✓ Complete |
 | v1.11: 严格 `/\\s+/` 解析 `data-pptx-bounds` | `Number()` + `Number.isNaN` 三重过滤拒绝 "98abc" 前缀解析泄漏 | ✓ Complete |
 | v1.11: `Object.keys(slide)` 字段缺失断言 | 比 `slide.contentBounds === undefined` 更贴近 TPL-CB-03 "字段直接省略"字面要求 | ✓ Complete |
+| v1.14: nanoid → uuid 截取保持 5/10 字符 | D-07/D-20 设计意图是保持与 PPTist 编辑面板 10 字符 diff 友好性;用 uuidv4().substring(0,5) / substring(0,10) 保持后缀长度不变,语义不破坏 | — Pending |
+| v1.14: 同步更新 .planning/ 历史 nanoid 提及 | 用户明确指示"同步更新所有提及";v1.9 milestones/14-*.md、STATE.md ANIM-DEC-02 等决策记录一并更新,保留 git 历史与文档一致 | — Pending |
 
 ## Evolution
 
@@ -155,9 +162,17 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: _(none — awaiting next milestone kickoff via `/gsd-new-milestone`)_
+## Current Milestone: v1.14 Replace nanoid with uuid
 
-**Status:** Planning 2026-10-16 (next milestone not yet started).
+**Goal:** 把代码与依赖中的 nanoid 全部替换为 uuid,保持 PPTElement.id 后缀长度 5/10 字符不变,与 PPTist 编辑器 diff 友好性兼容;同步更新所有 `.planning/` 历史文档中的 nanoid 提及。
+
+**Target features:**
+- `src/utils/id-generator.ts` 改用 `uuidv4().substring(0,5)` 与 `uuidv4().substring(0,10)` 替换 `nanoid(5)` / `nanoid(10)`
+- `package.json` 移除 `nanoid` 直接依赖,`uuid` 已在 dependencies 中保留
+- `package-lock.json` 重生成(移除 nanoid 块,保留 postcss 等 transitive 间接引用)
+- `src/id-injection.test.ts` 测试断言正则改用 uuid 字符集(hex + `-`,非 nanoid `[A-Za-z0-9_-]`)
+- `tests/e2e/202610131101001.test.ts` `length===10` 断言保持(uuidv4().substring(0,10) 仍是 10 字符)
+- `.planning/codebase/CONVENTIONS.md`、`STATE.md`、v1.9 milestones/14-*.md、`PPTIST_ANIMATION_MAPPING.md` 同步更新提及
 
 ---
 
@@ -278,4 +293,4 @@ Research confirmed all target PPTist schema properties already implemented or de
 
 ---
 
-*Last updated: 2026-10-16 after v1.13 milestone SHIPPED (page-data-extraction verified, 50/50 tests green, archived to `.planning/milestones/v1.13-*.md`)*
+*Last updated: 2026-10-19 after v1.14 milestone kickoff (Replace nanoid with uuid, scope locked: 6 NU-* requirements, single phase)*
