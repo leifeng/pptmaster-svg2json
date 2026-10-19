@@ -23,7 +23,7 @@
 <details>
 <summary>◆ v1.14 — Replace nanoid with uuid (Phase 19) — PLANNING 2026-10-19</summary>
 
-- [ ] Phase 19: nanoid-to-uuid-migration (1/2 plans) — _planning in progress_
+- [ ] Phase 19: nanoid-to-uuid-migration (2/2 plans) — _planning complete, ready for execute_
   - 19-01: `src/utils/id-generator.ts` import 替换 + 三处 `nanoid(5)`/`nanoid(10)` → `uuidv4().substring(0,5)`/`substring(0,10)` + 顶部注释更新
   - 19-02: `package.json` 删除 nanoid + 重生成 `package-lock.json` + 测试正则重命名 + E2E 长度断言校验 + `.planning/` 6 个历史文档 + `PPTIST_ANIMATION_MAPPING.md` 同步更新
   - **Requirements:** NU-01..NU-16 (16 total)
