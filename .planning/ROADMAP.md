@@ -16,8 +16,26 @@
 - ✅ **v1.11** — Template Element Marking (2026-10-16)
 - ✅ **v1.12** — Template Content Key Annotation (2026-10-16)
 - ✅ **v1.13** — Page Data Extraction (2026-10-16)
+- ◆ **v1.14** — Replace nanoid with uuid (2026-10-19, planning)
 
 ## Phases
+
+<details>
+<summary>◆ v1.14 — Replace nanoid with uuid (Phase 19) — PLANNING 2026-10-19</summary>
+
+- [ ] Phase 19: nanoid-to-uuid-migration (1/2 plans) — _planning in progress_
+  - 19-01: `src/utils/id-generator.ts` import 替换 + 三处 `nanoid(5)`/`nanoid(10)` → `uuidv4().substring(0,5)`/`substring(0,10)` + 顶部注释更新
+  - 19-02: `package.json` 删除 nanoid + 重生成 `package-lock.json` + 测试正则重命名 + E2E 长度断言校验 + `.planning/` 6 个历史文档 + `PPTIST_ANIMATION_MAPPING.md` 同步更新
+  - **Requirements:** NU-01..NU-16 (16 total)
+  - **Success criteria:**
+    1. `grep -r "from 'nanoid" src/` 返回 0 match
+    2. `grep -r "nanoid" package.json` 返回 0 match
+    3. `npm run build` (tsc) 编译通过
+    4. `npm test` 全部现有测试 green(76 v1.12 + 50 v1.13 + id-injection.test.ts 适配后 green)
+    5. E2E `tests/e2e/202610131101001.test.ts` 16 it() 中 `length===10` 断言通过
+    6. `.planning/` 中所有 nanoid 提及已更新为 uuid 等效表述
+
+</details>
 
 <details>
 <summary>✅ v1.13 — Page Data Extraction (Phase 18) — SHIPPED 2026-10-16</summary>
