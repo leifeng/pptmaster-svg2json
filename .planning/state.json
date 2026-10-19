@@ -1,12 +1,12 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v1.13 — Page Data Extraction (Planning)",
+  "milestone": "v1.14",
   "phases": [],
   "next": {
-    "command": "/gsd:progress",
-    "label": "Show progress",
-    "reason": "Unsure of state — showing progress"
+    "command": "/gsd-progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 19 of 1 · executing"
   },
-  "updated_at": "2026-10-16T10:23:02.013Z"
+  "updated_at": "2026-10-19T03:25:17.860Z"
 }
