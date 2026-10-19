@@ -1,17 +1,18 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.14
-current_phase_name: defining requirements
-status: planning
+current_phase: 19
+current_phase_name: nanoid-to-uuid-migration
+status: executing
 stopped_at: Phase 19 context gathered
-last_updated: "2026-10-19T03:02:40.187Z"
+last_updated: "2026-10-19T03:25:17.762Z"
 last_activity: 2026-10-19
 last_activity_desc: Milestone v1.14 started
-state_head: f323534422ddbeaff359cf39832b5557329fa3d9
+state_head: 76e6fb94c6207dc6cae8bab8daa295e9bbbb1bd8
 progress:
   total_phases: 1
   completed_phases: 0
-  total_plans: 0
+  total_plans: 2
   completed_plans: 0
 milestone_name: Replace nanoid with uuid
 ---
@@ -59,9 +60,9 @@ Closeout type: **override_closeout** (28 v1.x-carried debug sessions + 1 v1.10 p
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 19 (nanoid-to-uuid-migration) — READY TO EXECUTE
 Plan: —
-Status: Defining requirements
+Status: Ready to execute
 Last activity: 2026-10-19 — Milestone v1.14 started
 
 ## Project Reference
@@ -108,7 +109,7 @@ See: `.planning/PROJECT.md` (updated 2026-10-16)
 ### Decisions (v1.9 kickoff — inherited)
 
 - **ANIM-DEC-01**: PPTAnimation 扩展 `extensions?: Record<string, any>` 字段 — 三方未映射字段全量保留到 extensions，JSON 无损
-- **ANIM-DEC-02**: id 命名 `<group_id>__<nanoid(8)>` — 双下划线分隔避开 PPTist nanoid(10) 冲突；跨 g 唯一
+- **ANIM-DEC-02**: id 命名 `<group_id>__<uuidv4().substring(0, 8)>` — 双下划线分隔避开 PPTist 10-char id 冲突；跨 g 唯一
 - **ANIM-DEC-03**: 父目录布局 `<parent>/svg_output/*.svg` + `<parent>/animations.json`（可选）— 接受三方约定
 - **ANIM-DEC-04**: effect 映射走"能映射就映射 + 不能映射原样保留"策略；无需兜底映射表
 - **ANIM-DEC-05**: turningMode 走映射表（48→12）；未对应 fallback `fade`

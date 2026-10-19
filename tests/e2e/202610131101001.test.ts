@@ -244,7 +244,7 @@ describe('Plan 14-03 — E2E on exampels/202610131101001 (ANIM-DIAG-01)', () => 
       }
     })
 
-    it('every animation.id is a 10-character nanoid string', () => {
+    it('every animation.id is a 10-character uuid substring string', () => {
       if (!hasFixture || !firstRun) return
       for (const slide of firstRun.slides) {
         for (const a of slide.animations ?? []) {

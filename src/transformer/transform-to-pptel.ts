@@ -1076,8 +1076,8 @@ export async function transformElement(
   effectiveTransform?: string,
   /**
    * D-05~07: caller-computed pptel id. When supplied, replaces uuidv4()
-   * with the deterministic id (preserved svg id / <group_id>__nanoid(5) /
-   * nanoid(10)). When undefined (legacy single-svg mode), falls back to uuidv4().
+   * with the deterministic id (preserved svg id / <group_id>__uuidv4().substring(0, 5) /
+   * uuidv4().substring(0, 10)). When undefined (legacy single-svg mode), falls back to uuidv4().
    */
   desiredId?: string,
 ): Promise<PPTElement | PPTElement[] | null> {
@@ -1996,7 +1996,7 @@ export async function transformToPPTElement(
   //   that group; used as `createMergedShapeElement(fallbackId)` so path-merged
   //   groups always carry a meaningful id even when child paths are id-less.
   // Population rule (D-06 + D-08): the first child under a group (regardless of
-  // whether it has its own svg id) gets `groupId__<nanoid(5)>` IF groupId is set.
+  // whether it has its own svg id) gets `groupId__<uuidv4().substring(0, 5)>` IF groupId is set.
   const idRegistry = new Map<string, string>()
   const firstChildIdByGroup = new Map<string, string>()
   const elements: PPTElement[] = []
@@ -2156,7 +2156,7 @@ export async function transformToPPTElement(
           // D-38: Use mergedAttrs instead of child.attrs for fill/stroke inheritance
           const mergedElement: SvgElement = { ...child, attrs: mergedAttrs }
           // D-05~07: compute desired pptel id BEFORE dispatch so transformElement can use it.
-          // Priority chain: original svg id > <groupId>__nanoid(5) > nanoid(10).
+          // Priority chain: original svg id > <groupId>__uuidv4().substring(0, 5) > uuidv4().substring(0, 10).
           const desiredId = pptelIdWithFallback(effectiveGroupId, child.attrs.id)
           // D-09: populate id registry so path-merge / future ref resolution can trace back.
           if (child.attrs.id !== undefined) {
@@ -2166,7 +2166,7 @@ export async function transformToPPTElement(
           // createMergedShapeElement(fallbackId) below. Populated UNCONDITIONALLY
           // for the first child (regardless of whether child.attrs.id is set),
           // so id-less children inside <g id="g1"><path/><path/></g> still yield
-          // a merge element with id `g1__<nanoid(5)>`. ---
+          // a merge element with id `g1__<uuidv4().substring(0, 5)>`. ---
           if (effectiveGroupId !== undefined && !firstChildIdByGroup.has(effectiveGroupId)) {
             firstChildIdByGroup.set(effectiveGroupId, desiredId)
           }

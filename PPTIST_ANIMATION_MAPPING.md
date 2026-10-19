@@ -66,7 +66,7 @@ AnimationType   = 'in' | 'out' | 'attention'
 AnimationTrigger= 'click' | 'meantime' | 'auto'
 
 interface PPTAnimation {
-  id: string          // nanoid(10) 生成
+  id: string          // uuidv4().substring(0, 10) 生成(PowerPoint 元素唯一标识)
   elId: string        // 关联 PPTElement.id
   effect: string      // ★ 必须在上表 84 个里
   type: AnimationType // ★ 入/退/强调

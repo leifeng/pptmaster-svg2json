@@ -17,7 +17,7 @@
 
 **Variables:**
 - camelCase: `activeElementIdList`, `creatingElement`, `viewportRatio`
-- Custom alphabet for nanoid: `const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')` in `src/store/main.ts:45`
+- Custom alphabet for short ids (historical, pre-Phase 19): `const customAlphabetId = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')` in `src/store/main.ts:45` — *superseded by uuid v14 in Phase 19 (v1.14)*
 
 **Types and Interfaces:**
 - PascalCase: `MainState`, `PPTElement`, `SlideTheme`, `TableCellStyle`, `ElementTypes`
@@ -68,7 +68,7 @@ export const enum ShapePathFormulasKeys {
 ## Import Organization
 
 **Order (from ESLint):**
-1. External libraries (lodash, nanoid, vue, pinia)
+1. External libraries (lodash, vue, pinia, uuid)
 2. Internal `@/` path aliases (store, hooks, utils, types, configs)
 
 **Path Aliases:**
@@ -77,7 +77,7 @@ export const enum ShapePathFormulasKeys {
 ```typescript
 // src/hooks/useCreateElement.ts:1-9
 import { storeToRefs } from 'pinia'
-import { nanoid } from 'nanoid'
+import { v4 as uuidv4 } from 'uuid'
 import { useMainStore, useSlidesStore } from '@/store'
 import { getImageSize } from '@/utils/image'
 import type { PPTLineElement, PPTElement, TableCell, TableCellStyle, PPTShapeElement, ChartType, PPTVideoElement, PPTAudioElement } from '@/types/slides'
@@ -170,7 +170,7 @@ const { theme, viewportRatio, viewportSize } = storeToRefs(slidesStore)
 ```
 
 **ID Generation:**
-- Uses `nanoid` with custom alphabet for shorter IDs: `nanoid(10)`
+- Uses `uuidv4().substring(0, 10)` for shorter IDs (replaces custom-alphabet id generator; see Phase 19 / v1.14)
 
 ---
 

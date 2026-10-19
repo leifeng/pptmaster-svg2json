@@ -580,7 +580,7 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
 }
 
 // ---------------------------------------------------------------------------
-// PPTAnimation.id (D-20 — nanoid(10) to match PPTist panel length)
+// PPTAnimation.id (D-20 — uuidv4().substring(0, 10) to match PPTist panel length)
 // ---------------------------------------------------------------------------
 
 import { pptAnimationId as generatePptAnimationId } from './utils/id-generator'

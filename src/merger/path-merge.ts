@@ -178,7 +178,7 @@ export function createMergedShapeElement(
   targetCanvas: [number, number],
   index: number,
   /**
-   * D-08: optional pptel id (e.g., `<group_id>__<nanoid(5)>` for the first
+   * D-08: optional pptel id (e.g., `<group_id>__<uuidv4().substring(0, 5)>` for the first
    * child of the group). When supplied, used as the merged PPTShapeElement.id;
    * otherwise falls back to uuidv4(). The caller (transformer/walk()) populates
    * this from `firstChildIdByGroup.get(groupId)` so path-merged groups always carry

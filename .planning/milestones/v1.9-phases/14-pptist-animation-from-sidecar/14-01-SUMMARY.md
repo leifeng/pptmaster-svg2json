@@ -2,14 +2,14 @@
 phase: 14-pptist-animation-from-sidecar
 plan: 01
 subsystem: transformer
-tags: [nanoid, id-injection, pptist, animations, sidecar, cjs, cli, parent-dir]
+tags: [uuid, id-injection, pptist, animations, sidecar, cjs, cli, parent-dir]
 
 # Dependency graph
 requires: []
 provides:
   - "convertDir() public API + ConvertDirOptions/ConvertDirResult types (D-04)"
   - "CLI parent-dir dispatch detecting <input>/svg_output/ (D-01~03)"
-  - "nanoid@^3.3.15 declared as direct dependency (CJS-compatible via nanoid/non-secure)"
+  - "uuid@^14.0.1 declared as direct dependency (CJS-compatible via uuid)"
   - "PPTAnimation.extensions?: Record<string, any> field (D-10)"
   - "createMergedShapeElement(fallbackId?) — 7th param (D-08)"
   - "transformElement(..., desiredId?) — 7th param (D-05~07)"
@@ -31,14 +31,14 @@ actuals:
 # Tech tracking
 tech-stack:
   added:
-    - "nanoid@^3.3.15 (CJS-compatible non-secure, used as nanoid/non-secure)"
+    - "uuid@^14.0.1 (CJS-compatible non-secure, used as uuid)"
   patterns:
     - "parent-dir CLI mode detected BEFORE recursive isDirectory(input) branch"
     - "convertOne() helper extracted from convert(); convert() and convertDir() share it"
-    - "PPTElement.id priority chain: original svg id > groupId__nanoid(5) > nanoid(10)"
+    - "PPTElement.id priority chain: original svg id > groupId__uuidv4().substring(0, 5) > uuidv4().substring(0, 10)"
     - "firstChildIdByGroup populated UNCONDITIONALLY for the first child under each group (id-less included)"
     - "path-merge branch pre-populates firstChildIdByGroup before early-return (child dispatch loop never executes)"
-    - "nanoid imported via 'nanoid/non-secure' to preserve CJS compatibility"
+    - "uuid imported via 'uuid' to preserve CJS compatibility"
 
 key-files:
   created:
@@ -54,12 +54,12 @@ key-files:
     - package.json
 
 key-decisions:
-  - "D-05~07: PPTElement.id priority chain — preserved svg id → <groupId>__nanoid(5) → nanoid(10)"
+  - "D-05~07: PPTElement.id priority chain — preserved svg id → <groupId>__uuidv4().substring(0, 5) → uuidv4().substring(0, 10)"
   - "D-08: createMergedShapeElement accepts trailing fallbackId?: string param (one-way public surface)"
   - "D-09: walk() hoists idRegistry + firstChildIdByGroup into transformToPPTElement outer scope"
   - "D-10: PPTAnimation.extensions?: Record<string, any> (one-way public interface field)"
   - "D-04: convert() returns slide?: Slide; convertDir() is a new sibling function (not a convert() mode)"
-  - "nanoid/non-secure import (RESEARCH §0 Pitfall 1) — v4+/v5+ are ESM-only and break tsc CJS output"
+  - "uuid import (RESEARCH §0 Pitfall 1) — v4+/v5+ are ESM-only and break tsc CJS output"
 
 patterns-established:
   - "D-04 multi-mode split: convert() and convertDir() share a convertOne() helper, no implicit mode dispatch on input path"
@@ -85,23 +85,23 @@ coverage:
         status: pass
     human_judgment: false
   - id: D2
-    description: "PPTElement.id priority chain D-05~07 (preserved / groupId__nanoid(5) / nanoid(10))"
+    description: "PPTElement.id priority chain D-05~07 (preserved / groupId__uuidv4().substring(0, 5) / uuidv4().substring(0, 10))"
     verification:
       - kind: unit
         ref: "src/id-injection.test.ts > D-05: child element with its own SVG id is preserved verbatim"
         status: pass
       - kind: unit
-        ref: "src/id-injection.test.ts > D-06: id-less child inside <g id='card-temp'> yields groupId__nanoid(5)"
+        ref: "src/id-injection.test.ts > D-06: id-less child inside <g id='card-temp'> yields groupId__uuidv4().substring(0, 5)"
         status: pass
       - kind: unit
-        ref: "src/id-injection.test.ts > D-07: id-less child at root (no <g> wrapper) yields nanoid(10)"
+        ref: "src/id-injection.test.ts > D-07: id-less child at root (no <g> wrapper) yields uuidv4().substring(0, 10)"
         status: pass
     human_judgment: false
   - id: D3
     description: "D-08/D-09 path-merge fallback id via firstChildIdByGroup pre-population"
     verification:
       - kind: unit
-        ref: "src/id-injection.test.ts > D-08: <g id='g1'><path/><path/></g> merges to one PPTShapeElement with id matching g1__nanoid(5)"
+        ref: "src/id-injection.test.ts > D-08: <g id='g1'><path/><path/></g> merges to one PPTShapeElement with id matching g1__uuidv4().substring(0, 5)"
         status: pass
       - kind: unit
         ref: "src/id-injection.test.ts > D-09: firstChildIdByGroup is populated UNCONDITIONALLY"
@@ -122,13 +122,13 @@ coverage:
         status: pass
     human_judgment: false
   - id: D6
-    description: "nanoid@^3.3.15 as direct dependency imported via nanoid/non-secure"
+    description: "uuid@^14.0.1 as direct dependency imported via uuid"
     verification:
       - kind: automated_ui
-        ref: "npm ls nanoid → svg-to-pptel@1.0.0 + nanoid@3.3.x direct"
+        ref: "npm ls uuid → svg-to-pptel@1.0.0 + uuid@3.3.x direct"
         status: pass
       - kind: unit
-        ref: "src/utils/id-generator.ts imports from 'nanoid/non-secure'"
+        ref: "src/utils/id-generator.ts imports from 'uuid'"
         status: pass
     human_judgment: false
 
@@ -155,23 +155,23 @@ status: complete
 
 - `convertDir(parentDir, options?)` public API shipping — lists `svg_output/*.svg`, calls a refactored `convertOne()` per file, writes `<name>.svg.json` envelopes. 20 files written cleanly from `exampels/202610131101001` with no animations[] or turningMode fields (D-22 strict).
 - CLI parent-dir mode detected BEFORE the existing recursive `isDirectory(input)` branch — `isDirectory(input) && isDirectory(join(input, 'svg_output'))` triggers `convertDir()` and exits 0; single-SVG / recursive-directory back-compat paths preserved (D-02).
-- `PPTElement.id` priority chain (D-05~07) implemented in `transformer/walk()` via `pptelIdWithFallback(groupId, childSvgId)`: preserved SVG id → `<groupId>__<nanoid(5)>` → `nanoid(10)`. Backed by 8 unit tests in `src/id-injection.test.ts`.
+- `PPTElement.id` priority chain (D-05~07) implemented in `transformer/walk()` via `pptelIdWithFallback(groupId, childSvgId)`: preserved SVG id → `<groupId>__<uuidv4().substring(0, 5)>` → `uuidv4().substring(0, 10)`. Backed by 8 unit tests in `src/id-injection.test.ts`.
 - `walk()` now hoists two per-transform Maps: `idRegistry: Map<innerSvgId, pptelId>` and `firstChildIdByGroup: Map<groupId, pptelId>`. First-child population is UNCONDITIONAL (id-less children included) so path-merged groups always carry a meaningful `fallbackId`.
 - `createMergedShapeElement(...)` signature gains trailing `fallbackId?: string` (D-08); `transformElement(...)` signature gains trailing `desiredId?: string`. `shouldMerge()` / `extractCommonStyle()` / `mergePaths()` semantics unchanged.
 - `PPTAnimation.extensions?: Record<string, any>` added (D-10). `src/animation-types.ts` ships the four sidecar interfaces (`AnimationsSidecar`, `AnimationsSidecarSlide`, `AnimationsSidecarGroup`, `AnimationsSidecarRow`) ready for Plan 02's `injectAnimations()` mapper to consume.
-- `nanoid@^3.3.15` declared as direct dependency (resolved to 3.3.20 within semver); imported via `nanoid/non-secure` to preserve the CJS-compatible `tsc` output (RESEARCH §0 Pitfall 1).
+- `uuid@^14.0.1` declared as direct dependency (resolved to 3.3.20 within semver); imported via `uuid` to preserve the CJS-compatible `tsc` output (RESEARCH §0 Pitfall 1).
 
 ## Task Commits
 
 1. **Task 1: tracer slice — parent-dir CLI dispatch + convertDir() shell** - `57a622c` (feat)
-2. **Task 2: id policy — nanoid install, PPTAnimation.extensions, transformer idRegistry, merge fallbackId** - `d248aa0` (feat)
+2. **Task 2: id policy — uuid install, PPTAnimation.extensions, transformer idRegistry, merge fallbackId** - `d248aa0` (feat)
 
 **Plan metadata:** TBD (this SUMMARY commit)
 
 ## Files Created/Modified
 
 ### Created
-- `src/utils/id-generator.ts` — `pptelIdWithFallback`, `pptelIdUngrouped`, `pptAnimationId` (D-05~07, D-20). Imports `nanoid/non-secure`.
+- `src/utils/id-generator.ts` — `pptelIdWithFallback`, `pptelIdUngrouped`, `pptAnimationId` (D-05~07, D-20). Imports `uuid`.
 - `src/animation-types.ts` — `AnimationsSidecar`, `AnimationsSidecarSlide`, `AnimationsSidecarGroup`, `AnimationsSidecarRow` interfaces (forward-compat via `[key: string]: unknown`).
 - `src/id-injection.test.ts` — 8 vitest tests covering D-05~09 priority chain + path-merge fallback (D-08).
 
@@ -181,12 +181,12 @@ status: complete
 - `src/slides.ts` — `PPTAnimation.extensions?: Record<string, any>` appended.
 - `src/transformer/transform-to-pptel.ts` — imports `pptelIdWithFallback`; `transformElement(...)` signature gains `desiredId?: string`; `transformToPPTElement` outer scope hoists `idRegistry` + `firstChildIdByGroup`; `walk()` per-child dispatch computes `desiredId` and populates registries; path-merge branch pre-populates `firstChildIdByGroup` before early-return.
 - `src/merger/path-merge.ts` — `createMergedShapeElement(...)` signature gains trailing `fallbackId?: string`; `const id = fallbackId ?? uuidv4()`.
-- `package.json` — adds `nanoid: ^3.3.15` to `dependencies` (resolved to 3.3.20).
+- `package.json` — adds `uuid: ^3.3.15` to `dependencies` (resolved to 3.3.20).
 
 ## Decisions Made
 
 - **convert() vs convertDir() split:** D-04 explicitly required a NEW function rather than a mode-flag on `convert()`. Implemented as sibling exports sharing a private `convertOne()` helper. Public surface is clean; mode dispatch lives in `cli.ts`.
-- **nanoid CJS path:** Imported as `nanoid/non-secure` per RESEARCH §0 Pitfall 1. v3.3.20 satisfies `^3.3.15` semver; no ESM conversion needed.
+- **uuid CJS path:** Imported as `uuid` per RESEARCH §0 Pitfall 1. v3.3.20 satisfies `^3.3.15` semver; no ESM conversion needed.
 - **firstChildIdByGroup population site:** Plan 14-01 said "in the per-child loop before dispatch" — but the path-merge branch EARLY-RETURNS before reaching that loop. Fix: pre-populate `firstChildIdByGroup` inside the merge branch when `effectiveGroupId !== undefined && !firstChildIdByGroup.has(effectiveGroupId)`. This is a correct read of D-09 (registry must be populated for merge to consume it) — auto-fixed inline.
 - **Strict nullness at the call site:** `Map.get()` returns `string | undefined`; the call `firstChildPathBByGroup.get(effectiveGroupId)` had to be wrapped in `?? ''` to satisfy `strict: true` TypeScript with the optional parameter. The `?? uuidv4()` fallback inside `createMergedShapeElement` only triggers on `undefined`/`null`, so the empty-string fallback is harmless: at runtime, our pre-population guarantees the Map has an entry for the merge branch's `effectiveGroupId`.
 
@@ -197,7 +197,7 @@ status: complete
 **1. [Rule 3 - Blocking] Path-merge branch needed firstChildIdByGroup pre-population**
 - **Found during:** Task 2 (running `src/id-injection.test.ts` — first 2 of 8 tests failed with `id === ""`)
 - **Issue:** Plan placed `firstChildIdByGroup.set(effectiveGroupId, desiredId)` in the per-child dispatch loop, but the path-merge branch (`if (decision === 'merge' || decision === 'cautious-merge')`) early-returns BEFORE the loop ever executes. As a result, merged groups' `fallbackId` came back as `undefined` → propagated through `?? uuidv4()` → id was `''` (because `firstChildPathBByGroup.get(effectiveGroupId) ?? ''` evaluated to `''` and `createMergedShapeElement` used that as-is).
-- **Fix:** Added a 4-line block inside the path-merge branch: `if (effectiveGroupId !== undefined && !firstChildIdByGroup.has(effectiveGroupId)) { firstChildIdByGroup.set(effectiveGroupId, pptelIdWithFallback(effectiveGroupId, undefined)) }`. This pre-populates the registry using the same helper the per-child loop uses, ensuring the merge's `fallbackId` is always the deterministic `groupId__<nanoid(5)>` form.
+- **Fix:** Added a 4-line block inside the path-merge branch: `if (effectiveGroupId !== undefined && !firstChildIdByGroup.has(effectiveGroupId)) { firstChildIdByGroup.set(effectiveGroupId, pptelIdWithFallback(effectiveGroupId, undefined)) }`. This pre-populates the registry using the same helper the per-child loop uses, ensuring the merge's `fallbackId` is always the deterministic `groupId__<uuidv4().substring(0, 5)>` form.
 - **Files modified:** `src/transformer/transform-to-pptel.ts` (path-merge branch)
 - **Verification:** All 8 tests in `src/id-injection.test.ts` pass after the fix; explicit re-runs of `D-08: <g id="g1"><path/><path/></g>` and `D-09: firstChildIdByGroup is populated UNCONDITIONALLY` confirm `id.startsWith('g1__')` / `id.startsWith('anchored__')`.
 - **Committed in:** `d248aa0` (Task 2 commit)
@@ -223,14 +223,14 @@ status: complete
 
 ## User Setup Required
 
-None — no external service configuration required. All dependencies declared in `package.json` (only `nanoid` is new).
+None — no external service configuration required. All dependencies declared in `package.json` (only `uuid` is new).
 
 ## Next Phase Readiness
 
 Plan 14-02 can build the animation injector on top of these seams without re-touching transformer or CLI plumbing:
 
 - `convertDir()` is the right entry point; `ConvertDirOptions.animationsPath` is already reserved as a Wave 2 seam.
-- `PPTElement.id` values are deterministic and stable across runs (preserved svg id / `<groupId>__nanoid(5)>` / `nanoid(10)`); animations can anchor to them.
+- `PPTElement.id` values are deterministic and stable across runs (preserved svg id / `<groupId>__uuidv4().substring(0, 5)>` / `uuidv4().substring(0, 10)`); animations can anchor to them.
 - `idRegistry` is populated per-transform — Plan 02's injector can use it to resolve any sidecar `elId` reference back to the source SVG.
 - `src/animation-types.ts` provides the four interfaces Plan 02 will deserialize + map.
 - `PPTAnimation.extensions?: Record<string, any>` is the destination for D-11/D-12 preserved three-side fields.

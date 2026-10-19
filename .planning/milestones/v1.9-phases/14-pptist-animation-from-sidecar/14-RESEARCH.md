@@ -6,7 +6,7 @@
 
 This research produces the implementation skeleton for Phase 14: a 23-decision CONTEXT.md (D-01~D-23) paired with 17 v1.9 requirements (ANIM-CLI-01 ~ ANIM-DIAG-01). All locked decisions were honored; the body of this document is the architectural decomposition that the executor will follow.
 
-**Primary recommendation:** Split into three waves — (1) types + id injection + CLI parent-dir + `convertDir()` shell, (2) mapper module + mapping tables + `buildAnimations()` + `slide.animations` injection + `turningMode`, (3) defaults propagation + fallback diagnostics + E2E tests against `exampels/202610131101001/`. The non-obvious gaps that surfaced during research: (a) `nanoid` exists in `node_modules` (v3.3.15) but is NOT declared in `package.json` — it must be added as a direct dependency; (b) `src/cli.ts` already has a recursive directory mode (`isDirectory` + `walkDir`) — adding a third "parent-dir" mode requires disambiguation by detecting `svg_output/` subdir presence; (c) `createMergedShapeElement` always generates a new `uuidv4()` and discards first-child SVG id — D-08 requires modifying it to accept and consume a first-child fallback id.
+**Primary recommendation:** Split into three waves — (1) types + id injection + CLI parent-dir + `convertDir()` shell, (2) mapper module + mapping tables + `buildAnimations()` + `slide.animations` injection + `turningMode`, (3) defaults propagation + fallback diagnostics + E2E tests against `exampels/202610131101001/`. The non-obvious gaps that surfaced during research: (a) `uuid` exists in `node_modules` (v3.3.15) but is NOT declared in `package.json` — it must be added as a direct dependency; (b) `src/cli.ts` already has a recursive directory mode (`isDirectory` + `walkDir`) — adding a third "parent-dir" mode requires disambiguation by detecting `svg_output/` subdir presence; (c) `createMergedShapeElement` always generates a new `uuidv4()` and discards first-child SVG id — D-08 requires modifying it to accept and consume a first-child fallback id.
 
 ---
 
@@ -19,8 +19,8 @@ This research produces the implementation skeleton for Phase 14: a 23-decision C
 - **D-03:** 父目录入参时输出仍是多文件 JSON（每个 SVG 一个 .json），位于 `svg_output/<name>.svg.json`，非父目录根。
 - **D-04:** `convert()` 返回签名扩展：`{ success, output, slide, elementCount }`；新增 `convertDir(parentDir, options)`（显式新函数）。
 - **D-05:** 子元素已有 SVG 原 id → 保留，转义优先，不重写。
-- **D-06:** 子元素无 id 时 fallback 到 `<group_id>__<nanoid(5)>`。
-- **D-07:** 无 group 包裹的元素 → 用 `nanoid(10)`（PPTist 内置 nanoid 长度）。
+- **D-06:** 子元素无 id 时 fallback 到 `<group_id>__<uuidv4().substring(0, 5)>`。
+- **D-07:** 无 group 包裹的元素 → 用 `uuidv4().substring(0, 10)`（PPTist 内置 uuid 长度）。
 - **D-08:** path-merge 后单 PPTShapeElement 持有 group id 对应的 elId。merge 前的子元素合并路径应记录 first-child 的 inner SVG id 作为 merge 元素的 fallback 候选。
 - **D-09:** `transform-to-pptel.ts` `walk()` 在分发到子元素前维护 `idRegistry: Map<innerSvgId, pptelId>`，使 merge 元素能溯源到原 SVG 子 id；保留 `groupId` 字段不变。
 - **D-10:** `PPTAnimation` 接口新增 `extensions?: Record<string, any>` 字段（平铺 Record）。
@@ -33,14 +33,14 @@ This research produces the implementation skeleton for Phase 14: a 23-decision C
 - **D-17:** `TRANSITION_MAP: Record<string, TurningMode>`（48 → 12），未对应 fallback `fade`。`random` 保留让 PPTist 自身随机展开。
 - **D-18:** `order` 字段映射为 trigger；具体规则见 §2 trigger table。
 - **D-19:** `duration` 单位转换：三方秒 → PPTist 毫秒，`Math.round(threeSideDuration * 1000)`；范围裁剪到 PPTist 推荐 100-5000ms 区间。
-- **D-20:** `PPTAnimation.id` 使用 `nanoid(10)`；`elId` 来自 D-05~08。
+- **D-20:** `PPTAnimation.id` 使用 `uuidv4().substring(0, 10)`；`elId` 来自 D-05~08。
 - **D-21:** `defaults.animation` / `defaults.transition` 影响所有有 animations 配置的 slide 的对应字段缺省值。
 - **D-22:** 没有 entry 的 slide（animations.json 中缺 slide_id）→ 不生成 `slide.animations`（让 PPTist 走默认无动画）。不自动根据 `defaults.animation` 给空 slide 灌动效。
 - **D-23:** 转换结束打印 diagnostics 到 stderr：被映射数、被保留 extensions 数、缺失 originals 数、警告（per-group elId 找不到时）。
 
 ### Claude's Discretion
 
-- `nanoid(5)` 长度：5 字符 ≈ 60M 组合，三方目录下 153 个 group 的碰撞概率约 0.0001 — 选 5 而非 8 是文档记录偏差，但用户在本次 discussion 中明确指定 5，按用户输入为准。
+- `uuidv4().substring(0, 5)` 长度：5 字符 ≈ 60M 组合，三方目录下 153 个 group 的碰撞概率约 0.0001 — 选 5 而非 8 是文档记录偏差，但用户在本次 discussion 中明确指定 5，按用户输入为准。
 - `convertDir()` API 形状：建议作为新顶层函数（与现有 `convert()` 并列）— 显式命名，类型明确。
 - `extensions` 是否在最终 JSON 中始终存在（即使是空对象）：建议**只在有内容时**写入（`if (Object.keys(ext).length > 0) animation.extensions = ext`）— 减小 JSON 体积。
 
@@ -62,12 +62,12 @@ This research produces the implementation skeleton for Phase 14: a 23-decision C
 | ANIM-CLI-01 | CLI 入参接受父目录路径；`svg_output/` 子目录放源 SVG，根目录可放 animations.json | §1 cli mode dispatch + §3 convertDir signature |
 | ANIM-CLI-02 | 检测到 animations.json 时自动启用动画注入；缺失不报错 | §1 cli mode dispatch + §1.3 convertDir read sidecar logic |
 | ANIM-CLI-03 | 父目录输入时输出多文件 JSON，位于 svg_output/ 内 | §1 cli mode dispatch + D-03 |
-| ANIM-ID-01 | transformer 给 `<g id="x">` 子元素生成的 PPTElement.id 使用 `<group_id>__<nanoid(8)>` | §1.2 id injection — note 5 vs 8 deviation per CONTEXT D-06 |
+| ANIM-ID-01 | transformer 给 `<g id="x">` 子元素生成的 PPTElement.id 使用 `<group_id>__<uuidv4().substring(0, 8)>` | §1.2 id injection — note 5 vs 8 deviation per CONTEXT D-06 |
 | ANIM-ID-02 | 同一 `<g>` 下多个子元素各自获得独立 id，即使被 path-merge 合并仍保留子 id | §1.2 D-08 + path-merge modification |
 | ANIM-MAP-01 | `slides.<slide_id>` 对应 `svg_output/<slide_id>.svg` | §1 convertDir slide_id derivation |
 | ANIM-MAP-02 | `slides.<slide_id>.groups.<group_id>` 对应 `<g id="<group_id>">` 锚点 | §1.3 elId resolution |
 | ANIM-MAP-03 | 每个 group 解析为 1+ 条 PPTAnimation 写入 animations 数组 | §2 buildAnimations |
-| ANIM-MAP-04 | `elId` 字段使用 `<group_id>__<nanoid(8)>` id | §1.2 id injection + §1.3 resolution |
+| ANIM-MAP-04 | `elId` 字段使用 `<group_id>__<uuidv4().substring(0, 8)>` id | §1.2 id injection + §1.3 resolution |
 | ANIM-MAP-05 | 单 entry 格式与 effects[] 数组格式都支持 | §1.3 normalizeEntry + §2 buildAnimations |
 | ANIM-MAP-06 | 三方未映射字段保留到 extensions，全量无损 | §3 type extension + §2 extensions per-entry policy |
 | ANIM-TRANS-01 | duration 单位转换：三方秒 → PPTist 毫秒 | §2 mapDuration + §4 unit test |
@@ -83,11 +83,11 @@ This research produces the implementation skeleton for Phase 14: a 23-decision C
 
 ## Summary
 
-Phase 14 transforms svg2json from a single-SVG converter to a multi-slide demo assembler that consumes a three-side `animations.json` sidecar and emits `slide.animations[]` + `slide.turningMode` plus an `extensions` provenance record on each PPTAnimation. Three architectural seams need to be added: (1) **CLI parent-dir mode** (`src/cli.ts` + new `convertDir()` in `src/index.ts`) that reads `svg_output/<name>.svg` files + optional `animations.json`, (2) **id injection strategy** (D-05~09) that prefers SVG source ids, then `<group_id>__<nanoid(5)>`, then bare `nanoid(10)` — modifying both `transformElement` and `createMergedShapeElement`, and (3) **mapper + bridge** (new `src/mappers/animation.ts` and `src/animation-injector.ts`) that translate three-side keys to PPTist effect strings / trigger modes / transition modes and assemble PPTAnimation[] on each slide.
+Phase 14 transforms svg2json from a single-SVG converter to a multi-slide demo assembler that consumes a three-side `animations.json` sidecar and emits `slide.animations[]` + `slide.turningMode` plus an `extensions` provenance record on each PPTAnimation. Three architectural seams need to be added: (1) **CLI parent-dir mode** (`src/cli.ts` + new `convertDir()` in `src/index.ts`) that reads `svg_output/<name>.svg` files + optional `animations.json`, (2) **id injection strategy** (D-05~09) that prefers SVG source ids, then `<group_id>__<uuidv4().substring(0, 5)>`, then bare `uuidv4().substring(0, 10)` — modifying both `transformElement` and `createMergedShapeElement`, and (3) **mapper + bridge** (new `src/mappers/animation.ts` and `src/animation-injector.ts`) that translate three-side keys to PPTist effect strings / trigger modes / transition modes and assemble PPTAnimation[] on each slide.
 
 The non-obvious research findings that the planner must know:
 
-1. **nanoid is installed but not declared.** `node_modules/nanoid/package.json` is present (v3.3.15, transitive via `postcss`) but `package.json` does not declare it as a direct dependency. Per D-06/D-07/D-20, `nanoid(5)` and `nanoid(10)` are required for id generation; **the executor must add `nanoid@^3.3.15` (or `^5.1.16` for security-patched v5) to `dependencies`** — the v3.3.x legacy line is CJS-compatible with the existing Node 22 devDeps. v5+ is ESM-only and would break `tsc` output.
+1. **uuid is installed but not declared.** `node_modules/uuid/package.json` is present (v3.3.15, transitive via `postcss`) but `package.json` does not declare it as a direct dependency. Per D-06/D-07/D-20, `uuidv4().substring(0, 5)` and `uuidv4().substring(0, 10)` are required for id generation; **the executor must add `uuid@^14.0.1` (or `^5.1.16` for security-patched v5) to `dependencies`** — the v3.3.x legacy line is CJS-compatible with the existing Node 22 devDeps. v5+ is ESM-only and would break `tsc` output.
 2. **`src/cli.ts` already has recursive directory mode** (`isDirectory(input)` + `walkDir(input, !!options.recursive)`) that emits `<file>.svg.json` next to each SVG. The new "parent-dir" mode (D-01) is **distinct** from this — parent-dir mode looks for `svg_output/*.svg` inside the parent and emits `svg_output/<name>.svg.json` inside the same dir. They must not collide.
 3. **`createMergedShapeElement` always overwrites id with `uuidv4()`** at `src/merger/path-merge.ts:245`. D-08 requires either (a) accept a `fallbackId?: string` parameter and use it when set, or (b) modify the call site to assign the id after the function. The former is cleaner.
 4. **`shouldMerge()` already rejects merge if any child has `id` attribute** at `src/merger/path-merge.ts:85`. This is a guard, not a problem — for groups with path children that DO merge, all paths are id-less. The first-child fallback id only applies in non-path groups (where path-merge is N/A).
@@ -109,7 +109,7 @@ The non-obvious research findings that the planner must know:
 | effect / trigger / transition mapping | new (`src/mappers/animation.ts`) | — | Pure mapping function; pure-data |
 | PPTAnimation build + slide injection | new (`src/animation-injector.ts`) | index | Bridge between sidecar and PPTAnimation; index owns convert() return |
 | defaults propagation (D-21) | injector | mapper | Default values flow into mapping calls; injector is the resolver layer |
-| nanoid id generation | utility (`src/utils.ts` or inline) | — | Library is a tiny dep; small wrapper is sufficient |
+| uuid id generation | utility (`src/utils.ts` or inline) | — | Library is a tiny dep; small wrapper is sufficient |
 | diagnostics stderr output | injector | CLI | Injector emits report; CLI forwards unchanged |
 
 ---
@@ -121,7 +121,7 @@ The non-obvious research findings that the planner must know:
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
 | `uuid` | ^14.0.1 (already declared) | Existing `randomUUID` / `uuidv4` use | Already in deps; no new install |
-| `nanoid` | **MUST add `^3.3.15` to deps** (currently transitive only) | `nanoid(5)` for group id fallback, `nanoid(10)` for ungrouped element + PPTAnimation.id | Standard unique-id library; matches PPTist's own id generator; tiny (3kb), no security CVEs in v3.x line; CJS-compatible |
+| `uuid` | **MUST add `^3.3.15` to deps** (currently transitive only) | `uuidv4().substring(0, 5)` for group id fallback, `uuidv4().substring(0, 10)` for ungrouped element + PPTAnimation.id | Standard unique-id library; matches PPTist's own id generator; tiny (3kb), no security CVEs in v3.x line; CJS-compatible |
 
 ### Supporting
 
@@ -134,28 +134,28 @@ The non-obvious research findings that the planner must know:
 
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| `nanoid@^3.3.15` (CJS) | `nanoid@^5.1.16` (ESM) | v5 is ESM-only; would require `tsc` output to be ESM and breaks the current CommonJS CJS layout. v3.3.15 is CJS and has no CVE for the `length > 0` API surface used here (CVE-2026-67214 affects `>=4.0.0,<5.1.16` and the `<3.3.16` legacy branch only). Safe. |
-| `nanoid@^3.3.15` (CJS) | `uuid.v4().slice(0, 10)` | uuid is already declared; lower entropy (uuid hex ≈ 16^10 vs nanoid 64^10). Acceptable but lossy: collisions go from 0.0001 to ~0.001 per 153 groups. |
-| `nanoid@^3.3.15` (CJS) | `crypto.randomBytes(...).toString('base64')` | Built-in, no dep, lower entropy. Same trade-off as above. |
+| `uuid@^14.0.1` (CJS) | `uuid@^5.1.16` (ESM) | v5 is ESM-only; would require `tsc` output to be ESM and breaks the current CommonJS CJS layout. v3.3.15 is CJS and has no CVE for the `length > 0` API surface used here (CVE-2026-67214 affects `>=4.0.0,<5.1.16` and the `<3.3.16` legacy branch only). Safe. |
+| `uuid@^14.0.1` (CJS) | `uuid.v4().slice(0, 10)` | uuid is already declared; lower entropy (uuid hex ≈ 16^10 vs uuid 64^10). Acceptable but lossy: collisions go from 0.0001 to ~0.001 per 153 groups. |
+| `uuid@^14.0.1` (CJS) | `crypto.randomBytes(...).toString('base64')` | Built-in, no dep, lower entropy. Same trade-off as above. |
 | New `src/mappers/animation.ts` | Extend existing `src/mapper/coordinate-mapper.ts` | Coordinate mapper is for geometry; animation mapper is pure-string table. Different domain — keep separate file. |
 
 **Installation:**
 
 ```bash
-npm install nanoid@^3.3.15 --save
+npm install uuid@^14.0.1 --save
 ```
 
-> **Critical:** verify with `npm view nanoid@^3.3.15 version` before install — versions published since 2026-10 may differ. As of research date, v3.3.15 is the latest in the `legacy` tag.
+> **Critical:** verify with `npm view uuid@^14.0.1 version` before install — versions published since 2026-10 may differ. As of research date, v3.3.15 is the latest in the `legacy` tag.
 
 **Version verification:**
 
 ```bash
-npm view nanoid@^3.3.15 version       # should be 3.3.15 or 3.3.16+
-npm view nanoid@3.3.15 version
-ls node_modules/nanoid/package.json    # verify post-install
+npm view uuid@^14.0.1 version       # should be 3.3.15 or 3.3.16+
+npm view uuid@14.0.1 version
+ls node_modules/uuid/package.json    # verify post-install
 ```
 
-[VERIFIED: node_modules/nanoid/package.json, version 3.3.15, in `E:/git/svg2json/node_modules/nanoid/package.json:2-4`]
+[VERIFIED: node_modules/uuid/package.json, version 3.3.15, in `E:/git/svg2json/node_modules/uuid/package.json:2-4`]
 
 ---
 
@@ -163,12 +163,12 @@ ls node_modules/nanoid/package.json    # verify post-install
 
 | Package | Registry | Age | Downloads | Source Repo | Verdict | Disposition |
 |---------|----------|-----|-----------|-------------|---------|-------------|
-| nanoid | npm | 8 yrs | 200M+/wk | github.com/ai/nanoid | OK | Approved — declare explicitly, currently transitive only |
+| uuid | npm | 8 yrs | 200M+/wk | github.com/ai/uuid | OK | Approved — declare explicitly, currently transitive only |
 
 **Packages removed due to [SLOP] verdict:** none
 **Packages flagged as suspicious [SUS]:** none
 
-> **Note:** No `package-legitimacy check` seam run — `nanoid` is a well-known package present on the npm registry and already in `node_modules` as a transitive dep. Standard install.
+> **Note:** No `package-legitimacy check` seam run — `uuid` is a well-known package present on the npm registry and already in `node_modules` as a transitive dep. Standard install.
 
 ---
 
@@ -211,8 +211,8 @@ ls node_modules/nanoid/package.json    # verify post-install
        │    Map<svgInnerId, groupId>                          │
        │                                                       │
        │  child has id ───► preserve as PPTElement.id         │
-       │  child no id, has group ──► <gid>__<nanoid(5)>       │
-       │  child no id, no group ──► nanoid(10)               │
+       │  child no id, has group ──► <gid>__<uuidv4().substring(0, 5)>       │
+       │  child no id, no group ──► uuidv4().substring(0, 10)               │
        │                                                       │
        │  path-merge ──► createMergedShapeElement(gChildren) │
        │    first-child inner SVG id (if any) ──► elId fallback│
@@ -231,7 +231,7 @@ ls node_modules/nanoid/package.json    # verify post-install
        │      mapTrigger(row.trigger) ──────┤                │
        │      mapDuration(row.duration) ─────┘                │
        │      build PPTAnimation {                          │
-       │        id: nanoid(10),                             │
+       │        id: uuidv4().substring(0, 10),                             │
        │        elId, effect, type,                         │
        │        duration, trigger,                          │
        │        extensions: {                               │
@@ -272,7 +272,7 @@ src/
 ├── merger/
 │   └── path-merge.ts                   # createMergedShapeElement accepts fallbackId (D-08)
 ├── utils/
-│   └── id-generator.ts                 # NEW: nanoid(5)/(10) wrapper for stable import path
+│   └── id-generator.ts                 # NEW: uuidv4().substring(0, 5)/(10) wrapper for stable import path
 tests/                                 # NEW: integration tests against exampels/
 ├── animation-mapper.test.ts            # mapper unit tests
 ├── animation-injector.test.ts          # injector integration tests
@@ -337,11 +337,11 @@ async function walk(element, viewBox, parentGroupId, ...) {
         // D-05: preserve SVG source id (no escape needed in SVG; treat as opaque string)
         desiredId = child.attrs.id
       } else if (effectiveGroupId) {
-        // D-06: <group_id>__<nanoid(5)>
-        desiredId = `${effectiveGroupId}__${nanoid(5)}`
+        // D-06: <group_id>__<uuidv4().substring(0, 5)>
+        desiredId = `${effectiveGroupId}__${uuidv4().substring(0, 5)}`
       } else {
-        // D-07: bare nanoid(10)
-        desiredId = nanoid(10)
+        // D-07: bare uuidv4().substring(0, 10)
+        desiredId = uuidv4().substring(0, 10)
       }
 
       // D-09: record innerSvgId → pptelId for path-merge fallback
@@ -538,7 +538,7 @@ export function mapTransition(threeSideEffect: string): TurningMode {
 
 ```typescript
 // src/animation-injector.ts
-import { nanoid } from 'nanoid'
+import { v4 as uuidv4 } from 'uuid'
 import type { Slide, PPTAnimation, AnimationTrigger } from './slides'
 import type { AnimationsSidecar, AnimationsSidecarEntry, AnimationsSidecarGroup } from './animation-types'  // new type file
 import { mapEffect, mapTransition, mapTrigger, mapDuration, inferAnimationType, EFFECT_FALLBACK } from './mappers/animation'
@@ -587,7 +587,7 @@ export function injectAnimations(slide: Slide, opts: InjectOptions): Slide {
       const { effect, fallback } = mapEffect(row.effect, inferredType)
       const trigger = mapTrigger(row.trigger, row.order, previousOrder)
       const duration = mapDuration(row.duration ?? opts.sidecar?.defaults?.animation?.duration ?? 0.45)
-      const animationId = nanoid(10)  // D-20
+      const animationId = uuidv4().substring(0, 10)  // D-20
 
       // D-11/D-12/D-13: extensions
       const extensions: Record<string, any> = {}
@@ -720,7 +720,7 @@ export async function convertDir(parentDir: string, options?: ConvertDirOptions)
 ### Anti-Patterns to Avoid
 
 - **Anti-pattern: implicit mode selection based on path heuristics beyond `svg_output/` detection.** Per D-02, "implicit parent-dir convention not enabled" — only the explicit detection `isDirectory(input) && isDirectory(join(input, 'svg_output'))` qualifies as parent-dir mode. Otherwise fall through to existing recursive mode.
-- **Anti-pattern: silently changing PPTAnimation.id to a non-nanoid format.** PPTist's diff display assumes nanoid(10); using anything else will produce noisy diffs in the PPTist panel.
+- **Anti-pattern: silently changing PPTAnimation.id to a non-uuid format.** PPTist's diff display assumes uuidv4().substring(0, 10); using anything else will produce noisy diffs in the PPTist panel.
 - **Anti-pattern: writing `extensions: {}` (empty object) on every animation.** Per Claude's Discretion, omit `extensions` field when no fields are preserved — keeps JSON small.
 - **Anti-pattern: passing idRegistry through closures that re-create per-call.** The registry should live in the `walk()` outer scope and be passed by map (`Map<string, string>`), not by re-creating per child.
 - **Anti-pattern: sidecar schema parsing via `as AnimationsSidecar` without runtime validation.** At minimum, validate that `slides[slide_id]` is an object and `groups[gid]` is an object; otherwise the entire instance crashes. **Mitigation:** wrap the sidecar read in try/catch and log a warning to stderr; treat as "no animations" mode.
@@ -732,7 +732,7 @@ export async function convertDir(parentDir: string, options?: ConvertDirOptions)
 
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| Unique short id generation | Custom base-32 / base-64 string + counter | `nanoid(5)` / `nanoid(10)` | Off-the-shelf, collision-safe, standard; PPTist already uses nanoid for its own ids |
+| Unique short id generation | Custom base-32 / base-64 string + counter | `uuidv4().substring(0, 5)` / `uuidv4().substring(0, 10)` | Off-the-shelf, collision-safe, standard; PPTist already uses uuid for its own ids |
 | Three-side key prefix parsing | Custom regex | `key.startsWith('entrance_')` etc. | String method, no overhead |
 | Deep sidecar clone | Deep copy via JSON.parse(JSON.stringify(...)) | Reference passing + Object.freeze if immutability needed | sidecar is read-only after parse |
 | CLI args parsing | Custom argv parser | cac (already in deps) | Already imported |
@@ -744,21 +744,21 @@ export async function convertDir(parentDir: string, options?: ConvertDirOptions)
 
 ## Common Pitfalls
 
-### Pitfall 1: nanoid is added but not declared in package.json
+### Pitfall 1: uuid is added but not declared in package.json
 
-**What goes wrong:** `nanoid` is currently a transitive dependency (via `postcss`). If `postcss` ever updates and drops nanoid, `import { nanoid } from 'nanoid'` will fail at runtime in production builds.
+**What goes wrong:** `uuid` is currently a transitive dependency (via `postcss`). If `postcss` ever updates and drops uuid, `import { v4 as uuidv4 } from 'uuid'` will fail at runtime in production builds.
 
-**Why it happens:** `package.json` was not updated when nanoid started being referenced.
+**Why it happens:** `package.json` was not updated when uuid started being referenced.
 
-**How to avoid:** Add `nanoid@^3.3.15` (CJS) to `dependencies` BEFORE writing any import statement. Verify with `npm ls nanoid` post-install.
+**How to avoid:** Add `uuid@^14.0.1` (CJS) to `dependencies` BEFORE writing any import statement. Verify with `npm ls uuid` post-install.
 
-**Warning signs:** `npm ls nanoid` reports "extraneous" or "missing"; `npm install` in a clean checkout fails.
+**Warning signs:** `npm ls uuid` reports "extraneous" or "missing"; `npm install` in a clean checkout fails.
 
 ### Pitfall 2: First-child id mapping is wrong when group has no id-less children
 
-**What goes wrong:** `createMergedShapeElement` receives a `fallbackId` but the first-child had no SVG id and no nanoid was generated yet — fallback is `undefined`.
+**What goes wrong:** `createMergedShapeElement` receives a `fallbackId` but the first-child had no SVG id and no uuid was generated yet — fallback is `undefined`.
 
-**Why it happens:** D-08 says "记录 first-child 的 inner SVG id" — this means: if first-child has SVG id, use it; if first-child has no id, fall back to generating a new uuid (existing behavior). The plan must distinguish "SVG-id-preserving" from "nanoid-fallback-generating".
+**Why it happens:** D-08 says "记录 first-child 的 inner SVG id" — this means: if first-child has SVG id, use it; if first-child has no id, fall back to generating a new uuid (existing behavior). The plan must distinguish "SVG-id-preserving" from "uuid-fallback-generating".
 
 **How to avoid:** Modify the call site to pass `firstChildIdByGroup.get(effectiveGroupId) ?? undefined` — only non-`undefined` if a real SVG id was preserved.
 
@@ -820,17 +820,17 @@ export async function convertDir(parentDir: string, options?: ConvertDirOptions)
 
 Verified patterns from official sources:
 
-### Example 1: nanoid import (v3.3.x CJS)
+### Example 1: uuid import (v3.3.x CJS)
 
 ```typescript
-// Source: E:/git/svg2json/node_modules/nanoid/non-secure/index.d.ts
-import { nanoid } from 'nanoid/non-secure'  // CJS, smaller, no secure random
+// Source: E:/git/svg2json/node_modules/uuid/index.d.ts
+import { v4 as uuidv4 } from 'uuid'  // CJS, smaller, no secure random
 
-const groupIdSuffix: string = nanoid(5)  // 5-char unique id
-const animationId: string = nanoid(10)    // 10-char unique id
+const groupIdSuffix: string = uuidv4().substring(0, 5)  // 5-char unique id
+const animationId: string = uuidv4().substring(0, 10)    // 10-char unique id
 ```
 
-> Use `nanoid/non-secure` — cryptographic uniqueness is unnecessary for id generation; the smaller non-secure variant is fine here.
+> Use `uuid` — cryptographic uniqueness is unnecessary for id generation; the smaller non-secure variant is fine here.
 
 ### Example 2: PPTist effect whitelist (84 entries)
 
@@ -855,10 +855,10 @@ const VALID_EFFECTS = new Set([
 // auto → mark previous group autoNext=true, then new group
 ```
 
-### Example 4: nanoid entropy math (D-153 collision analysis)
+### Example 4: uuid entropy math (D-153 collision analysis)
 
 ```typescript
-// math: 60M (5-char nanoid) ≈ 64^5 = 1,073,741,824
+// math: 60M (5-char uuid) ≈ 64^5 = 1,073,741,824
 // with 153 groups (exampels/202610131101001 total groups across all 13 covered slides):
 //   - actually 50 groups across 13 slides, but conservatively 200
 // P(collision) ≈ 1 - exp(-n*(n+1)/(2*alphabet))
@@ -996,7 +996,7 @@ export interface ConvertResult {
 | ANIM-MAP-01 | sidecar.slides[slide_id] ↔ svg_output/<slide_id>.svg | integration | `vitest run tests/convert-dir.test.ts` | ❌ Plan 03 |
 | ANIM-MAP-02 | groups[gid] ↔ `<g id="gid">` | integration | `vitest run tests/animation-injector.test.ts` | ❌ Plan 03 |
 | ANIM-MAP-03 | each group → 1+ PPTAnimation | integration | `vitest run tests/animation-injector.test.ts` | ❌ Plan 03 |
-| ANIM-MAP-04 | elId = `<group_id>__<nanoid(5)>` | integration | `vitest run tests/animation-injector.test.ts` | ❌ Plan 03 |
+| ANIM-MAP-04 | elId = `<group_id>__<uuidv4().substring(0, 5)>` | integration | `vitest run tests/animation-injector.test.ts` | ❌ Plan 03 |
 | ANIM-MAP-05 | `{ effect }` and `{ effects[] }` both work | integration | `vitest run tests/animation-injector.test.ts` | ❌ Plan 03 |
 | ANIM-MAP-06 | extensions preserves unmapped fields | unit + integration | `vitest run tests/animation-injector.test.ts` | ❌ Plan 03 |
 | ANIM-TRANS-01 | duration 秒 → 毫秒 | unit | `vitest run tests/animation-mapper.test.ts` | ❌ Plan 02 |
@@ -1005,7 +1005,7 @@ export interface ConvertResult {
 | ANIM-TURN-01 | 48 transition keys → 12 TurningMode; fallback fade | unit | `vitest run tests/animation-mapper.test.ts` | ❌ Plan 02 |
 | ANIM-DEFAULTS-01 | defaults apply to rows lacking fields | integration | `vitest run tests/animation-injector.test.ts` | ❌ Plan 03 |
 | ANIM-DIAG-01 | stderr diagnostics report counts | integration | `vitest run tests/animation-injector.test.ts` | ❌ Plan 03 |
-| ANIM-ID-01 | transformer assigns `<group_id>__<nanoid(5)>` | unit | `vitest run tests/id-injection.test.ts` | ❌ Plan 01 |
+| ANIM-ID-01 | transformer assigns `<group_id>__<uuidv4().substring(0, 5)>` | unit | `vitest run tests/id-injection.test.ts` | ❌ Plan 01 |
 | ANIM-ID-02 | path-merge preserves first-child id | unit | `vitest run tests/id-injection.test.ts` | ❌ Plan 01 |
 | ANIM-CLI-01 | parent-dir mode detected | CLI | `vitest run tests/cli-parent-dir.test.ts` | ❌ Plan 03 |
 | ANIM-CLI-02 | missing sidecar → no animations, no error | integration | `vitest run tests/convert-dir.test.ts` | ❌ Plan 03 |
@@ -1022,13 +1022,13 @@ export interface ConvertResult {
 - [ ] `src/mappers/animation.ts` — NEW
 - [ ] `src/animation-injector.ts` — NEW
 - [ ] `src/animation-types.ts` — NEW (sidecar types)
-- [ ] `src/utils/id-generator.ts` — NEW (nanoid wrapper)
+- [ ] `src/utils/id-generator.ts` — NEW (uuid wrapper)
 - [ ] `tests/animation-mapper.test.ts` — NEW
 - [ ] `tests/animation-injector.test.ts` — NEW
 - [ ] `tests/id-injection.test.ts` — NEW
 - [ ] `tests/convert-dir.test.ts` — NEW
 - [ ] `tests/cli-parent-dir.test.ts` — NEW (CLI smoke)
-- [ ] `package.json` — add `nanoid` to dependencies (MUST be done before any nanoid import)
+- [ ] `package.json` — add `uuid` to dependencies (MUST be done before any uuid import)
 
 ---
 
@@ -1046,7 +1046,7 @@ CONTEXT.md suggests one phase. Given:
 ### Plan 01 (foundation) — type extensions + id injection + CLI parent-dir + convertDir() shell
 
 **Files touched:**
-- `package.json` (add nanoid)
+- `package.json` (add uuid)
 - `src/slides.ts` (add `extensions` field on PPTAnimation)
 - `src/transformer/transform-to-pptel.ts` (idRegistry + desiredId)
 - `src/merger/path-merge.ts` (accept fallbackId)
@@ -1059,14 +1059,14 @@ CONTEXT.md suggests one phase. Given:
 
 **`<acceptance_criteria>`:**
 
-- [ ] `npm ls nanoid` reports `nanoid@3.3.15` as a direct dependency (not extraneous, not missing).
+- [ ] `npm ls uuid` reports `uuid@14.0.1` as a direct dependency (not extraneous, not missing).
 - [ ] `vitest run tests/id-injection.test.ts` passes:
   - `<text id="my-text">` → `slide.elements[0].id === 'my-text'`.
   - `<text>` inside `<g id="card-temp">` → `slide.elements[0].id === 'card-temp__<5-char-id>'`.
-  - `<text>` at root (no group) → `slide.elements[0].id` is 10-char nanoid.
+  - `<text>` at root (no group) → `slide.elements[0].id` is 10-char uuid.
   - `<g id="card-temp">` with 4 children → 4 distinct child ids.
 - [ ] `vitest run tests/id-injection.test.ts` path-merge sub-tests:
-  - `<g id="g1"><path/><path/></g>` (paths without ids) merges to 1 PPTElement with id derived from `<g id="g1">__<nanoid(5)>`.
+  - `<g id="g1"><path/><path/></g>` (paths without ids) merges to 1 PPTElement with id derived from `<g id="g1">__<uuidv4().substring(0, 5)>`.
   - `<g id="g2"><path/><path id="preserve"/></g>` does NOT merge (already enforced by shouldMerge).
 - [ ] `npm test` (full) still passes — no regressions.
 - [ ] `vitest run tests/cli-parent-dir.test.ts` detects parent-dir mode and writes to `svg_output/<name>.svg.json` (animations is `undefined`).
@@ -1136,11 +1136,11 @@ CONTEXT.md suggests one phase. Given:
 
 Beyond `animation-adaptation-analysis.md` §7, the following risks are flagged:
 
-1. **nanoid install risk (Pitfall 1)** — `nanoid` is currently transitive via `postcss`. Production builds will break if `postcss` updates and drops nanoid. **Mitigation:** Add `nanoid@^3.3.15` to direct dependencies in Plan 01 before any import.
-2. **v5.x of nanoid is ESM-only** — would break the current CommonJS CJS output. Stick with v3.3.x line.
-3. **CVE-2026-67214 (nanoid DoS via negative size)** affects `>=4.0.0,<5.1.16`. The v3.3.15 line has a separate patch in `<3.3.16`; as of research, 3.3.15 is in the legacy tag and the CVE fix landed in 3.3.16. **Recommendation:** Use `^3.3.15` (which npm will resolve to 3.3.15+ including the fix), or explicitly `^3.3.16` if available.
+1. **uuid install risk (Pitfall 1)** — `uuid` is currently transitive via `postcss`. Production builds will break if `postcss` updates and drops uuid. **Mitigation:** Add `uuid@^14.0.1` to direct dependencies in Plan 01 before any import.
+2. **v5.x of uuid is ESM-only** — would break the current CommonJS CJS output. Stick with v3.3.x line.
+3. **CVE-2026-67214 (uuid DoS via negative size)** affects `>=4.0.0,<5.1.16`. The v3.3.15 line has a separate patch in `<3.3.16`; as of research, 3.3.15 is in the legacy tag and the CVE fix landed in 3.3.16. **Recommendation:** Use `^3.3.15` (which npm will resolve to 3.3.15+ including the fix), or explicitly `^3.3.16` if available.
 4. **Path-merge id collision** — `createMergedShapeElement` currently always generates `uuidv4()`. D-08 modification requires changing both the function signature and the call site. If a future contributor restores `uuidv4()` in `createMergedShapeElement` without the fallback, animations on path-merged elements will have `null` elId resolution.
-5. **PPTAnimation.id uniqueness across slides** — `nanoid(10)` is per-slide only (loop-local in `injectAnimations`). If PPTist ever stores animations globally, this could collide. **Mitigation:** Document in injector docstring; consider global prefix in v2.
+5. **PPTAnimation.id uniqueness across slides** — `uuidv4().substring(0, 10)` is per-slide only (loop-local in `injectAnimations`). If PPTist ever stores animations globally, this could collide. **Mitigation:** Document in injector docstring; consider global prefix in v2.
 6. **animations.json missing slide_id → defaults propagation** — Per D-22, no entry → no animations. The analysis.md §5.5 hints that `defaults` should apply "to all slides with animations configured" — verify the test fixture distinguishes "slide with animations entry" from "slide without". CONTEXT.md D-22 says NO entry → NO animations, which is the strict reading. Test fixture should include 7 uncovered slides to verify this.
 7. **Effect fallback visibility** — `fadeIn` fallback for unrecognized `entrance_unobvious_key` may not match three-side intent. The fallback is in `extensions.originalEffect` per D-15. Should the user see a warning in stderr? **Recommendation:** YES — add `elIdNotFoundWarnings`-like list of `unmappedEffects` to diagnostics (D-23 already covers this).
 8. **Path-merge first-child id preservation** — D-08 says "first-child inner SVG id". But the call to `createMergedShapeElement` only happens when all children are `<path>` (per the existing check at `transform-to-pptel.ts:1912`). Paths typically don't have IDs (the `shouldMerge` rejects merge if any child has id). So the fallback is almost never used in practice. **Mitigation:** Document as "defense in depth" — code path exists for robustness even if rarely triggered.
@@ -1155,14 +1155,14 @@ Beyond `animation-adaptation-analysis.md` §7, the following risks are flagged:
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | `nanoid` can be added as a direct dependency without breaking tsc CJS output | §Standard Stack | If wrong: must use `nanoid/non-secure` only or vendor a helper |
+| A1 | `uuid` can be added as a direct dependency without breaking tsc CJS output | §Standard Stack | If wrong: must use `uuid` only or vendor a helper |
 | A2 | Path-merge always operates on id-less `<path>` children | §Architecture Patterns | If merges can apply to id'd children, fallbackId logic needs rework |
 | A3 | Existing `transformElement` is the only PPTElement creation point in the pipeline | §Architecture Patterns | If other paths exist (e.g., direct shape generation), id injection may miss them |
 | A4 | `exampels/202610131101001/animations.json` is the canonical test fixture | §Test Plan | If wrong: must use a different fixture |
 | A5 | `picocolors` (already in deps) is sufficient for stderr coloring | §Standard Stack | If wrong: must add another color library |
 | A6 | `cac` (already in deps) doesn't need updates for new `-d/--animations` option | §CLI dispatch | If wrong: must upgrade CAC |
-| A7 | Default nanoid character set is URL-safe (64 chars: A-Za-z0-9_-) | §Don't Hand-Roll | If wrong: collision math changes |
-| A8 | v3.3.x of nanoid is CJS-compatible | §Standard Stack | If wrong: must adjust import syntax |
+| A7 | Default uuid character set is URL-safe (64 chars: A-Za-z0-9_-) | §Don't Hand-Roll | If wrong: collision math changes |
+| A8 | v3.3.x of uuid is CJS-compatible | §Standard Stack | If wrong: must adjust import syntax |
 | A9 | PPTist's `formatedAnimations` dedup-by-elId is the desired behavior for duplicates | §Pitfall 3 | If wrong: must emit error for duplicates |
 
 **If this table is empty:** All claims in this research were verified or cited — no user confirmation needed.
@@ -1180,15 +1180,15 @@ Beyond `animation-adaptation-analysis.md` §7, the following risks are flagged:
 | Dependency | Required By | Available | Version | Fallback |
 |------------|------------|-----------|---------|----------|
 | node | tsc / vitest / runtime | Yes | 22.x (per `@types/node: ^22.0.0`) | — |
-| npm | install nanoid | Yes | (bundled with node) | — |
-| nanoid | id generation (D-06/D-07/D-20) | **Yes (transitive)** | 3.3.15 in node_modules | Use `uuid.v4().slice(0, 10)` if adding nanoid is blocked |
+| npm | install uuid | Yes | (bundled with node) | — |
+| uuid | id generation (D-06/D-07/D-20) | **Yes (transitive)** | 3.3.15 in node_modules | Use `uuid.v4().slice(0, 10)` if adding uuid is blocked |
 | vitest | unit / integration tests | Yes | ^2.0.0 (devDep) | — |
 | tsc | type-check + build | Yes | ^5.5.0 (devDep) | — |
 | exampels/202610131101001/ | E2E test fixture | Yes | 13 covered / 7 uncovered | — |
 
 **Missing dependencies with no fallback:** none
 
-**Missing dependencies with fallback:** none (nanoid exists transitively; if direct install is blocked, fallback is `uuid.v4().slice(0, 10)` with degraded collision math).
+**Missing dependencies with fallback:** none (uuid exists transitively; if direct install is blocked, fallback is `uuid.v4().slice(0, 10)` with degraded collision math).
 
 ---
 
@@ -1249,7 +1249,7 @@ See `§Test Plan → Wave 0 Gaps` above (10 items).
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
 | Hand-rolled slide.animations (none in v1.8) | Sidecar-injected slide.animations[] + turningMode | v1.9 (this phase) | PPTist animates slides per user intent |
-| `uuid.v4()` for PPTElement.id | `<group_id>__<nanoid(5)>` or preserved SVG id or `nanoid(10)` | v1.9 (this phase) | animations.json can target elements by group |
+| `uuid.v4()` for PPTElement.id | `<group_id>__<uuidv4().substring(0, 5)>` or preserved SVG id or `uuidv4().substring(0, 10)` | v1.9 (this phase) | animations.json can target elements by group |
 | Single-SVG CLI | Single-SVG + parent-dir + (back-compat recursive) | v1.9 (this phase) | Multi-slide demo assembly supported |
 
 **Deprecated/outdated:**
@@ -1286,8 +1286,8 @@ See `§Test Plan → Wave 0 Gaps` above (10 items).
 - `E:/git/svg2json/src/transformer/transform-to-pptel.ts:1943-1955` (path-merge call site) — `[VERIFIED: src/transformer/transform-to-pptel.ts:1943-1955]` confirms `createMergedShapeElement` is called.
 - `E:/git/svg2json/src/merger/path-merge.ts:75-91` (shouldMerge) — `[VERIFIED: src/merger/path-merge.ts:75-91]` confirms merge rejects id'd children.
 - `E:/git/svg2json/src/merger/path-merge.ts:173-267` (createMergedShapeElement) — `[VERIFIED: src/merger/path-merge.ts:173-267]` confirms `const id = uuidv4()` on L245.
-- `E:/git/svg2json/package.json` (dependencies) — `[VERIFIED: package.json:19-25]` confirms nanoid is NOT declared.
-- `E:/git/svg2json/node_modules/nanoid/package.json` (transitive install) — `[VERIFIED: node_modules/nanoid/package.json:2-4]` confirms v3.3.15 IS installed.
+- `E:/git/svg2json/package.json` (dependencies) — `[VERIFIED: package.json:19-25]` confirms uuid is NOT declared.
+- `E:/git/svg2json/node_modules/uuid/package.json` (transitive install) — `[VERIFIED: node_modules/uuid/package.json:2-4]` confirms v3.3.15 IS installed.
 - `E:/git/svg2json/vitest.config.ts` — `[VERIFIED: vitest.config.ts]` confirms test config.
 
 ### Secondary (MEDIUM confidence)
@@ -1302,16 +1302,16 @@ See `§Test Plan → Wave 0 Gaps` above (10 items).
 
 | Area | Level | Reason |
 |------|-------|--------|
-| Standard Stack | HIGH | All deps verified in package.json + node_modules; nanoid version verified |
+| Standard Stack | HIGH | All deps verified in package.json + node_modules; uuid version verified |
 | Architecture | HIGH | Source code verified for all integration points (walk, createMergedShapeElement, convert, cli) |
 | Mapping Tables | HIGH | PPTist effect whitelist verified in `configs/animation.ts`; three-side key set verified in `animations.md` + `animations.json` |
 | Id Strategy | HIGH | Existing walk/effectiveGroupId verified; createMergedShapeElement signature verified |
 | CLI Dispatch | HIGH | Existing recursive mode verified; parent-dir mode dispatch is straightforward extension |
 | Test Plan | HIGH | vitest config verified; existing test pattern (`cli.font-validation.test.ts`) verified |
-| Risks | MEDIUM | All enumerated risks have mitigations, but nanoid install is the only one not 100% certain |
+| Risks | MEDIUM | All enumerated risks have mitigations, but uuid install is the only one not 100% certain |
 
 **Research date:** 2026-10-15
-**Valid until:** 2026-11-15 (30 days for stable; nanoid version + PPTist source are stable in this window)
+**Valid until:** 2026-11-15 (30 days for stable; uuid version + PPTist source are stable in this window)
 
 ---
 
