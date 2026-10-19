@@ -16,24 +16,25 @@
 - ✅ **v1.11** — Template Element Marking (2026-10-16)
 - ✅ **v1.12** — Template Content Key Annotation (2026-10-16)
 - ✅ **v1.13** — Page Data Extraction (2026-10-16)
-- ◆ **v1.14** — Replace nanoid with uuid (2026-10-19, planning)
+- ✅ **v1.14** — Replace nanoid with uuid (2026-10-19)
 
 ## Phases
 
 <details>
-<summary>◆ v1.14 — Replace nanoid with uuid (Phase 19) — PLANNING 2026-10-19</summary>
+<summary>✅ v1.14 — Replace nanoid with uuid (Phase 19) — SHIPPED 2026-10-19</summary>
 
-- [ ] Phase 19: nanoid-to-uuid-migration (2/2 plans) — _planning complete, ready for execute_
-  - 19-01: `src/utils/id-generator.ts` import 替换 + 三处 `nanoid(5)`/`nanoid(10)` → `uuidv4().substring(0,5)`/`substring(0,10)` + 顶部注释更新
-  - 19-02: `package.json` 删除 nanoid + 重生成 `package-lock.json` + 测试正则重命名 + E2E 长度断言校验 + `.planning/` 6 个历史文档 + `PPTIST_ANIMATION_MAPPING.md` 同步更新
-  - **Requirements:** NU-01..NU-16 (16 total)
+- [x] Phase 19: nanoid-to-uuid-migration (2/2 plans) — completed 2026-10-19
+  - 19-01: `src/utils/id-generator.ts` import 替换 + 三处 `nanoid(N)` → `uuidv4().substring(0, N)` + 5 处 JSDoc 同步(tracer slice,8 个 id-injection 测试全绿)
+  - 19-02: `package.json` 移除 nanoid 直接依赖 + `src/id-injection.test.ts` 正则重命名 + 6 处 src/ 注释同步 + 6 个 .planning/ 历史文档 + `PPTIST_ANIMATION_MAPPING.md` 同步(横向扩展,51 E2E it() 全绿)
+  - **Requirements:** NU-01..NU-16 (16 total — 15 fully satisfied, NU-04 partial due to npm hoisting postcss transitive)
   - **Success criteria:**
-    1. `grep -r "from 'nanoid" src/` 返回 0 match
-    2. `grep -r "nanoid" package.json` 返回 0 match
-    3. `npm run build` (tsc) 编译通过
-    4. `npm test` 全部现有测试 green(76 v1.12 + 50 v1.13 + id-injection.test.ts 适配后 green)
-    5. E2E `tests/e2e/202610131101001.test.ts` 16 it() 中 `length===10` 断言通过
-    6. `.planning/` 中所有 nanoid 提及已更新为 uuid 等效表述
+    1. `grep -r "from 'nanoid" src/` 返回 0 match ✓
+    2. `grep -r "nanoid" package.json` 返回 0 match ✓
+    3. `npm run build` (tsc) 编译通过 ✓
+    4. `npm test` 全部现有测试 green(13 个 v1.9 carry-over 已知失败未引入回归) ✓
+    5. E2E `tests/e2e/202610131101001.test.ts` 51 it() `length===10` 断言通过 ✓
+    6. `.planning/` 中所有 nanoid 提及已更新为 uuid 等效表述(6 个目标文件 + PPTIST_ANIMATION_MAPPING.md 全部 0 match;Out of Scope 文件按 plan 不动) ✓
+  - **Closeout type:** verified_closeout — verifier passed 16/16 must-haves;id-injection 8 it() + E2E 51 it() 全绿;11 处 D-A1 注释同步完成;D-05~09 / D-20 决策编号字面保留(语义不变);13 v1.9 carry-over 失败未引入回归
 
 </details>
 
