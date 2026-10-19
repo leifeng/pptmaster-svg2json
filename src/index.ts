@@ -350,12 +350,12 @@ export async function convert(svgContent: string, options?: ConvertOptions): Pro
 
 /**
  * D-01~03 + D-04: Convert a parent directory of SVG files into a multi-slide PPTist
- * presentation. Each `<svg_output_dir>/<name>.svg` produces `<svg_output_dir>/<name>.svg.json`
+ * presentation. Each `<svg_output_dir>/<name>.svg` produces `<svg_output_dir>/<name>.json`
  * containing the same `{ title, width, height, theme, slides: [slide] }` envelope as
  * `convert()`. Per D-22, NO `slide.animations` or `slide.turningMode` is populated in
  * this plan — Wave 1 ships empty-animation slides for Plan 02 to layer onto.
  *
- * D-22: sidecar-less parents still emit N `.svg.json` files with empty `animations[]`.
+ * D-22: sidecar-less parents still emit N `.json` files with empty `animations[]`.
  * Diagnostics are an empty skeleton in Wave 1 (D-23 prints real numbers in Plan 02).
  */
 export async function convertDir(
@@ -414,7 +414,7 @@ export async function convertDir(
 
       slides.push(slideWithAnim)
 
-      // Write `<file>.svg.json` envelope (same shape as convert() output)
+      // Write `<file>.json` envelope (same shape as convert() output)
       const canvasWidth = options?.targetCanvas?.[0] ?? 1000
       const canvasHeight = options?.targetCanvas?.[1] ?? 562.5
       const envelope = {
@@ -431,7 +431,7 @@ export async function convertDir(
         },
         slides: [slideWithAnim],
       }
-      writeFileSync(fullPath + '.svg.json', JSON.stringify(envelope, null, 2), 'utf-8')
+      writeFileSync(join(svgOutputDir, slideId + '.json'), JSON.stringify(envelope, null, 2), 'utf-8')
     } catch (err) {
       errors.push({ file: fullPath, error: String(err) })
     }

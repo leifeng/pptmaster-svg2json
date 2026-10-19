@@ -14,7 +14,7 @@
  *   - Every `animation.trigger ∈ {click, meantime, auto}`
  *   - Total injected count matches `result.diagnostics.animationsInjected`
  *   - `convertDir()` second invocation WITHOUT `animations.json` exits
- *     successfully and produces 20 `.svg.json` files with NO `animations`
+ *     successfully and produces 20 `.json` files with NO `animations`
  *     field (ANIM-CLI-02 missing-sidecar path).
  *
  * Imports `convertDir` from the BUILT `dist/src/index.js` — `npm run build`
@@ -552,12 +552,12 @@ describe('Plan 14-03 — E2E on exampels/202610131101001 (ANIM-DIAG-01)', () => 
       }
     })
 
-    it('produces 20 .svg.json files even when animations.json is absent', () => {
+    it('produces 20 .json files even when animations.json is absent', () => {
       if (!hasFixture || !missingSidecarResult || !missingSidecarDir) return
       expect(missingSidecarResult.success).toBe(true)
       expect(missingSidecarResult.errors).toEqual([])
       const files = readdirSync(join(missingSidecarDir, 'svg_output')).filter(f =>
-        f.endsWith('.svg.json'),
+        f.endsWith('.json'),
       )
       expect(files.length).toBe(20)
     })

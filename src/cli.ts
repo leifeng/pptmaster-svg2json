@@ -114,7 +114,7 @@ async function main() {
     for (const file of svgFiles) {
       const result = await processFile(file)
       if (result.success && result.output) {
-        const jsonPath = file + '.json'
+        const jsonPath = file.replace(/\.svg$/i, '.json')
         writeFileSync(jsonPath, result.output, 'utf-8')
         successCount++
       } else {
@@ -137,7 +137,7 @@ async function main() {
       console.error(pc.red(`Error: ${result.error}`))
       process.exit(1)
     }
-    const outputPath = options.output || (input + '.json')
+    const outputPath = options.output || input.replace(/\.svg$/i, '.json')
     writeFileSync(outputPath, result.output!, 'utf-8')
     console.error(pc.green(`Written to ${outputPath}`))
     process.exit(0)

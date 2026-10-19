@@ -4,7 +4,7 @@
  * Covers ANIM-CLI-01/02/03 acceptance criteria with a self-contained temp-dir
  * fixture (3 fake SVG files + minimal animations.json). Pins:
  *
- *   - 3 `.svg.json` files emitted to `<tmp>/svg_output/` (NOT `<tmp>/`)
+ *   - 3 `.json` files emitted to `<tmp>/svg_output/` (NOT `<tmp>/`)
  *   - `result.success === true` with no errors
  *   - Slides with sidecar entries receive `animations[]`; slides without do not
  *   - Output is parseable JSON containing the expected PPTist envelope
@@ -99,13 +99,13 @@ describe('Plan 14-03 — convertDir() programmatic tests (ANIM-CLI-01/02/03)', (
       try { rmSync(fixture.dir, { recursive: true, force: true }) } catch {}
     })
 
-    it('writes 3 .svg.json files to svg_output/ (NOT the parent dir)', () => {
+    it('writes 3 .json files to svg_output/ (NOT the parent dir)', () => {
       expect(result.success).toBe(true)
       expect(result.errors).toEqual([])
-      const files = readdirSync(fixture.svgDir).filter(f => f.endsWith('.svg.json'))
+      const files = readdirSync(fixture.svgDir).filter(f => f.endsWith('.json') && !f.startsWith('animations.'))
       expect(files.length).toBe(3)
-      // .svg.json files MUST live under svg_output/, never in the parent
-      const parentFiles = readdirSync(fixture.dir).filter(f => f.endsWith('.svg.json'))
+      // .json files MUST live under svg_output/, never in the parent (other than animations.json sidecar)
+      const parentFiles = readdirSync(fixture.dir).filter(f => f.endsWith('.json') && !f.startsWith('animations.'))
       expect(parentFiles.length).toBe(0)
     })
 
@@ -150,8 +150,8 @@ describe('Plan 14-03 — convertDir() programmatic tests (ANIM-CLI-01/02/03)', (
       expect(s.turningMode).toBe('fade') // from defaults.transition.effect
     })
 
-    it('each .svg.json file parses as the PPTist envelope', () => {
-      const files = readdirSync(fixture.svgDir).filter(f => f.endsWith('.svg.json'))
+    it('each .json file parses as the PPTist envelope', () => {
+      const files = readdirSync(fixture.svgDir).filter(f => f.endsWith('.json') && !f.startsWith('animations.'))
       for (const f of files) {
         const env = JSON.parse(readFileSync(join(fixture.svgDir, f), 'utf-8'))
         expect(env).toHaveProperty('title')
@@ -199,8 +199,8 @@ describe('Plan 14-03 — convertDir() programmatic tests (ANIM-CLI-01/02/03)', (
       expect(result.errors).toEqual([])
     })
 
-    it('writes 3 .svg.json files', () => {
-      const files = readdirSync(fixture.svgDir).filter(f => f.endsWith('.svg.json'))
+    it('writes 3 .json files', () => {
+      const files = readdirSync(fixture.svgDir).filter(f => f.endsWith('.json') && !f.startsWith('animations.'))
       expect(files.length).toBe(3)
     })
 

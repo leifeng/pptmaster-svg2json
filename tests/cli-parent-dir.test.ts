@@ -5,7 +5,7 @@
  * fixture and validates:
  *
  *   - Parent-dir mode exit code 0
- *   - 20 `.svg.json` files emitted into `svg_output/`
+ *   - 20 `.json` files emitted into `svg_output/`
  *   - stderr contains the diagnostic summary line `[animations] injected into ...`
  *
  * Also validates the D-02 single-SVG back-compat path: spawning the CLI with
@@ -78,10 +78,10 @@ describe('Plan 14-03 — CLI parent-dir shell-out (D-02 + ANIM-CLI-02)', () => {
       expect(result.status).toBe(0)
     })
 
-    it('emits 20 .svg.json files into svg_output/', () => {
+    it('emits 20 .json files into svg_output/', () => {
       if (!hasFixture || !hasBuiltCli || !result) return
       const svgOutputDir = join(FIXTURE_PATH, 'svg_output')
-      const files = readdirSync(svgOutputDir).filter(f => f.endsWith('.svg.json'))
+      const files = readdirSync(svgOutputDir).filter(f => f.endsWith('.json'))
       expect(files.length).toBe(20)
     })
 
@@ -104,9 +104,9 @@ describe('Plan 14-03 — CLI parent-dir shell-out (D-02 + ANIM-CLI-02)', () => {
       expect(result.stdout).not.toMatch(/\[animations\] injected into/)
     })
 
-    it('at least one .svg.json contains slide.animations (covered slides inject)', () => {
+    it('at least one .json contains slide.animations (covered slides inject)', () => {
       if (!hasFixture || !hasBuiltCli || !result) return
-      const slide0003 = join(FIXTURE_PATH, 'svg_output', '03_overview.svg.svg.json')
+      const slide0003 = join(FIXTURE_PATH, 'svg_output', '03_overview.json')
       const env = JSON.parse(readFileSync(slide0003, 'utf-8'))
       const slide = env.slides[0]
       expect(slide.id).toBe('03_overview')
@@ -135,7 +135,7 @@ describe('Plan 14-03 — CLI parent-dir shell-out (D-02 + ANIM-CLI-02)', () => {
       if (tempSvgPath) {
         try {
           rmSync(tempSvgPath, { force: true })
-          rmSync(tempSvgPath + '.json', { force: true })
+          rmSync(tempSvgPath.replace(/\.svg$/i, '.json'), { force: true })
           // also remove the parent tmp dir
           const parentDir = join(tempSvgPath, '..')
           rmSync(parentDir, { recursive: true, force: true })
@@ -148,14 +148,14 @@ describe('Plan 14-03 — CLI parent-dir shell-out (D-02 + ANIM-CLI-02)', () => {
       expect(result.status).toBe(0)
     })
 
-    it('writes <svg>.json next to the SVG', () => {
+    it('writes <basename>.json next to the SVG (no .svg infix)', () => {
       if (!hasFixture || !hasBuiltCli || !result || !tempSvgPath) return
-      expect(existsSync(tempSvgPath + '.json')).toBe(true)
+      expect(existsSync(tempSvgPath.replace(/\.svg$/i, '.json'))).toBe(true)
     })
 
     it('produced slide has NO animations field (single-SVG ignores sidecar)', () => {
       if (!hasFixture || !hasBuiltCli || !result || !tempSvgPath) return
-      const env = JSON.parse(readFileSync(tempSvgPath + '.json', 'utf-8'))
+      const env = JSON.parse(readFileSync(tempSvgPath.replace(/\.svg$/i, '.json'), 'utf-8'))
       const slide = env.slides[0]
       // convert() uses uuidv4() — single-SVG does NOT pin slide.id to filename.
       expect(typeof slide.id).toBe('string')
