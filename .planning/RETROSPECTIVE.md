@@ -229,4 +229,71 @@
 
 ---
 
-*Last updated: 2026-10-16 after v1.13 closeout (verified_closeout)*
+## Milestone: v1.14 — Replace nanoid with uuid
+
+**Shipped:** 2026-10-19 · **Archived:** 2026-10-29
+**Closeout type:** verified_closeout (16/16 must-haves, id-injection 8 it() + E2E 51 it() 全绿,644 passed / 13 pre-existing failures)
+**Phases:** 1 | **Plans:** 2 | **Tasks:** 0
+
+### What Was Built
+
+- `src/utils/id-generator.ts` 整文件改写 — 3 处 `nanoid(N)` → `uuidv4().substring(0, N)`(N ∈ {5, 10, 10}),三函数签名不变
+- `package.json` 移除 `nanoid` 直接依赖;`package-lock.json` 经 `npm install` 重生成
+- `src/id-injection.test.ts` — `NANOID_*_RE` → `UUID_SUFFIX_*_RE`,字符集 `[A-Za-z0-9_-]` → `[0-9a-f-]`,顶部 JSDoc + 8 个 it() title 同步
+- `tests/e2e/202610131101001.test.ts` 行 247 it title 同步,`length === 10` 断言保留
+- 横向同步 13 个文件 — 11 处 `src/` 注释(D-A1 #1-11)+ `.planning/` 6 个历史文档 + `PPTIST_ANIMATION_MAPPING.md`
+
+### What Worked
+
+- **tracer slice → 横向扩展两段式拆 plan**: 19-01 只碰 `src/utils/id-generator.ts` 一个文件,先证明 id 长度(5/10)与 D-05~09 优先级链行为等价,再在 19-02 铺开到 13 个文件 — 把"改实现"和"改措辞"的风险彻底分离
+- **机械可判定的成功标准**: 6 条成功标准中 4 条是 `grep` 0-match,verifier 无需人工目测即可判定;唯一需要人判断的(NU-04 hoisting)被单独标为 partial
+- **决策编号字面保留**: D-05 ~ D-09 / D-20 的编号与语义在迁移中原样保留,Phase 14 历史文档仍可追溯
+
+### What Was Inefficient
+
+- **`npm install` 的 hoisting 打断了 NU-04 的字面预期**: plan 期望顶层 `node_modules/nanoid` 块被移除,npm 因 `postcss@8.5.15` 的传递依赖把它重新 hoist 回顶层 — 手工删 block 后再 install 即可复现,最终 plan 显式接受该偏差
+- **plan 内部自相矛盾**: acceptance criteria `DOC_NANOID_EXIT=1` 要求整个 `.planning/` 0 match,而 Out of Scope 又声明 `.planning/codebase/{ARCHITECTURE,INTEGRATIONS,STACK}.md` 不动 — 产出 7 条需要逐条解释的"残留偏差"
+- **phase 路径名内嵌旧技术名**: `19-nanoid-to-uuid-migration` 目录名让 STATE.md 3 处、phase 自身 4 个文件永久保留 nanoid 字面,在不破坏 GSD 状态机追踪的前提下无法清除
+- **`summary-extract` 提取不到 one_liner**: 本项目 SUMMARY.md 用中文小节标题而非 `one_liner` frontmatter,`gsd_run query milestone.complete` 自动生成的 accomplishments 为空,MILESTONES.md 条目需人工补全
+
+### Patterns Established
+
+- **"实现"与"同步"分属两个 plan**: 迁移类任务的第一 plan 只碰实现文件并跑 tracer 验证,第二 plan 再铺开注释/文档同步层
+- **成功标准优先选机械可判定项**: 优先写 `grep` 0-match、长度断言、类型守卫这类无需人判断的标准,避免"措辞一致"类标准在 verifier 阶段产生歧义
+- **不可控的传递依赖属于计划内偏差**: npm hoisting 这类行为应在 plan 阶段就写明可接受,而不是留到执行期再解释
+
+### Key Lessons
+
+- **需求复选框必须随 closeout 同步勾选** — REQUIREMENTS.md 的 16 个 `[ ]` 若不更新,"16/16 covered" 就只存在于 VERIFICATION.md 里,归档后失去文件级证据
+- **不要在 plan 里承诺移除 transitive 依赖块** — npm hoisting 是默认行为,承诺它必然产生一条 partial requirement
+- **归档会改变旧文件的相对路径** — 归档文件内的自引用必须改指向 `.planning/milestones/vX.Y-phases/`,否则留下死链
+
+### Cost Observations
+
+- 交付范围:2 plans / 2 个 feat commit(`ffe82bf`、`42fbcb2`)/ 26 files changed / +1,701 −203 行
+- 实际代码改动集中在 1 个源文件 + 1 个测试文件 + 2 个 package 文件;其余 13 个文件为注释与文档同步
+- 全套测试 644 passed / 13 failed,13 个全部是 v1.9 carry-over(shadow / shape-rx / image-outline / path-merge),`git stash` 对照确认 Phase 19 未引入新回归
+
+---
+
+## Cross-Milestone Trends (updated)
+
+| Metric | v1.9 | v1.10 | v1.11 | v1.12 | v1.13 | v1.14 |
+|---|---|---|---|---|---|---|
+| Phases | 1 | 1 | 1 | 1 | 1 | 1 |
+| Plans | 3 | 2 | 3 | 4 | 4 | 2 |
+| Feat+test commits | 9 + 2 post-ship | 2 plans + 2 post-ship | 3 + 1 post-ship | 4 | 4 + 1 fix | 2 |
+| Tests passing | 116 | 116 + post-ship | 22 + 9 (override) | 76 | 50 + 76 regression | 8 + 51 E2E(全套 644) |
+| Closeout type | override_closeout | verified_closeout | override_closeout | verified_closeout | verified_closeout | verified_closeout |
+| Open debug sessions carried | 30 ack | 30 ack (carried) | 30 ack (carried) | 30 ack (carried) | 30 ack (carried) | 30 ack (carried) |
+
+### v1.14 Trends
+
+- **连续第二个 verified_closeout(v1.13 之后)**: v1.11 的 override 缺口(v1.11.1 single-line 漏注入)此后未复现,连续 3 个 milestone 保持 verified
+- **纯迁移 milestone 的测试成本最低**: 与 v1.13 的 50 个新测试不同,v1.14 只新增 8 个 id-injection 断言 + 复用既有 51 个 E2E,靠 tracer 等价性证明行为不变
+- **横向同步成本随历史文档量增长**: v1.14 需要同步的 `.planning/` 历史文档增至 6 个(14-RESEARCH / 14-01-PLAN / 14-01-SUMMARY / CONVENTIONS / STATE / PPTIST_ANIMATION_MAPPING),说明技术名一旦进入历史文档,后续迁移的尾部成本会持续累积
+- **技术债台账稳定在 30 项**: v1.8 起累计的 29 debug session + 1 verification gap 四个 milestone 未动,v1.14 是纯内部迁移,未增加也未减少 — 收敛这些 carry-over 需要独立 milestone
+
+---
+
+*Last updated: 2026-10-29 after v1.14 closeout (verified_closeout)*
