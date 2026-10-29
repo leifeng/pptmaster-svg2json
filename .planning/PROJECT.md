@@ -2,11 +2,11 @@
 
 ## What This Is
 
-A TypeScript library that converts SVG files into PowerPoint element JSON format. Given an SVG string, it parses the XML, maps coordinates to a 1000×562.5 canvas, transforms SVG shapes/text/images into PPTElement objects, and outputs JSON.
+A TypeScript library that converts SVG files into PowerPoint element JSON format. Given an SVG string, it parses the XML, maps coordinates to a 1000×562.5 canvas, transforms SVG shapes/text/images into PPTElement objects, and outputs JSON. Since v1.9 it also reads a sibling `animations.json` sidecar and emits PPTist-compatible animation, template-marking, content-key and page-data annotations alongside the geometry.
 
 ## Core Value
 
-Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, transform, and style maps correctly to the target canvas.
+Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, transform, and style maps correctly to the target canvas, while preserving the downstream-required semantic annotations (animations, template markers, content slots, page data).
 
 ## Requirements
 
@@ -70,15 +70,11 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 - ✓ **PD-13 / PD-14**: 0-hit slide 整字段省略 + 非 PPTTextElement 类型守卫 — v1.13
 - ✓ **PD-15 / PD-16**: 不动 v1.12 映射表 + `PPTBaseElement.textContent?: string` 互锁写入 — v1.13
 - ✓ **PD-E2E-01 ~ PD-E2E-04**: 5 fixture E2E + directory 数组验证 + 反向白名单 + 76 v1.12 测试零回归 — v1.13
+- ✓ **NU-01 ~ NU-06 (v1.14 摘要级)**: `src/utils/id-generator.ts` 的 `nanoid/non-secure` → `uuid` 的 `v4`(`uuidv4().substring(0,5)` / `substring(0,10)`);`package.json` 删除 `nanoid` 直接依赖;`src/id-injection.test.ts` 正则改用 uuid 字符集(`UUID_SUFFIX_*_RE`);E2E `length===10` 断言保持;`.planning/` 历史文档 + `PPTIST_ANIMATION_MAPPING.md` 提及同步;`npm install` 重生成 lock — v1.14 _(详细 16 条见 `.planning/milestones/v1.14-REQUIREMENTS.md` 的 NU-01..NU-16)_
 
 ### Active
 
-- [ ] **NU-01**: `src/utils/id-generator.ts` 的 `nanoid/non-secure` import 替换为 `uuid` 的 `v4`(uuidv4().substring(0,5) / substring(0,10)) — v1.14
-- [ ] **NU-02**: `package.json` 删除 `nanoid` 直接依赖;`uuid` 已在 dependencies 保留 — v1.14
-- [ ] **NU-03**: `src/id-injection.test.ts` 测试断言正则更新为 uuid 字符集(移除 `nanoid` 命名,改用 `UUID_SUFFIX_*_RE`)— v1.14
-- [ ] **NU-04**: `tests/e2e/202610131101001.test.ts` 的 `length===10` 断言保持(substring(0,10) 仍是 10 字符)— v1.14
-- [ ] **NU-05**: `.planning/codebase/CONVENTIONS.md`、`STATE.md`、v1.9 milestones/14-*.md、`PPTIST_ANIMATION_MAPPING.md` 同步更新 nanoid → uuid 提及 — v1.14
-- [ ] **NU-06**: 重跑 `npm install` 重生成 `package-lock.json`(移除 nanoid 块,保留 transitive)— v1.14
+(None — 下一个 milestone 的需求由 `/gsd-new-milestone` 定义)
 
 ### Out of Scope
 
@@ -88,19 +84,26 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 - 运行 PPTist 播放验证 — 转换器只生成 JSON，播放由 PPTist 端负责
 - 集成 GSAP / anime.js 处理 motion path — 保留 `extensions.originalEffect` 即可，path_* 不做运行时播放
 - 处理三方 sound 资源 — PPTist 不支持音频动画，sound 字段丢弃并写入 extensions
+- 改变 PPTElement.id 后缀长度 — v1.14 用户明确指示保持 5/10 字符(D-07/D-20 设计意图),改 8/12 会破坏 PPTist 编辑器 diff 友好性
+- 引入其他 ID 策略(ulid / ksuid 等)— v1.14 用户明确指定 uuid,范围限于 nanoid → uuid 单向替换
+- 移除 `node_modules/nanoid` 的 postcss 传递依赖 — transitive 由 postcss 自身维护,v1.14 只动直接依赖
 
 ## Context
 
-**Existing library** — svg-to-pptel v1.8, published as npm package.
+**Existing library** — svg-to-pptel, published as npm package (`svg-to-pptel@1.0.0`;GSD 里程碑版本与 npm 版本号独立维护).
 
-**Current state** — v1.13 milestone SHIPPED 2026-10-16 (verified_closeout — 20/20 must-haves passed, 50 Phase 18 tests + 76 v1.12 regression tests green). 后续 milestone 等待 `/gsd-new-milestone` 启动。
+**Current state** — v1.14 milestone SHIPPED 2026-10-19 / archived 2026-10-29 (verified_closeout — 16/16 must-haves passed, id-injection 8 it() + E2E 51 it() 全绿,644 passed / 13 pre-existing failures 无新增回归)。后续 milestone 等待 `/gsd-new-milestone` 启动。
 
 **Target canvas** — 1000×562.5 (16:9 aspect ratio).
+
+**Codebase size** — 35 个 `src/**/*.ts` 文件,约 12,600 行 TypeScript(strict mode, CommonJS)。
 
 **Tech stack:** TypeScript strict mode, CommonJS, fast-xml-parser, cac, picocolors, uuid, @resvg/resvg-js _(v1.14: nanoid 已删除)_
 
 **Three-party spec source:** `E:\git\ppt-master\docs\animations.md` (52 transition + 203 effect keys)
 **Sidecar instance data:** `E:\git\svg2json\exampels\202610131101001\animations.json` (13 slide overrides)
+
+**Known tech debt carried forward** — 29 debug sessions + 1 verification gap 仍处于 acknowledged 状态(自 v1.8/v1.9 close 延续),另有 13 个 pre-existing 测试失败(shadow / shape-rx / image-outline / path-merge)。明细见 `.planning/STATE.md` 的 `## Deferred Items`。
 
 ## Constraints
 
@@ -147,8 +150,12 @@ Accurately convert SVG visual elements to PowerPoint JSON — every coordinate, 
 | v1.11: convertOne 内 `findContentBounds()` DFS | 不动 `transformToPPTElement()` 签名 → 所有现有调用点/单元测试零回归 | ✓ Complete |
 | v1.11: 严格 `/\\s+/` 解析 `data-pptx-bounds` | `Number()` + `Number.isNaN` 三重过滤拒绝 "98abc" 前缀解析泄漏 | ✓ Complete |
 | v1.11: `Object.keys(slide)` 字段缺失断言 | 比 `slide.contentBounds === undefined` 更贴近 TPL-CB-03 "字段直接省略"字面要求 | ✓ Complete |
-| v1.14: nanoid → uuid 截取保持 5/10 字符 | D-07/D-20 设计意图是保持与 PPTist 编辑面板 10 字符 diff 友好性;用 uuidv4().substring(0,5) / substring(0,10) 保持后缀长度不变,语义不破坏 | — Pending |
-| v1.14: 同步更新 .planning/ 历史 nanoid 提及 | 用户明确指示"同步更新所有提及";v1.9 milestones/14-*.md、STATE.md ANIM-DEC-02 等决策记录一并更新,保留 git 历史与文档一致 | — Pending |
+| v1.14: nanoid → uuid 截取保持 5/10 字符 | D-07/D-20 设计意图是保持与 PPTist 编辑面板 10 字符 diff 友好性;用 uuidv4().substring(0,5) / substring(0,10) 保持后缀长度不变,语义不破坏 | ✓ Complete |
+| v1.14: 同步更新 .planning/ 历史 nanoid 提及 | 用户明确指示"同步更新所有提及";v1.9 milestones/14-*.md、STATE.md ANIM-DEC-02 等决策记录一并更新,保留 git 历史与文档一致 | ✓ Complete |
+| v1.14: `uuidv4().substring(0, N)` 而非完整 UUID | 完整 UUID 32 字符会破坏 D-07/D-20 锁定的 5/10 字符后缀长度;截取是唯一既换实现又保长度的方案 | ✓ Complete |
+| v1.14: ID 正则字符集精确化 `[A-Za-z0-9_-]` → `[0-9a-f-]` | nanoid 字符集过宽,无法约束生成逻辑;uuid 输出确定,精确化后可捕获 `substring` 边界回归 | ✓ Complete |
+| v1.14: D-A1 注释横向同步 11 处 + 6 个历史文档 | 用户明确要求"同步更新所有提及";源码注释与决策文档保持一致,避免下一个人按旧措辞改回 nanoid | ✓ Complete |
+| v1.14: 允许 `node_modules/nanoid` transitive 保留 | npm 自动 hoist postcss 的传递依赖;只移除项目直接依赖,transitive 由 postcss 维护 | ✓ Complete (偏差已接受) |
 
 ## Evolution
 
@@ -162,21 +169,30 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: v1.14 Replace nanoid with uuid
+## Current Milestone: (待定)
 
-**Goal:** 把代码与依赖中的 nanoid 全部替换为 uuid,保持 PPTElement.id 后缀长度 5/10 字符不变,与 PPTist 编辑器 diff 友好性兼容;同步更新所有 `.planning/` 历史文档中的 nanoid 提及。
+**Status:** v1.14 已 SHIPPED 并归档,等待 `/gsd-new-milestone` 启动下一个 milestone(质疑 → 研究 → 需求 → 路线图)。
 
-**Target features:**
-- `src/utils/id-generator.ts` 改用 `uuidv4().substring(0,5)` 与 `uuidv4().substring(0,10)` 替换 `nanoid(5)` / `nanoid(10)`
-- `package.json` 移除 `nanoid` 直接依赖,`uuid` 已在 dependencies 中保留
-- `package-lock.json` 重生成(移除 nanoid 块,保留 postcss 等 transitive 间接引用)
-- `src/id-injection.test.ts` 测试断言正则改用 uuid 字符集(hex + `-`,非 nanoid `[A-Za-z0-9_-]`)
-- `tests/e2e/202610131101001.test.ts` `length===10` 断言保持(uuidv4().substring(0,10) 仍是 10 字符)
-- `.planning/codebase/CONVENTIONS.md`、`STATE.md`、v1.9 milestones/14-*.md、`PPTIST_ANIMATION_MAPPING.md` 同步更新提及
+**Next milestone candidate themes (来自已知技术债,尚未决策):**
+- 29 个 acknowledged debug session 的收敛(shadow / shape-rx / image-outline / path-merge 等 13 个 pre-existing 测试失败)
+- 13 个 pre-existing 测试失败的根因修复
+- PPTist 端对 uuid 后缀 id 的实际兼容性验证(目前仅由 Phase 14 既有测试间接覆盖)
 
 ---
 
 ## Previous Milestones
+
+### v1.14 — Replace nanoid with uuid (2026-10-19)
+
+**Closeout type:** verified_closeout — 19-VERIFICATION.md 16/16 must-haves passed;id-injection 8 it() + E2E 51 it() 全绿,644 passed / 13 failed(pre-existing carry-over,无新增回归);30 项 acknowledged 技术债从 v1.8/v1.9 延续至今。
+
+- `src/utils/id-generator.ts` 三处 `nanoid(N)` → `uuidv4().substring(0, N)`(N ∈ {5, 10, 10}),三函数签名不变
+- `package.json` 移除 `nanoid` 直接依赖(`uuid` v14 + `@types/uuid` v10 保留,未新增依赖)
+- `src/id-injection.test.ts` `NANOID_*_RE` → `UUID_SUFFIX_*_RE`,字符集精确化到 `[0-9a-f-]`
+- 横向同步 13 个文件:6 处 `src/` 注释 + `.planning/` 6 个历史文档 + `PPTIST_ANIMATION_MAPPING.md`
+- 唯一偏差 NU-04:npm 自动 hoist postcss 的传递依赖 `nanoid` 到顶层,plan 已声明允许
+
+**归档:** `.planning/milestones/v1.14-ROADMAP.md` / `.planning/milestones/v1.14-REQUIREMENTS.md` / `.planning/milestones/v1.14-phases/`
 
 ### v1.13 — Page Data Extraction (2026-10-16)
 
@@ -293,4 +309,4 @@ Research confirmed all target PPTist schema properties already implemented or de
 
 ---
 
-*Last updated: 2026-10-19 after v1.14 milestone kickoff (Replace nanoid with uuid, scope locked: 6 NU-* requirements, single phase)*
+*Last updated: 2026-10-29 after v1.14 milestone completion (Replace nanoid with uuid — shipped 2026-10-19, archived 2026-10-29, verified_closeout)*

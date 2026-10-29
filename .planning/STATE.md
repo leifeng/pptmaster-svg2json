@@ -1,20 +1,20 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.14
-current_phase: 19
-current_phase_name: nanoid-to-uuid-migration
-status: complete
+status: Awaiting next milestone
 stopped_at: Phase 19 verified and shipped
-last_updated: "2026-10-19T11:40:00.000Z"
-last_activity: 2026-10-19
-last_activity_desc: Phase 19 verified_closeout — 16/16 NU-* covered, 2/2 plans shipped
-state_head: 885dd2c
+last_updated: "2026-10-29T07:13:42.837Z"
+last_activity: 2026-10-29
+last_activity_desc: Milestone v1.14 completed and archived
+state_head: 7291adb3e526eb249c6d3ed3cb45e2b4e917f63a
 progress:
   total_phases: 1
   completed_phases: 1
   total_plans: 2
   completed_plans: 2
 milestone_name: Replace nanoid with uuid
+current_phase: 19
+current_phase_name: nanoid-to-uuid-migration
 ---
 
 ## Deferred Items
@@ -60,10 +60,10 @@ Closeout type: **override_closeout** (28 v1.x-carried debug sessions + 1 v1.10 p
 
 ## Current Position
 
-Phase: 19 (nanoid-to-uuid-migration) — SHIPPED ✓
-Plan: 19-01 ✓ 19-02 ✓
-Status: Verified closeout — 16/16 NU-* covered, 2/2 plans complete
-Last activity: 2026-10-19 — Phase 19 verified_closeout (commit 885dd2c)
+Phase: Milestone v1.14 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-10-29 — Milestone v1.14 completed and archived
 
 ## Project Reference
 

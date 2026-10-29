@@ -1,5 +1,25 @@
 # Milestones
 
+## v1.14 Replace nanoid with uuid (Shipped: 2026-10-29)
+
+**Phases completed:** 1 phases, 2 plans, 0 tasks
+**Closeout type:** verified_closeout — 19-VERIFICATION.md 16/16 must-haves passed
+**Verified / archived:** shipped 2026-10-19 · archived 2026-10-29
+**Git range:** `366abf3` (docs: start milestone v1.14) → `7291adb` (docs(19): fix covered_digest)
+**Requirements:** NU-01..NU-16 — 16/16 covered (15 fully satisfied, NU-04 partial by accepted npm-hoisting deviation)
+
+**Key accomplishments:**
+- `src/utils/id-generator.ts` 三处 `nanoid(N)` → `uuidv4().substring(0, N)`(N ∈ {5, 10, 10});`pptelIdWithFallback` / `pptelIdUngrouped` / `pptAnimationId` 三函数签名不变,PPTElement.id 后缀长度严格保持 5/10 字符,D-05~09 id priority chain 语义不变
+- `package.json` 移除 `nanoid` 直接依赖 — `grep -n "nanoid" package.json` 0 match;`uuid` v14 与 `@types/uuid` v10 保留,未新增任何依赖
+- `src/id-injection.test.ts` 正则常量 `NANOID_5_RE`/`NANOID_10_RE` → `UUID_SUFFIX_5_RE`/`UUID_SUFFIX_10_RE`,字符集从 `[A-Za-z0-9_-]` 精确化到 `[0-9a-f-]`,8 个 it() 全绿
+- 横向同步 13 个文件 — 6 处 `src/` 注释(animation-injector / path-merge / transform-to-pptel)+ `.planning/` 6 个历史文档(CONVENTIONS.md / STATE.md / v1.9 14-*.md)+ `PPTIST_ANIMATION_MAPPING.md`,nanoid 字面 0 残留(Out of Scope 文件按 plan 保留)
+- 验证 16/16 must-haves passed — id-injection 8 it() + E2E 51 it() 全绿(`length === 10` 断言保留),全套 644 passed / 13 failed(13 个均为 v1.9 carry-over 已知失败,未引入新回归)
+- 唯一偏差 NU-04:`npm install` 后 npm 自动 hoist `postcss@8.5.15` 的传递依赖 `nanoid@3.3.20` 到顶层,`node_modules/nanoid` 块无法移除 — plan 已显式声明允许 transitive 保留,不影响直接依赖已删除
+
+**Known verification overrides:** 0 newly acknowledged, 30 carried forward from a prior close (see STATE.md Deferred Items)
+
+---
+
 ## v1.13 Page Data Extraction (Shipped: 2026-10-16)
 
 **Phases completed:** 1 phases, 4 plans, 7 tasks
