@@ -19,7 +19,7 @@ current_phase_name: nanoid-to-uuid-migration
 
 ## Deferred Items
 
-_Updated: 2026-10-15 during v1.9 closeout (30 items newly acknowledged via `audit-open acknowledge`)_
+_Updated: 2026-10-15 during v1.9 closeout (30 items newly acknowledged via `audit-open acknowledge`);carried forward unchanged through v1.10 / v1.11 / v1.12 / v1.13 / v1.14 closeouts (0 newly acknowledged at v1.14 close, 2026-10-29)_
 
 | # | Category | Identifier | Status at acknowledge | Origin |
 |---:|---|---|---|---|
@@ -56,6 +56,8 @@ _Updated: 2026-10-15 during v1.9 closeout (30 items newly acknowledged via `audi
 
 Closeout type: **override_closeout** (28 v1.x-carried debug sessions + 1 v1.10 post-ship debug session + 1 v1.8 verification gap — all acknowledged as known tech debt, none blocking v1.9 completion).
 
+**v1.14 closeout type: verified_closeout** — audit clean(0 newly open items);the 30 items above remain suppressed from the v1.9 close and were **carried forward, not re-fixed** (see `Known verification overrides` in `.planning/MILESTONES.md`).
+
 ## Project State
 
 ## Current Position
@@ -67,14 +69,25 @@ Last activity: 2026-10-29 — Milestone v1.14 completed and archived
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-10-16)
+See: `.planning/PROJECT.md` (updated 2026-10-29)
 
-**Core value:** Accurately convert SVG visual elements to PowerPoint JSON with correct coordinates, transforms, and styles — preserving downstream-required semantic annotations (animations, template markers, content slots).
-**Current focus:** Phase 18 — page-data-extraction
+**Core value:** Accurately convert SVG visual elements to PowerPoint JSON with correct coordinates, transforms, and styles — preserving downstream-required semantic annotations (animations, template markers, content slots, page data).
+**Current focus:** Awaiting `/gsd-new-milestone` — 下一个 milestone 尚未定义
 
 ## Accumulated Context
 
-### Decisions (v1.13 kickoff — Phase 18 planned)
+### Decisions (v1.14 kickoff — Phase 19 SHIPPED)
+
+- **NU-DEC-01**: id 生成改用 `uuidv4().substring(0, N)`(N ∈ {5, 10, 10})而非完整 UUID — D-07 / D-20 锁定 PPTist 编辑面板 5/10 字符 diff 友好性,长度不变是硬约束
+- **NU-DEC-02**: 三函数签名 `pptelIdWithFallback` / `pptelIdUngrouped` / `pptAnimationId` 完全不变,只换底层实现 — 不动所有调用点与既有测试
+- **NU-DEC-03**: ID 正则字符集精确化 `[A-Za-z0-9_-]` → `[0-9a-f-]`(CD-2) — nanoid 字符集过宽无法约束生成逻辑,uuid 输出确定
+- **NU-DEC-04**: D-A1 横向注释同步 11 处(`src/` 6 处 + JSDoc 5 处)+ `.planning/` 6 个历史文档 + `PPTIST_ANIMATION_MAPPING.md` — 用户明确要求"同步更新所有提及"
+- **NU-DEC-05**: D-05 ~ D-09 / D-20 决策编号字面保留 — 迁移不改语义,Phase 14 历史可追溯
+- **NU-DEC-06**: NU-04 偏差接受 — npm 自动 hoist `postcss` 传递依赖 `nanoid` 到顶层,plan 已声明允许;只移除项目直接依赖
+
+完整决策见 `.planning/milestones/v1.14-phases/19-nanoid-to-uuid-migration/19-CONTEXT.md`。
+
+### Decisions (v1.13 kickoff — Phase 18 SHIPPED)
 
 - **PD-DEC-01**: `textContent` 字段窄范围 — 仅当 PPTTextElement 命中 v1.12 已实现 17 个 contentKey (34 entries) 时写入。互锁写入(contentKey ⇔ textContent)— D-01..D-03
 - **PD-DEC-02**: 数据聚合走 `buildPageData(elements)` 纯函数,在 `convertOne()` 末尾调用,返回 undefined 时 pageData 整字段省略 — D-09 / D-15
@@ -83,7 +96,7 @@ See: `.planning/PROJECT.md` (updated 2026-10-16)
 - **PD-DEC-05**: One-way / costly 决策:D-06 同 N 多 desc first-wins(不可逆)+ D-07 title first-wins(costly)+ D-08 子集发射(field omission)+ D-09 整字段省略 + D-10 number 不进
 - **PD-DEC-06**: 测试策略(四类全覆盖)— D-18 + D-19 + D-20;详见各 PLAN.md 文件
 
-完整 20 个 D-* 决策 + 5 个 Claude's Discretion 默认见 `.planning/phases/18-page-data-extraction/18-CONTEXT.md`。
+完整 20 个 D-* 决策 + 5 个 Claude's Discretion 默认见 `.planning/milestones/v1.13-phases/18-page-data-extraction/18-CONTEXT.md`。
 
 ### Override Decisions
 
@@ -123,21 +136,28 @@ See: `.planning/PROJECT.md` (updated 2026-10-16)
 
 ### Blockers/Concerns
 
-(None — v1.12 kickoff clean; v1.11 templateType 注入点已就位可直接复用)
+(None blocking — v1.14 closeout clean.)
+
+Open tech debt carried into the next milestone:
+- 30 项 acknowledged artifact(29 debug session + 1 verification gap)自 v1.8/v1.9 延续至今,连续 5 个 milestone 未动
+- 13 个 pre-existing 测试失败(shadow 7 / shape-rx 3 / image-outline 1 / path-merge 1 / 另 1)— v1.14 未引入新回归(`git stash` 对照基线一致)
+- PPTist 端对 uuid 后缀 id 的实际兼容性未做端到端验证(目前仅由 Phase 14 既有 76 个测试间接覆盖)
 
 ### Quick Tasks Completed
 
-(None yet for v1.12 — Phase 17 plans TBD)
+2 个 v1.7 时期(2026-07-23)的 quick task 仍留在 `.planning/quick/`,**未**归档进 v1.14(归属 milestone 不符,`milestone complete` 已知限制):
+- `260723-gqv-text-json-top-svg-text-text-anchor-middl` — text-anchor="middle" 时 top 偏移补偿
+- `260723-he6-constants-to-single-file` — 常量集中到 `src/constants.ts`
 
 ---
 
-*State last updated: 2026-10-16 after v1.13 Phase 18 plan-phase completion (4 plans / 4 waves / 7 tasks planned; D-18 override recorded above)*
+*State last updated: 2026-10-29 after v1.14 milestone closeout (verified_closeout — 16/16 NU-* covered, 2/2 plans shipped, archived to `.planning/milestones/v1.14-*`)*
 
 ## Session
 
-**Last session:** 2026-10-19T03:02:40.148Z
-**Stopped at:** Phase 19 context gathered
-**Resume file:** .planning/phases/19-nanoid-to-uuid-migration/19-CONTEXT.md
+**Last session:** 2026-10-29T07:13:42.837Z
+**Stopped at:** Milestone v1.14 completed and archived
+**Resume file:** .planning/milestones/v1.14-phases/19-nanoid-to-uuid-migration/19-VERIFICATION.md
 
 ## Operator Next Steps
 
