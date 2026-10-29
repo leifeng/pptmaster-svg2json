@@ -22,7 +22,7 @@ covered_files:
   - .planning/milestones/v1.9-phases/14-pptist-animation-from-sidecar/14-01-PLAN.md
   - .planning/milestones/v1.9-phases/14-pptist-animation-from-sidecar/14-01-SUMMARY.md
   - PPTIST_ANIMATION_MAPPING.md
-covered_digest: v3:sha256:phase19-nanoid-to-uuid-complete
+covered_digest: v4:sha256:9a6f966b795d09d2a669a76dfa75885b37f0e89298941f74553c4bd196c58181
 ---
 
 # Phase 19: nanoid-to-uuid-migration Verification Report
